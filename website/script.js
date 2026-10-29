@@ -55,19 +55,15 @@ if (radio) {
   });
 }
 
-// Copies a screen's commands without the prompts, which are drawn and not typed.
+// Copies the install's one line, on its Copy button or a press on the line itself, which looks
+// like something to type into and is not.
 for (const button of document.querySelectorAll("[data-copy]")) {
   if (!navigator.clipboard) break;
-  const code = button.closest(".hud").querySelector("code");
+  const code = button.parentElement.querySelector("code");
+  code.addEventListener("click", () => button.click());
   button.addEventListener("click", async () => {
-    const lines = [...code.childNodes]
-      .filter(
-        (node) => !node.classList?.contains("hud__prompt") && !node.classList?.contains("caret"),
-      )
-      .map((node) => node.textContent)
-      .join("");
     try {
-      await navigator.clipboard.writeText(lines.trim());
+      await navigator.clipboard.writeText(code.textContent.trim());
       button.textContent = "Copied";
       button.classList.add("is-done");
     } catch {

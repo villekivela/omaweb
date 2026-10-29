@@ -240,20 +240,8 @@ a {
   color: var(--accent);
 }
 
-/* The radio's button: three level bars, still while the radio is off and moving while it plays.
-   The landing page has it on the Omnibar's hints, beside the theme, and the release pages, which
-   have no Omnibar, in the header. */
-body:has(.omnibar) .nav .radio-toggle {
-  display: none;
-}
-
-.omnibar__hints .radio-toggle {
-  margin-left: auto;
-}
-
-.omnibar__hints .radio-toggle:not([hidden]) + .themes {
-  margin-left: 0;
-}
+/* The radio's button, in the header: three level bars, still while the radio is off and moving
+   while it plays. */
 .radio-toggle:not([hidden]) {
   display: inline-flex;
   align-items: center;
@@ -315,94 +303,12 @@ body:has(.omnibar) .nav .radio-toggle {
   font-size: 12px;
 }
 
-/* Screens */
-
-/* A terminal: the Omnibar's plate and edge around a plain dark field, so a command reads as one to
-   copy rather than as part of the road. */
-.hud {
-  min-width: 0;
-  margin: 0;
-  padding: 6px;
-  border: 1px solid var(--edge);
-  border-radius: 3px;
-  background: var(--plate);
-}
-
-.hud__bar {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 6px 10px 10px;
-  color: var(--dim);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.hud__meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.hud__bar span:last-child {
-  color: color-mix(in srgb, var(--fg) 50%, transparent);
-  text-transform: none;
-  letter-spacing: 0.02em;
-}
-
-.hud__screen {
-  overflow: hidden;
-  border-radius: 2px;
-  background: color-mix(in srgb, var(--bg) 55%, #000);
-}
-
-.hud pre {
-  margin: 0;
-  padding: 20px 22px;
-  overflow-x: auto;
-  color: var(--fg);
-  font: 400 14px/1.9 var(--mono);
-}
-
 /* A command or a path in running text. The page is set in a monospace face, so a command needs a
    ground of its own to stand apart from the words around it. */
 p code {
   padding: 0.1em 0.35em;
   border-radius: 2px;
   background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--fg);
-}
-
-.hud__prompt {
-  color: var(--accent);
-}
-
-.hud mark {
-  padding: 0 0.2em;
-  border-radius: 2px;
-  background: color-mix(in srgb, var(--accent) 25%, transparent);
-  color: var(--fg);
-}
-
-.hud__copy:not([hidden]) {
-  padding: 2px 9px;
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  border-radius: 3px;
-  background: var(--bg);
-  color: var(--dim);
-  font: 600 11px var(--mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition:
-    color 0.15s,
-    border-color 0.15s;
-}
-
-.hud__copy:hover,
-.hud__copy.is-done {
-  border-color: var(--accent);
   color: var(--fg);
 }
 
@@ -505,10 +411,12 @@ body:has(.drive) > .top {
   font-size: clamp(32px, min(4.6vw, 7svh), 64px);
 }
 
-/* The Omnibar resting on the horizon, and the way in a short step under it. `--horizon` is how far
-   below the Omnibar's top edge the horizon, and the sun's centre on it, lies. */
+/* The Omnibar on the road just under the horizon, the whole sun above it, and the way in a short
+   step under it. `--horizon` is how far below the Omnibar's top edge the horizon, and the sun's
+   centre on it, lies: above it, here. The install's Omnibar, at the end of the drive, rests in the
+   same place. */
 .start__deck {
-  --horizon: 50px;
+  --horizon: -20px;
   position: absolute;
   inset: calc(50svh - var(--horizon)) 0 auto;
   display: flex;
@@ -638,15 +546,54 @@ body:has(.drive) > .top {
   color: var(--fg);
 }
 
-.omnibar__hints {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 18px;
-  padding: 8px 16px;
-  border-top: 1px solid var(--rule);
-  color: var(--dim);
-  font-size: 11px;
+/* With the script, the rows show once the reader types: the Omnibar at rest is the field alone. */
+.omnibar[data-quiet] .omnibar__rows {
+  display: none;
+}
+
+.omnibar[data-quiet] .omnibar__field {
+  border-bottom: 0;
+}
+
+/* Ignite, at the field's end where the page is a drive: a round play button in the accent, its
+   ring pulsing outward while it waits to be pressed. */
+.omnibar__ignite:not([hidden]) {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-right: -8px;
+  padding: 0;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--bg);
+  cursor: pointer;
+  animation: ignite-waits 2.2s ease-out infinite;
+  transition: transform 0.15s;
+}
+
+.omnibar__ignite svg {
+  width: 20px;
+  height: 20px;
+  margin-left: 2px;
+  fill: currentColor;
+}
+
+.omnibar__ignite:hover {
+  transform: scale(1.1);
+}
+
+@keyframes ignite-waits {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+
+  70%,
+  to {
+    box-shadow: 0 0 0 12px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
 }
 
 /* The way in spans the Omnibar's width: the install on its left edge and the lede filling the rest
@@ -690,13 +637,16 @@ body:has(.drive) > .top {
   color: var(--accent);
 }
 
-/* The theme picker, in the Omnibar's hints: each swatch is a small square of its own theme's
-   accent, inside a larger target, and the chosen one is ringed. */
+/* The theme picker, on the theme card: each swatch is a small square of its own theme's accent,
+   inside a larger target, and the chosen one is ringed. */
 .themes:not([hidden]) {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  margin-left: auto;
+  gap: 8px 10px;
+  margin: 12px 10px 0;
+  color: var(--dim);
+  font-size: 12px;
 }
 
 .themes__name {
@@ -961,6 +911,13 @@ body:has(.drive) > .top {
   background: #000;
 }
 
+/* A rule between a card's capture and the words that explain it. */
+.card .card__shot + h2 {
+  margin-top: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--edge);
+}
+
 .card__shot img {
   position: absolute;
   top: calc(-100% * var(--y) / (var(--w) * 0.5625));
@@ -1044,46 +1001,73 @@ body:has(.drive) > .top {
   align-self: start;
 }
 
+/* The install's title is the road's last word, standing on it as the Start page's does over the
+   Omnibar, and the one line on its plate under it. */
 .install {
-  margin-top: 10px;
-  padding: 16px 18px;
+  margin-top: 48px;
 }
 
-.install h2 {
-  margin: 0 0 10px;
-  font-size: 22px;
+.install .install__title {
+  margin: 0 0 24px;
+  font-size: clamp(32px, min(4.6vw, 7svh), 64px);
+  text-align: center;
+}
+
+/* The Omnibar the road ends on: the Start page's, its field holding the one line to copy. */
+.install .install__bar {
+  margin: 0 auto;
+}
+
+.install__command {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg);
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: copy;
+  user-select: all;
+}
+
+.install__copy:not([hidden]) {
+  flex: none;
+  padding: 4px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 3px;
+  background: none;
+  color: var(--accent);
+  font: 600 11px var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.install__copy:hover,
+.install__copy.is-done {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* And under it, as the Start page's way in sits under its Omnibar. */
+.install .install__lede {
+  width: fit-content;
+  max-width: min(100% - 32px, 720px);
+  margin: 14px auto 0;
+  padding: 7px 12px;
+  background: color-mix(in srgb, var(--plate) 80%, transparent);
+  backdrop-filter: blur(14px);
+  color: var(--fg);
+  font-size: 13px;
+  text-align: center;
 }
 
 .install p {
   margin: 12px 0 0;
   color: var(--dim);
-}
-
-.install .hud {
-  margin-top: 12px;
-}
-
-/* The manual steps, behind a summary that reads as the section's other links. The marker is the
-   browser's own, so it turns with the open state without a script. */
-.install__manual {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--rule);
-}
-
-.install__manual summary {
-  width: fit-content;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.install__manual summary:hover {
-  color: var(--accent);
-}
-
-.install__notes {
-  padding-top: 12px;
-  border-top: 1px solid var(--rule);
 }
 
 /* Every key hint is the same keycap: one size wherever it stands, a key to a cap, with a deeper
@@ -1486,6 +1470,230 @@ kbd {
   margin-top: 36px;
 }
 
+/* The drive: on a wide screen that allows motion, the page is a road (highway.js). The page's
+   height is a track for the scroll with a snap at each stop, and each stop is a layer over the road
+   that drive.js places by the scroll: risen from the sun, read, then passed. */
+
+html.highway {
+  scroll-snap-type: y proximity;
+}
+
+.highway__track {
+  position: relative;
+}
+
+.highway__track i {
+  position: absolute;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  scroll-snap-align: start;
+}
+
+/* The road stands clear, and the header stays in view with Radio, the ignition, in it. */
+.highway .drive__scrim {
+  display: none;
+}
+
+.highway body:has(.drive) > .top {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 200;
+}
+
+.highway .highway__stop {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  margin: 0;
+  transform: translate(-50%, calc(-50% + var(--stop-drop, 0px))) scale(var(--stop-scale, 1));
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.highway .highway__stop[data-reading] {
+  pointer-events: auto;
+}
+
+.highway .start.highway__stop {
+  inset: 0;
+  height: 100svh;
+  transform: translateY(var(--stop-drop, 0px)) scale(var(--stop-scale, 1));
+}
+
+/* A card as large as the window allows with its words under its capture, the Agents card laid out
+   as the others, and the theme card, three captures across, a little wider for its picker. */
+.highway .card.highway__stop {
+  width: min(980px, 86vw, (100vh - 250px) * 1.45);
+}
+
+.highway #theme.highway__stop {
+  width: min(980px, 86vw, (100vh - 280px) * 1.9);
+}
+
+.highway .card--last {
+  display: block;
+}
+
+/* On the road the install stands as the Start page does: its title in the sky above the sun at
+   the Start page's title's place, and its Omnibar and line in the Start page's deck. The road's
+   light is set on the stop and falls on its Omnibar, so the stop places the sun for the rim, as the
+   deck does on the Start page. */
+.highway .install.highway__stop {
+  --horizon: -20px;
+  inset: 0;
+  width: auto;
+  height: 100svh;
+  transform: translateY(var(--stop-drop, 0px)) scale(var(--stop-scale, 1));
+}
+
+.highway .install .install__title {
+  position: absolute;
+  inset: auto 0 calc(100% - 35svh + 48px);
+  margin: 0;
+}
+
+.highway .install__deck {
+  position: absolute;
+  inset: calc(50svh - var(--horizon)) 0 auto;
+}
+
+.install__deck {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* The film plays in the cards, a clip each, so the drive has no film of its own. */
+.highway .film {
+  display: none;
+}
+
+.card__clip {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+/* The cards catch the sun as the Omnibar does: its rim on their border, brightest at the middle of
+   the top edge, and its bloom, lifted by the radio's beat. */
+.highway .card {
+  --horizon: 0%;
+  isolation: isolate;
+}
+
+.highway .card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  background: var(--scene-rim, none);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+
+/* And its bloom: a wider ring across the edge, blurred and added to the road as light is, lifted
+   by the beat, as the Omnibar's. */
+.stop__glow {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: var(--scene-bloom, 0);
+  filter: blur(calc(var(--scene-bloom-blur, 0) * 1px));
+  mix-blend-mode: plus-lighter;
+  pointer-events: none;
+}
+
+.stop__glow::before {
+  content: "";
+  position: absolute;
+  inset: calc(var(--scene-bloom-width, 0) * -0.5px);
+  padding: calc(var(--scene-bloom-width, 0) * 1px);
+  background: var(--scene-rim, none);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+
+/* Keyboard first's keys, lit one by one as cruise control reaches it. */
+.card kbd[data-lit] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+
+/* Cruise control's place: the stop it is at and the way out, on glass as the Omnibar is, its one
+   edge, and the song's progress filling along its foot. */
+.cruise {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 16px 12px;
+  overflow: hidden;
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--plate) 80%, transparent);
+  backdrop-filter: blur(14px);
+  font-size: 13px;
+}
+
+.cruise[hidden],
+.cruise [hidden] {
+  display: none;
+}
+
+.cruise__name {
+  min-width: 160px;
+  color: var(--fg);
+  font-weight: 700;
+}
+
+.cruise__song {
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.cruise__song i {
+  display: block;
+  width: calc(var(--song, 0) * 100%);
+  height: 100%;
+  background: var(--accent);
+}
+
+.cruise button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.cruise button:hover {
+  color: var(--fg);
+}
+
+.cruise__key {
+  margin-left: 4px;
+  color: var(--dim);
+  font-size: 11px;
+}
+
 /* Footer */
 
 .foot {
@@ -1536,9 +1744,8 @@ kbd {
     padding-block: 16px 56px;
   }
 
-  .hud pre {
-    padding: 16px;
-    font-size: 12px;
+  .install .omnibar__field {
+    font-size: 13px;
   }
 
   .foot a {

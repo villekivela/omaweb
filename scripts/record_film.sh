@@ -3,8 +3,9 @@
 #
 #   scripts/record_film.sh
 #
-# writes `omaweb.webm`, `omaweb.mp4`, `poster.webp` and `captions.vtt` to `build/film/`, from
-# the commit checked out, and fails without writing them when a beat did not happen.
+# writes `omaweb.webm`, `omaweb.mp4`, `poster.webp` and `captions.vtt` to `build/film/`, with a
+# clip of each beat for the website's cards (`clip-<card>.*` and `clips.json`), from the commit
+# checked out, and fails without writing them when a beat did not happen.
 # `film/README.md` has what the film shows and how it reaches the website.
 #
 # On the host this needs only Docker. The commit is handed to the container as an archive, so
@@ -23,7 +24,8 @@ if [ "${1:-}" != "--inside" ]; then
     git archive --format=tar HEAD | docker run --rm -i --shm-size 1g ${OMAWEB_FILM_DOCKER:-} \
         -v "$PWD/build/film:/film" "${OMAWEB_FILM_IMAGE:-archlinux:base-devel}" \
         sh -c 'mkdir -p /src && tar -x -C /src && exec /src/scripts/record_film.sh --inside'
-    ls -l build/film/omaweb.webm build/film/omaweb.mp4 build/film/poster.webp
+    ls -l build/film/omaweb.webm build/film/omaweb.mp4 build/film/poster.webp \
+        build/film/clips.json build/film/clip-*
     exit 0
 fi
 

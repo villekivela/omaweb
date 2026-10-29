@@ -40,10 +40,10 @@ jobs:
       - name: Check the website against its own policy
         run: scripts/check_website_csp.py
 
-      # The README and the website both tell a reader how to add the [omaweb]
-      # repository, and a reader follows whichever they opened. A fingerprint
-      # that is current in one and stale in the other fails at their machine
-      # with a signature error, which is the worst place to find out.
+      # The README tells a reader how to add the [omaweb] repository by hand,
+      # and the install scripts add it for them. A fingerprint that is current
+      # in one and stale in another fails at their machine with a signature
+      # error, which is the worst place to find out.
       - name: Check the repository instructions agree
         run: scripts/check_repository_instructions.py
 

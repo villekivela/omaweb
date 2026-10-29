@@ -70,7 +70,9 @@
         <div class="drive__scrim" aria-hidden="true"></div>
 
         <!-- The Start page: what Omaweb shows on a new tab, the Omnibar resting on the horizon.
-             Its rows are the features below, and each one is a link to its card. -->
+             Its rows are the features below, and each one is a link to its card; with the
+             script they show once the reader types. Radio is in the header, and the theme
+             picker on the theme card. -->
         <section class="start" aria-labelledby="start-title">
           <div class="start__sky">
             <h1 class="display start__title" id="start-title">
@@ -100,7 +102,16 @@
                   spellcheck="false"
                   hidden
                 />
-                <kbd>o</kbd>
+                <!-- Ignite: the night radio on and cruise control down the road, where the page
+                     is a drive. drive.js shows it there. -->
+                <button
+                  class="omnibar__ignite"
+                  type="button"
+                  aria-label="Ignite: drive through Omaweb with the radio on"
+                  hidden
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+                </button>
               </label>
               <ul class="omnibar__rows" id="omnibar-rows" role="listbox">
                 <li role="option" id="row-omnibar" aria-selected="true">
@@ -151,120 +162,6 @@
                   >
                 </li>
               </ul>
-              <div class="omnibar__hints">
-                <span class="keys"><kbd>&uarr;</kbd><kbd>&darr;</kbd> select</span
-                ><span class="keys"><kbd>&crarr;</kbd> go</span>
-                <button class="radio-toggle" type="button" aria-pressed="false" hidden>
-                  <span class="radio-toggle__bars" aria-hidden="true"><i></i><i></i><i></i></span
-                  >Radio <kbd>M</kbd>
-                </button>
-                <div class="themes" role="group" aria-label="Theme" hidden>
-                  <span class="themes__label keys">Theme <kbd>T</kbd></span>
-                  <span class="themes__name" aria-live="polite">Ethereal Nebula Silver</span>
-                  <span class="themes__row">
-                    <button
-                      type="button"
-                      class="swatch"
-                      data-theme="ethereal-nebula-silver"
-                      data-theme-choice="ethereal-nebula-silver"
-                      data-name="Ethereal Nebula Silver"
-                      aria-label="Ethereal Nebula Silver"
-                      title="Ethereal Nebula Silver"
-                      aria-pressed="true"
-                    ></button>
-                    <button
-                      type="button"
-                      class="swatch"
-                      data-theme="retro-82"
-                      data-theme-choice="retro-82"
-                      data-name="Retro 82"
-                      aria-label="Retro 82"
-                      title="Retro 82"
-                      aria-pressed="false"
-                    ></button>
-                    <button
-                      type="button"
-                      class="swatch"
-                      data-theme="matte-black"
-                      data-theme-choice="matte-black"
-                      data-name="Matte Black"
-                      aria-label="Matte Black"
-                      title="Matte Black"
-                      aria-pressed="false"
-                    ></button>
-                    <button
-                      type="button"
-                      class="swatch"
-                      data-theme="ristretto"
-                      data-theme-choice="ristretto"
-                      data-name="Ristretto"
-                      aria-label="Ristretto"
-                      title="Ristretto"
-                      aria-pressed="false"
-                    ></button>
-                    <button
-                      type="button"
-                      class="swatch"
-                      data-theme="gruvbox"
-                      data-theme-choice="gruvbox"
-                      data-name="Gruvbox"
-                      aria-label="Gruvbox"
-                      title="Gruvbox"
-                      aria-pressed="false"
-                    ></button>
-                    <button
-                      type="button"
-                      class="swatch"
-                      data-theme="everforest"
-                      data-theme-choice="everforest"
-                      data-name="Everforest"
-                      aria-label="Everforest"
-                      title="Everforest"
-                      aria-pressed="false"
-                    ></button>
-                    <button
-                      type="button"
-                      class="swatch"
-                      data-theme="catppuccin"
-                      data-theme-choice="catppuccin"
-                      data-name="Catppuccin"
-                      aria-label="Catppuccin"
-                      title="Catppuccin"
-                      aria-pressed="false"
-                    ></button>
-                    <button
-                      type="button"
-                      class="swatch"
-                      data-theme="tokyo-night"
-                      data-theme-choice="tokyo-night"
-                      data-name="Tokyo Night"
-                      aria-label="Tokyo Night"
-                      title="Tokyo Night"
-                      aria-pressed="false"
-                    ></button>
-                    <button
-                      type="button"
-                      class="swatch"
-                      data-theme="nord"
-                      data-theme-choice="nord"
-                      data-name="Nord"
-                      aria-label="Nord"
-                      title="Nord"
-                      aria-pressed="false"
-                    ></button>
-                    <button
-                      type="button"
-                      class="swatch"
-                      data-theme="hackerman"
-                      data-theme-choice="hackerman"
-                      data-name="Hackerman"
-                      aria-label="Hackerman"
-                      title="Hackerman"
-                      aria-pressed="false"
-                    ></button>
-                  </span>
-                </div>
-              </div>
             </div>
             <div class="start__below">
               <a class="btn start__install" href="#install">
@@ -424,6 +321,112 @@
                 opacity, and the road on every new tab. This page follows the theme you pick here.
                 <kbd>T</kbd>
               </p>
+              <div class="themes" role="group" aria-label="Theme" hidden>
+                <span class="themes__label keys">Theme <kbd>T</kbd></span>
+                <span class="themes__name" aria-live="polite">Ethereal Nebula Silver</span>
+                <span class="themes__row">
+                  <button
+                    type="button"
+                    class="swatch"
+                    data-theme="ethereal-nebula-silver"
+                    data-theme-choice="ethereal-nebula-silver"
+                    data-name="Ethereal Nebula Silver"
+                    aria-label="Ethereal Nebula Silver"
+                    title="Ethereal Nebula Silver"
+                    aria-pressed="true"
+                  ></button>
+                  <button
+                    type="button"
+                    class="swatch"
+                    data-theme="retro-82"
+                    data-theme-choice="retro-82"
+                    data-name="Retro 82"
+                    aria-label="Retro 82"
+                    title="Retro 82"
+                    aria-pressed="false"
+                  ></button>
+                  <button
+                    type="button"
+                    class="swatch"
+                    data-theme="matte-black"
+                    data-theme-choice="matte-black"
+                    data-name="Matte Black"
+                    aria-label="Matte Black"
+                    title="Matte Black"
+                    aria-pressed="false"
+                  ></button>
+                  <button
+                    type="button"
+                    class="swatch"
+                    data-theme="ristretto"
+                    data-theme-choice="ristretto"
+                    data-name="Ristretto"
+                    aria-label="Ristretto"
+                    title="Ristretto"
+                    aria-pressed="false"
+                  ></button>
+                  <button
+                    type="button"
+                    class="swatch"
+                    data-theme="gruvbox"
+                    data-theme-choice="gruvbox"
+                    data-name="Gruvbox"
+                    aria-label="Gruvbox"
+                    title="Gruvbox"
+                    aria-pressed="false"
+                  ></button>
+                  <button
+                    type="button"
+                    class="swatch"
+                    data-theme="everforest"
+                    data-theme-choice="everforest"
+                    data-name="Everforest"
+                    aria-label="Everforest"
+                    title="Everforest"
+                    aria-pressed="false"
+                  ></button>
+                  <button
+                    type="button"
+                    class="swatch"
+                    data-theme="catppuccin"
+                    data-theme-choice="catppuccin"
+                    data-name="Catppuccin"
+                    aria-label="Catppuccin"
+                    title="Catppuccin"
+                    aria-pressed="false"
+                  ></button>
+                  <button
+                    type="button"
+                    class="swatch"
+                    data-theme="tokyo-night"
+                    data-theme-choice="tokyo-night"
+                    data-name="Tokyo Night"
+                    aria-label="Tokyo Night"
+                    title="Tokyo Night"
+                    aria-pressed="false"
+                  ></button>
+                  <button
+                    type="button"
+                    class="swatch"
+                    data-theme="nord"
+                    data-theme-choice="nord"
+                    data-name="Nord"
+                    aria-label="Nord"
+                    title="Nord"
+                    aria-pressed="false"
+                  ></button>
+                  <button
+                    type="button"
+                    class="swatch"
+                    data-theme="hackerman"
+                    data-theme-choice="hackerman"
+                    data-name="Hackerman"
+                    aria-label="Hackerman"
+                    title="Hackerman"
+                    aria-pressed="false"
+                  ></button>
+                </span>
+              </div>
             </li>
             <li class="card" id="private">
               <div class="card__shot card__shot--privacy">
@@ -505,88 +508,30 @@
           </ul>
         </section>
 
-        <!-- Installing. The one line runs scripts/install.sh, which the build serves at /install.
-           The manual commands are the README's and the fingerprint is the one the key in
-           security/ carries; change them there first, scripts/check_repository_instructions.py
-           holds them, the script and the key to each other. -->
-        <section class="plate install" id="install" aria-labelledby="install-title">
-          <h2 id="install-title">Get on the road.</h2>
-          <p>
-            Omaweb ships from its own pacman repository, so it installs and upgrades with the rest
-            of your system. One line, once.
-          </p>
-          <figure class="hud">
-            <figcaption class="hud__bar">
-              <span>Install</span>
-              <span class="hud__meta"
-                >terminal<button class="hud__copy" type="button" data-copy hidden>
-                  Copy
-                </button></span
-              >
-            </figcaption>
-            <div class="hud__screen">
-              <pre><code><span class="hud__prompt" aria-hidden="true">$ </span>curl -fsSL https://omaweb.app/install | sh</code></pre>
+        <!-- Installing: the title on the road, and under it the one line, which runs
+           scripts/install.sh, served by the build at
+           /install. Installing by hand is the README's, which
+           scripts/check_repository_instructions.py holds to the script and the key. -->
+        <section class="install" id="install" aria-labelledby="install-title">
+          <h2 class="display install__title" id="install-title">Get on the road.</h2>
+          <div class="install__deck">
+            <!-- The road ends on the Omnibar it started on, holding the answer: the one line, which
+                 a press on it or on Copy copies. -->
+            <div class="omnibar install__bar">
+              <span class="omnibar__glow" aria-hidden="true"></span>
+              <div class="omnibar__field">
+                <svg class="omnibar__prompt" viewBox="20.6 97.8 38.2 18.8" aria-hidden="true">
+                  <path
+                    transform="translate(1.3101755,0.8976725)"
+                    d="m 28.63857,97.088945 -9.187009,9.187005 9.187009,9.18763 h 3.69342 l 13.915739,-13.91637 4.72873,4.72874 -9.187009,9.18763 h 6.305601 l 9.18701,-9.18763 -9.187622,-9.187005 H 44.40102 l -13.91574,13.915735 -4.728742,-4.72873 9.18701,-9.187005 z"
+                  />
+                </svg>
+                <code class="install__command">curl -fsSL https://omaweb.app/install | sh</code>
+                <button class="install__copy" type="button" data-copy hidden>Copy</button>
+              </div>
             </div>
-          </figure>
-          <p>
-            It shows the lines it adds to <code>/etc/pacman.conf</code>, the key and its
-            fingerprint, and what it installs, then asks once before it uses <code>sudo</code>.
-            <code>sh -s -- --yes</code> skips the question.
-            <a href="install">Read the script</a> first if you like. From then on,
-            <code>omarchy update</code> keeps it current on Omarchy, and
-            <code>sudo pacman -Syu</code> on plain Arch.
-          </p>
-          <!-- The same two steps by hand, closed until asked for. -->
-          <details class="install__manual">
-            <summary>Advanced: install by hand</summary>
-            <figure class="hud">
-              <figcaption class="hud__bar">
-                <span>1 Add the repository</span>
-                <span class="hud__meta"
-                  >/etc/pacman.conf<button class="hud__copy" type="button" data-copy hidden>
-                    Copy
-                  </button></span
-                >
-              </figcaption>
-              <div class="hud__screen">
-                <pre><code>[omaweb]
-SigLevel = Required DatabaseRequired
-Server = https://github.com/villekivela/omaweb/releases/download/repo-$arch</code></pre>
-              </div>
-            </figure>
-            <figure class="hud">
-              <figcaption class="hud__bar">
-                <span>2 Trust the key, then install</span>
-                <span class="hud__meta"
-                  >terminal<button class="hud__copy" type="button" data-copy hidden>
-                    Copy
-                  </button></span
-                >
-              </figcaption>
-              <div class="hud__screen">
-                <pre><code><span class="hud__prompt" aria-hidden="true">$ </span>curl -fsSLO https://raw.githubusercontent.com/villekivela/omaweb/main/security/repo-signing-key.asc
-<span class="hud__prompt" aria-hidden="true">$ </span>sudo pacman-key --add repo-signing-key.asc
-<span class="hud__prompt" aria-hidden="true">$ </span>sudo pacman-key --lsign-key <mark>FDA535B2185755EA718BEA585DBF15FE484EFA64</mark>
-<span class="hud__prompt" aria-hidden="true">$ </span>sudo pacman -Syu omaweb</code></pre>
-              </div>
-            </figure>
-            <p>
-              On Omarchy, whose pacman hook refuses a direct <code>pacman -Syu</code>, run
-              <code>omarchy update</code> and then <code>sudo pacman -S omaweb</code> as the last
-              step instead.
-            </p>
-            <p>
-              The fingerprint is the one thing to check. It comes from here, not from a keyserver,
-              and pacman installs nothing that key did not sign. A single package or a build from
-              source instead? The
-              <a href="https://github.com/villekivela/omaweb#install">README</a> has both.
-            </p>
-          </details>
-          <p class="install__notes">
-            <a class="more" href="releases/"
-              >What changed in each release <span aria-hidden="true">&rarr;</span></a
-            >
-          </p>
+            <p class="install__lede">One line, once. It upgrades with the rest of your system.</p>
+          </div>
         </section>
       </div>
     </main>
