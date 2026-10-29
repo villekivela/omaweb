@@ -33,6 +33,12 @@ class ProcessKindTest(unittest.TestCase):
                          "renderer")
         self.assertEqual(runtime.process_kind([ENGINE, "--type=zygote"]), "zygote")
 
+    # Chromium retitles a process it forks from its zygote, and the new title is one string with
+    # spaces where the separators were. CI's first split read every engine process as the browser.
+    def test_a_retitled_engine_process_is_still_named_by_its_type(self):
+        self.assertEqual(runtime.process_kind([f"{ENGINE} --type=renderer --lang=en"]),
+                         "renderer")
+
     def test_a_utility_process_is_named_by_its_service(self):
         self.assertEqual(
             runtime.process_kind([ENGINE, "--type=utility",

@@ -637,12 +637,14 @@ def process_kind(argv: list[str]) -> str:
     """What a process in the browser's tree is, from its command line.
 
     Every engine process has the same name, so its `--type` says which it is, and a utility's
-    service says which utility. A process with no type is the browser's own.
+    service says which utility. A process with no type is the browser's own. Chromium retitles the
+    processes its zygote forks into one string, so the words are split out of each part.
     """
-    if os.path.basename(argv[0]).startswith("dbus-"):
+    words = [word for part in argv for word in part.split()]
+    if os.path.basename(words[0]).startswith("dbus-"):
         return "session bus"
-    flags = dict(part[2:].split("=", 1) for part in argv[1:]
-                 if part.startswith("--") and "=" in part)
+    flags = dict(word[2:].split("=", 1) for word in words[1:]
+                 if word.startswith("--") and "=" in word)
     kind = flags.get("type")
     if kind is None:
         return "browser"
