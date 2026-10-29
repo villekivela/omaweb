@@ -765,10 +765,6 @@ public:
     Q_INVOKABLE bool closeTabInSpace(const QString &tabId, const QString &spaceHint = {});
 
 signals:
-    // A tab change held back to coalesce writes has been handed to the store,
-    // and a read of the store now sees it. The tab models announced the
-    // change before the store had it.
-    void tabsWritten();
     void paymentCardsChanged();
     void activeSpaceChanged();
     void activeTabChanged();

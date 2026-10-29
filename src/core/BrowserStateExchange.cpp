@@ -38,7 +38,6 @@ BrowserStateExchangeAdapter::BrowserStateExchangeAdapter(BrowserController *brow
     connect(browser->tabs(), &QAbstractItemModel::rowsMoved, this, reportPossibleChange);
     connect(browser->tabs(), &QAbstractItemModel::modelReset, this, reportPossibleChange);
     connect(browser, &BrowserController::preferenceChanged, this, reportPossibleChange);
-    connect(browser, &BrowserController::tabsWritten, this, reportPossibleChange);
     if (blocker) {
         connect(blocker, &ContentBlocker::subscriptionsChanged, this, reportPossibleChange);
     }
