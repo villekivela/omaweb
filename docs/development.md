@@ -1458,11 +1458,12 @@ than sent as keys, because a compositor need not give the test window the keyboa
 All four hold the budget. The Glance held a frame on some of its openings until the closed Shortcut
 sheet stopped listing commands (#597): the sheet asked the command registry about every command
 whenever its answers changed, and a Glance opening or closing changes two of them, keeping the
-Glance as a tab and popping the tab out. Before that change one opening of each run took 28 to 37 ms
-offscreen on the Dell XPS below. Making the closed sheet list nothing at that commit, and nothing
-else, brought every movement under 24 ms. CI's runner has held the Glance to none of ten since, and
-the blurred backdrop #704 took away was not what held it: openings took 19 to 21 ms on CI before it
-went and 16 to 18 ms after.
+Glance as a tab and popping the tab out. At the commit before #597, one opening of each run took 28
+to 37 ms offscreen on the Dell XPS the Glance's row below was measured on, and making the closed
+sheet list nothing, and nothing else, brought every movement under 24 ms. CI's runner has held no
+Glance movement of ten over the budget since. The blurred backdrop #704 took away was not what held
+one: on CI each run's slowest opening took 19 to 21 ms before it went, at 9850f72 and eda7f7e, and
+17 ms after, at 3a09d55 and 9f590d8.
 
 The Omnibar reads the commands when it opens and when the Space changes, and the tabs and the Spaces
 then and again after one of them changes, rather than for each keystroke. It ranks them once for
@@ -1493,12 +1494,12 @@ The Glance's row is #858's, on 2026-10-29 at ea0d26a, with its controls (#848) a
 runs of its probe alone, CI is the `arch-linux-clang` and `arch-linux-gcc` jobs of the seven commits
 on `main` from 5feea57 to ea0d26a, and GPU is three runs on the laptop's 60 Hz display:
 
-| Surface      | Offscreen p95 | Held, offscreen | CI p95        | CI slowest    | Held, CI | GPU p95         | Held, GPU |
-| ------------ | ------------- | --------------- | ------------- | ------------- | -------- | --------------- | --------- |
-| Sidebar      | 17 to 18 ms   | 0               | 17 to 18 ms   | 21 to 23 ms   | 0        | 17 ms           | 0         |
-| Space switch | 17 to 18 ms   | 0 to 1          | 17 to 19 ms   | 24 to 31 ms   | 0        | 17 ms           | 0         |
-| Omnibar      | 14 to 15 ms   | 0 of 10         | not printed   | not printed   | 0 to 1   | 17 ms           | 0         |
-| Glance       | 17 to 18 ms   | 0               | 16.5 to 17 ms | 17 to 20.5 ms | 0        | 18.6 to 19.6 ms | 0         |
+| Surface      | Offscreen p95 | Held, offscreen | CI p95      | CI slowest  | Held, CI | GPU p95     | Held, GPU |
+| ------------ | ------------- | --------------- | ----------- | ----------- | -------- | ----------- | --------- |
+| Sidebar      | 17 to 18 ms   | 0               | 17 to 18 ms | 21 to 23 ms | 0        | 17 ms       | 0         |
+| Space switch | 17 to 18 ms   | 0 to 1          | 17 to 19 ms | 24 to 31 ms | 0        | 17 ms       | 0         |
+| Omnibar      | 14 to 15 ms   | 0 of 10         | not printed | not printed | 0 to 1   | 17 ms       | 0         |
+| Glance       | 17 to 18 ms   | 0               | 17 ms       | 17 to 21 ms | 0        | 19 to 20 ms | 0         |
 
 The software rasteriser draws no blur, so the Omnibar's glass and the sidebar's floating shelf are
 priced only by the GPU columns. Take those from a terminal in the session, where the test window
