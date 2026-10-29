@@ -1580,7 +1580,14 @@ html.highway {
   width: min(980px, 86vw);
 }
 
-/* On the road the install's title stands in the sky above the sun, as the Start page's does. */
+/* On the road the install's title stands in the sky above the sun, as the Start page's does, and
+   the whole stop sits a little high, its plate just under the horizon. The road's light is set on
+   the stop and falls on the plate, so its rim is placed on the stop, at the plate's top edge. */
+.highway .install.highway__stop {
+  --horizon: 0%;
+  top: calc(50% - 7svh);
+}
+
 .highway .install .install__title {
   margin-bottom: 22svh;
 }
