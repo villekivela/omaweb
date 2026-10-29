@@ -8360,6 +8360,12 @@ TestCase {
         mouseMove(window.contentItem, window.width / 2, 1);
         tryCompare(work, "width", 8);
         tryCompare(work, "opacity", 0.7);
+
+        // The keyboard cursor holding a Space lifts it the same way.
+        button.hasCursor = true;
+        tryCompare(work, "width", 10);
+        tryCompare(work, "opacity", 1);
+        button.hasCursor = false;
         verify(browser.deleteSpace(workId, "Work"));
     }
 
