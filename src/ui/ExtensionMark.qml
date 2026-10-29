@@ -23,11 +23,9 @@ ChromeButton {
     // What this window's Space is hosting, as `{ key, name, id, popupUrl }`.
     property var hosted: []
 
-    // Whether a hosted extension wants the reader to see it, such as a badge
-    // or a popup. The mark then brightens as Site information turns urgent.
-    readonly property bool attention: root.hosted.some(function (extension) {
-        return extension.attention === true;
-    })
+    // Whether an extension wants the reader to see it, as its popup is open.
+    // The mark then brightens as Site information turns urgent.
+    property bool attention: false
     readonly property bool single: root.hosted.length === 1
     readonly property string summary: root.hosted.length === 0 ? "" : (root.single
                                                                        ? root.hosted[0].name : qsTr(

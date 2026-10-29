@@ -7133,17 +7133,23 @@ TestCase {
             return Qt.colorEqual(mark.foreground, window.colors.mutedText);
         });
 
-        outline.hostedExtensions = [
-                    {
-                        "key": "omaweb-test-notes",
-                        "name": "Notes",
-                        "id": "omaweb-test-notes",
-                        "popupUrl": "chrome-extension://omaweb-test-notes/popup.html",
-                        "attention": true
-                    }
-                ];
+        // An open popup is an extension asking to be seen, whether it was
+        // opened from the mark or from the keyboard.
+        window.extensionMenuOpen = true;
         tryVerify(function () {
             return Qt.colorEqual(mark.foreground, window.colors.text);
+        });
+        window.extensionMenuOpen = false;
+        tryVerify(function () {
+            return Qt.colorEqual(mark.foreground, window.colors.mutedText);
+        });
+        window.glanceIsExtension = true;
+        tryVerify(function () {
+            return Qt.colorEqual(mark.foreground, window.colors.text);
+        });
+        window.glanceIsExtension = false;
+        tryVerify(function () {
+            return Qt.colorEqual(mark.foreground, window.colors.mutedText);
         });
 
         outline.hostedExtensions = Qt.binding(function () {

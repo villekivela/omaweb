@@ -42,6 +42,7 @@ Rectangle {
     property bool keyLabelsShown: false
     // What this window's Space is hosting, as `{ key, name, id, popupUrl }`.
     property var hostedExtensions: []
+    property bool extensionAttention: false
     property bool privateWindow: false
     property bool collapsed: false
     // Whether the sidebar stands against the window's right edge, which puts
@@ -1075,6 +1076,7 @@ Rectangle {
                 colors: root.colors
                 iconFontFamily: root.iconFontFamily
                 hosted: root.hostedExtensions
+                attention: root.extensionAttention
                 onClicked: root.extensionRequested(root.extensionMarkRect())
             }
 

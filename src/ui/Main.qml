@@ -3755,6 +3755,7 @@ ApplicationWindow {
                 savedFileNoticeShowing: pageNotice.showing && pageNotice.glyph === "download_done"
                 onDownloadsRequested: window.requestDownloads()
                 hostedExtensions: window.hostedExtensions
+                extensionAttention: window.extensionMenuOpen || window.glanceIsExtension
                 onExtensionRequested: function (origin) {
                     window.openExtensionMenu(origin);
                 }
