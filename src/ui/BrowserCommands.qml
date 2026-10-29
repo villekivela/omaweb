@@ -331,7 +331,7 @@ QtObject {
                                                  // the reader looks elsewhere,
                                                  // so its key is learnt before
                                                  // one is open (#863).
-                                                 listedWithout: true
+                                                 alwaysListed: true
                                              },
                                              "duplicate-tab": {
                                                  group: "tabs",

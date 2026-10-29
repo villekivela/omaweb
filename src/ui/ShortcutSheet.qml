@@ -80,13 +80,13 @@ Rectangle {
                     continue;
                 // A command the engine or the window cannot carry out here has
                 // no key worth promising. The command registry decides that,
-                // so the sheet and the Omnibar cannot disagree. One marked
-                // `listedWithout` is listed whether it is on offer or not: what
-                // it acts on is rarely open when the reader looks its key up.
+                // so the sheet and the Omnibar cannot disagree, except for a
+                // command the registry marks `alwaysListed`: what it acts on is
+                // rarely open when the reader looks its key up.
                 entries.push({
                                  "title": descriptions[command].title,
                                  "keys": keys,
-                                 "available": !root.commands || descriptions[command].listedWithout
+                                 "available": !root.commands || descriptions[command].alwaysListed
                                  === true || root.commands.available(command)
                              });
             }

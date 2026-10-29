@@ -11145,6 +11145,7 @@ TestCase {
             window.colors = changed;
         }
         const opener = openPage("https://opener.example");
+        const openerGround = opener.pageBackgroundColor;
         const glance = openGlance("https://glanced.example/page");
         tryCompare(glance, "arrival", 1);
         const ratio = window.devicePixelRatio;
@@ -11181,7 +11182,7 @@ TestCase {
                        + " page: " + disabled.toFixed(2) + " beside " + enabled.toFixed(2));
             }
         } finally {
-            opener.pageBackgroundColor = "#16151d";
+            opener.pageBackgroundColor = openerGround;
             window.closeGlance();
             window.colors = Qt.binding(function () {
                 return theme.palette;

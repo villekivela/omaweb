@@ -55,7 +55,7 @@ QtObject {
     // (#863). The sheet and the labels name the binding alone.
     function keySequences(binding) {
         const sequence = keySequence(binding);
-        if (isChord(binding) && /\+Return$/.test(sequence))
+        if (/\+Return$/.test(sequence))
             return [sequence, sequence.replace(/Return$/, "Enter")];
         return [sequence];
     }

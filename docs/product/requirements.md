@@ -430,16 +430,17 @@ reports the gap and remains experimental rather than imitating behavior it canno
   it is open, from keys, the command scope and its controls, and leave the tab's page where it was;
   back with no Glance history does nothing. It ends with `Escape` from its page, its close button, a
   click outside its panel, the close-tab command, and anything that changes the tab on show: a tab
-  or Space switch, the tab closing, settings or history opening. `Primary+Shift+Return`, the
-  keypad's `Enter` as well as `Return`, or the Open as tab button makes it an ordinary tab after the
-  tab it stood over, keeping its engine and so its history, scroll and form state. A new-tab request
-  from inside a Glance opens a tab, which ends the Glance; a second request from the page beneath
-  replaces it. Settings' interface section turns the Glance off, locally.
+  or Space switch, the tab closing, settings or history opening. `Primary+Shift+Return` or the Open
+  as tab button makes it an ordinary tab after the tab it stood over, keeping its engine and so its
+  history, scroll and form state. A new-tab request from inside a Glance opens a tab, which ends the
+  Glance; a second request from the page beneath replaces it. Settings' interface section turns the
+  Glance off, locally.
 - `Alt+K` from a Glance's page moves the keyboard into its controls, where the Sidebar cursor marks
   the button holding it. `Tab`, `Shift+Tab` and the up and down arrows walk the buttons that can be
   pressed, `Tab` going round the ends, and `Return` or `Space` presses one. `Alt+J` or `Escape`
   returns the keyboard to the Glance's page. Holding Primary labels the controls beside each button,
-  Open as tab with the whole of its chord, `Ctrl+Shift+Enter`.
+  Open as tab with the whole of its chord: the caps Ctrl, Shift and Enter. A chord on `Return` is
+  answered from the keypad's `Enter` too.
 - The Shortcut sheet lists the browser commands and the keys that run them, read from the live
   keymap so it cannot promise a key the window does not answer. The Keyboard shortcuts command
   summons it, from the Omnibar or with `Primary+/` and `?`, over a page or over the Start page,
