@@ -4,73 +4,73 @@
   "measurements": {
     "startup_seconds": {
       "ceiling": 3.0,
-      "recorded": 0.69,
-      "note": "Process start to the first buffer on the toplevel's surface, median of three launches. The three were 1.127, 0.690 and 0.668 s, the first paying for a cold page cache. The ceiling is about four times the median, which is what the startup probes in docs/development.md use, because a shared runner's speed is not its own."
+      "recorded": 0.9,
+      "note": "Re-recorded on 2026-10-29 on CI's runner against Omaweb's engine, omaweb-qtwebengine 6.11.3-1, with main at bcf3878b: the median of three budget-job runs (run 40869156387, attempts 1 to 3). The runs read 1.016, 0.904 and 0.891 s, the medians of their three launches (2.027, 1.016, 0.932; 1.986, 0.904, 0.759; 2.216, 0.886, 0.891 s), the first of each paying for a cold page cache. Against 0.69 s on 6.11.2-3 that is 0.2 s later, with the runs within 0.13 s of each other. The ceiling is about four times the old median, which is what the startup probes in docs/development.md use, because a shared runner's speed is not its own."
     },
     "startup_lived_in_seconds": {
       "ceiling": 6.5,
       "recorded": 1.62,
-      "note": "Process start to the first buffer on the toplevel's surface with the lived-in profile, file-cache cold, median of three launches. The profile is #618's reader's shape at about its size, 403 MiB: two Spaces, three open tabs, closed and put-away tabs, 106 visits, both filter lists, an 83 MiB extension and the engine's HTTP cache, Cache Storage and IndexedDB. Recorded on 2026-10-06 on CI's runner from #619's budget job: 1.616, 1.624 and 1.644 s. The ceiling is about four times the median, as the startup ceiling is, because a shared runner's speed is not its own. On the Lenovo the development guide names, the package-like release build on omaweb-qtwebengine 6.11.2-3 read 0.717 to 0.720 s, and 6.18 to 6.20 s before #618."
+      "note": "Re-recorded on 2026-10-29 on CI's runner against Omaweb's engine, omaweb-qtwebengine 6.11.3-1, with main at bcf3878b: the median of three budget-job runs (run 40869156387, attempts 1 to 3). The profile is #618's reader's shape at about its size, 403 MiB: two Spaces, three open tabs, closed and put-away tabs, 106 visits, both filter lists, an 83 MiB extension and the engine's HTTP cache, Cache Storage and IndexedDB; the page cache is dropped before each launch. The runs read 1.606, 2.823 and 1.624 s, the medians of their three launches. The second landed on an Intel Xeon Platinum 8573C, the other two on an AMD EPYC 7763 (1.6 s in all six launches), so the median is the EPYC's. The ceiling is about four times the median, as the startup ceiling is, because a shared runner's speed is not its own."
     },
     "memory_mebibytes": {
       "ceiling": 960.0,
-      "recorded": 481.45,
-      "note": "Proportional set size of the whole process tree, one Space, one page. The ceiling is twice the measurement, as the frozen-tab probe's is."
+      "recorded": 502.49,
+      "note": "Re-recorded on 2026-10-29 on CI's runner against Omaweb's engine, omaweb-qtwebengine 6.11.3-1, with main at bcf3878b: the median of three budget-job runs (run 40869156387, attempts 1 to 3). Proportional set size of the whole process tree, one Space, one page: 504.4, 500.0 and 495.0 MiB at the first Space of the spaces step, and 502.51, 500.21 and 502.49 MiB in the memory step, the median of which is recorded. Against 481.45 MiB on 6.11.2-3 that is 21 MiB more. The ceiling is twice the first recording, as the frozen-tab probe's is."
     },
     "space_mebibytes": {
       "ceiling": 150.0,
-      "recorded": 74.18,
-      "note": "What each Space after the first adds, each holding the same page, averaged over four Spaces. The run was 482.7, 659.8, 682.0 and 705.2 MiB: the second Space costs the engine a set of processes the rest then share, so the average is above the 23 MiB each later Space added. The ceiling is twice the average."
+      "recorded": 30.14,
+      "note": "Re-recorded on 2026-10-29 on CI's runner against Omaweb's engine, omaweb-qtwebengine 6.11.3-1, with main at bcf3878b: the median of three budget-job runs (run 40869156387, attempts 1 to 3). What each Space after the first adds, each holding the same page, averaged over four Spaces. The runs read 504.4, 540.5, 566.6 and 590.9 MiB; 500.0, 544.4, 561.7 and 590.5 MiB; and 495.0, 542.4, 560.5 and 588.5 MiB, so 28.83, 30.14 and 31.15 MiB. The first recording, 74.18 MiB, averaged a second Space that cost the engine 177 MiB; it now costs 36 to 47 MiB, so the average is a third of it. The ceiling is twice the first recording."
     },
     "frozen_growth_mebibytes": {
       "ceiling": 5.0,
-      "recorded": 0.02,
-      "note": "What an away Space's page goes on taking once frozen, over ten seconds, against ADR 0033. It is read from the engine's processes, the browser's own left out, because on CI the browser process takes a step of about 6 MiB at no predictable moment (#467). Tighter than the others on purpose: the same page grew 30.1 MiB in the six seconds it was on show, a page left running while away is throttled to a megabyte a second and added 10.04 MiB here with Freezing switched off, and a reading's own noise is a tenth of a megabyte."
+      "recorded": 0.44,
+      "note": "Re-recorded on 2026-10-29 on CI's runner against Omaweb's engine, omaweb-qtwebengine 6.11.3-1, with main at bcf3878b: the median of three budget-job runs (run 40869156387, attempts 1 to 3). What an away Space's page goes on taking once frozen, over ten seconds, against ADR 0033. It is read from the engine's processes, the browser's own left out, because on CI the browser process takes a step of about 6 MiB at no predictable moment (#467). The runs read 0.58, 0.43 and 0.44 MiB, against 0.02 MiB on 6.11.2-3. Tighter than the others on purpose: the same page grew 29.9, 29.9 and 30.9 MiB in the six seconds it was on show, and a page left running while away is throttled to a megabyte a second."
     },
     "pageload_fresh_hosts_milliseconds": {
       "ceiling": 72.8,
-      "recorded": 18.2,
-      "note": "What Content blocking adds to a page of 40 images from 40 hosts it has never seen, the median with blocking on minus the median with the site switched off, ten loads each: 151.5 ms against 133.3 ms. Measured on 2026-09-28 against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, so this holds CNAME uncloaking's lookups as well as the rule check, the Refusal tally and the refused-request list. Secure DNS off. The hosts resolve through dnsmasq on the container's resolver, with CNAME chains, not host-resolver rules. Procedural cosmetic filtering is measured separately under #402. The ceiling is four times the difference. Two loads the engine cut short were repeated and not counted. On Arch's qt6-webengine, where uncloaking is compiled out, the same page added 6.1 ms (#371), so uncloaking's lookups are most of the difference."
+      "recorded": 22.45,
+      "note": "Re-recorded on 2026-10-29 on CI's runner against Omaweb's engine, omaweb-qtwebengine 6.11.3-1, with main at bcf3878b: the median of three budget-job runs (run 40869156387, attempts 1 to 3). What Content blocking adds to a page of 40 images from 40 hosts it has never seen, the median with blocking on minus the median with the site switched off, ten loads each: 180.5 against 155.3 ms, 134.5 against 120.5 ms and 174.9 against 152.4 ms, so 25.2, 14.0 and 22.4 ms (18.2 ms on 6.11.2-3). The second run was on the Xeon. This holds CNAME uncloaking's lookups as well as the rule check, the Refusal tally and the refused-request list. Secure DNS off. The hosts resolve through dnsmasq on the container's resolver, with CNAME chains, not host-resolver rules. Procedural cosmetic filtering is measured separately under #402. The ceiling is four times the first recording's difference."
     },
     "pageload_known_hosts_milliseconds": {
       "ceiling": 20.0,
-      "recorded": 4.0,
-      "note": "The same for 40 images from 4 hosts resolved on the warm-up loads: 148.2 ms against 144.2 ms. Measured on 2026-09-28 against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, so this holds CNAME uncloaking's lookups as well as the rule check, the Refusal tally and the refused-request list. Secure DNS off. The hosts resolve through dnsmasq on the container's resolver, with CNAME chains, not host-resolver rules. Procedural cosmetic filtering is measured separately under #402. Four times the difference is 16 ms, under the 20 ms floor, because a shared runner's noise is bigger than a difference this small."
+      "recorded": 2.9,
+      "note": "Re-recorded on 2026-10-29 on CI's runner against Omaweb's engine, omaweb-qtwebengine 6.11.3-1, with main at bcf3878b: the median of three budget-job runs (run 40869156387, attempts 1 to 3). The same for 40 images from 4 hosts resolved on the warm-up loads: 182.4 against 179.5 ms, 159.3 against 153.2 ms and 179.2 against 181.8 ms, so 2.9, 6.1 and -2.6 ms (4.0 ms on 6.11.2-3). A difference this small is below what the runner can tell apart, which is why the third run came out negative. Four times the first recording's difference is 16 ms, under the 20 ms floor."
     },
     "pageload_procedural_hosts_milliseconds": {
       "ceiling": 20.0,
-      "recorded": 2.0,
-      "note": "The common case with a page that procedural cosmetic rules are written against (ADR 0052): the markup and rules of tests/content-blocking/procedural-rules.json, one rule per operator and action, for both page hosts: 146.6 ms against 144.6 ms. The common case in the same run added 4.0 ms, so what the rules add over it is below what the runner can tell apart. Measured on 2026-09-28 against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, so this holds CNAME uncloaking's lookups as well as the rule check, the Refusal tally and the refused-request list. Secure DNS off. The hosts resolve through dnsmasq on the container's resolver, with CNAME chains, not host-resolver rules. Four times the difference is 8 ms, under the 20 ms floor."
+      "recorded": 4.65,
+      "note": "Re-recorded on 2026-10-29 on CI's runner against Omaweb's engine, omaweb-qtwebengine 6.11.3-1, with main at bcf3878b: the median of three budget-job runs (run 40869156387, attempts 1 to 3). The common case with a page that procedural cosmetic rules are written against (ADR 0052): the markup and rules of tests/content-blocking/procedural-rules.json, one rule per operator and action, for both page hosts: 195.6 against 185.3 ms, 157.2 against 152.6 ms and 184.2 against 181.1 ms, so 10.4, 4.7 and 3.1 ms (2.0 ms on 6.11.2-3). The first run's reading is three times the others' and the common case moved as much in it. Four times the first recording's difference is 8 ms, under the 20 ms floor."
     },
     "first_contentful_paint_fresh_hosts_milliseconds": {
       "ceiling": 380.0,
-      "recorded": 94.0,
-      "note": "How soon the page of 40 images from 40 hosts it has never seen first paints, blocking on, the median of ten loads. Measured on 2026-10-05 against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, with the page-load step's DNS setup, loads and spares. The page's own first-contentful-paint entry, from the navigation starting to the first frame that drew one of its images, under cage's pixman renderer and Chromium's software rasteriser. Two runs on CI's runner: a median of 62.0 ms (loads from 44.0 to 96.0 ms) and of 94.0 ms (64.0 to 112.0 ms), so the runner alone moved the median by half. The ceiling is four times the slower median, rounded up to ten milliseconds, as the startup and page-load ceilings are."
+      "recorded": 64.0,
+      "note": "Re-recorded on 2026-10-29 on CI's runner against Omaweb's engine, omaweb-qtwebengine 6.11.3-1, with main at bcf3878b: the median of three budget-job runs (run 40869156387, attempts 1 to 3). How soon the page of 40 images from 40 hosts it has never seen first paints, blocking on, the median of ten loads, with the page-load step's DNS setup, loads and spares. The page's own first-contentful-paint entry, from the navigation starting to the first frame that drew one of its images, under cage's pixman renderer and Chromium's software rasteriser. The runs read 74.0 (48.0 to 80.0 ms), 64.0 (48.0 to 96.0) and 64.0 ms (48.0 to 80.0), against 94.0 ms on 6.11.2-3. The ceiling is four times the slowest median then, rounded up to ten milliseconds."
     },
     "first_contentful_paint_known_hosts_milliseconds": {
       "ceiling": 240.0,
       "recorded": 60.0,
-      "note": "The same for the page of 40 images from 4 hosts resolved on the warm-up loads. Measured on 2026-10-05 against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, with the page-load step's DNS setup, loads and spares. The page's own first-contentful-paint entry, from the navigation starting to the first frame that drew one of its images, under cage's pixman renderer and Chromium's software rasteriser. Two runs on CI's runner: a median of 46.0 ms (44.0 to 80.0 ms) and of 60.0 ms (44.0 to 104.0 ms). The ceiling is four times the slower median."
+      "note": "Re-recorded on 2026-10-29 on CI's runner against Omaweb's engine, omaweb-qtwebengine 6.11.3-1, with main at bcf3878b: the median of three budget-job runs (run 40869156387, attempts 1 to 3). The same for the page of 40 images from 4 hosts resolved on the warm-up loads, under the same renderers. The runs read 64.0 (60.0 to 64.0 ms), 48.0 (48.0 to 68.0) and 60.0 ms (44.0 to 80.0), against 60.0 ms on 6.11.2-3. The ceiling is four times the slowest median then."
     },
     "live_tab_at_20_mebibytes": {
       "ceiling": 40.0,
-      "recorded": 18.7,
-      "note": "What each tab past its Space's first adds with 20 tabs across five Spaces, four in each: the tree at 20 less the tree with five Spaces and one tab each, over 15. Measured on 2026-10-05 on CI's runner against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, one run (37360227439): 674.5 MiB with five Spaces open and one tab in each, 955.1 MiB with 20 tabs and 1514.1 MiB with 50. The ceiling is about twice the measurement, as the memory ceilings are."
+      "recorded": 17.0,
+      "note": "Re-recorded on 2026-10-29 on CI's runner against Omaweb's engine, omaweb-qtwebengine 6.11.3-1, with main at bcf3878b: the median of three budget-job runs (run 40869156387, attempts 1 to 3). What each tab past its Space's first adds with 20 tabs across five Spaces, four in each: the tree at 20 less the tree with five Spaces and one tab each, over 15. The runs read 646.1, 643.4 and 643.3 MiB with five Spaces open and one tab in each, 897.1, 903.7 and 898.2 MiB with 20 tabs and 1422.6, 1414.5 and 1416.3 MiB with 50, so 16.73, 17.35 and 17.00 MiB (18.7 MiB on 6.11.2-3). The ceiling is about twice the first recording, as the memory ceilings are."
     },
     "live_tab_at_50_mebibytes": {
       "ceiling": 40.0,
-      "recorded": 18.66,
-      "note": "The same at 50 tabs, ten in each Space, over 45. Measured on 2026-10-05 on CI's runner against Omaweb's engine, omaweb-qtwebengine 6.11.2-3, one run (37360227439): 674.5 MiB with five Spaces open and one tab in each, 955.1 MiB with 20 tabs and 1514.1 MiB with 50. A tab costs the same at 50 as at 20, so the ceiling is the same, about twice the measurement."
+      "recorded": 17.18,
+      "note": "Re-recorded on 2026-10-29 on CI's runner against Omaweb's engine, omaweb-qtwebengine 6.11.3-1, with main at bcf3878b: the median of three budget-job runs (run 40869156387, attempts 1 to 3). The same at 50 tabs, ten in each Space, over 45, from the same three runs: 17.26, 17.14 and 17.18 MiB (18.66 MiB on 6.11.2-3). A tab costs the same at 50 as at 20, so the ceiling is the same, about twice the first recording."
     },
     "live_tabs_idle_cpu_percent": {
       "ceiling": 2.0,
-      "recorded": 0.3,
-      "note": "The process tree's CPU over 30 s left alone with 50 tabs open, as a share of one core, the CPU of reaped children counted through their parents. In the same run the tree used 0.09 CPU s, no process more than 0.02 s, and no process ended. The ceiling is 2%, about seven times the measurement, because a share this small moves with whatever else the runner is doing."
+      "recorded": 0.4,
+      "note": "Re-recorded on 2026-10-29 on CI's runner against Omaweb's engine, omaweb-qtwebengine 6.11.3-1, with main at bcf3878b: the median of three budget-job runs (run 40869156387, attempts 1 to 3). The process tree's CPU over 30 s left alone with 50 tabs open, as a share of one core, the CPU of reaped children counted through their parents: 0.40, 0.37 and 0.40% (0.3% on 6.11.2-3). The ceiling is 2%, five times the measurement, because a share this small moves with whatever else the runner is doing."
     },
     "telemetry_background_cpu_percent": {
       "ceiling": 2.0,
-      "recorded": 0.37,
-      "note": "What choosing the Telemetry Scene adds to the process tree's CPU while the reader is on a page, so no Start page draws: its sampler, which reads /proc and /sys four times a second so a new tab's graphs are full (#814). The tree's CPU over 30 s on a page with Telemetry chosen, less the same with no Scene, as a share of one core. Not yet taken on CI's runner: three runs on 2026-10-27 under a headless cage on an Omarchy laptop (Dell XPS, the dev build) read 1.00, 0.37 and 0.10%, against an idle tree of 1.33 to 2.00% without Telemetry, so the spread is the idle browser's, not the sampler's. Timed alone, a sample costs about 0.1 ms, 0.04% of a core at four a second. The ceiling is 2%, as the idle tree's is, because a difference this small moves with whatever else the machine is doing."
+      "recorded": 0.13,
+      "note": "Re-recorded on 2026-10-29 on CI's runner against Omaweb's engine, omaweb-qtwebengine 6.11.3-1, with main at bcf3878b: the median of three budget-job runs (run 40869156387, attempts 1 to 3). What choosing the Telemetry Scene adds to the process tree's CPU while the reader is on a page, so no Start page draws: its sampler, which reads /proc and /sys four times a second so a new tab's graphs are full (#814). The tree's CPU over 30 s on a page with Telemetry chosen, less the same with no Scene, as a share of one core: 0.40 less 0.27, 0.33 less 0.20 and 0.43 less 0.30%, so 0.13% in all three. This is the first recording on CI's runner; the 0.37% it replaces was a laptop's, whose idle tree moved from 1.33 to 2.00% without Telemetry. Timed alone, a sample costs about 0.1 ms, 0.04% of a core at four a second. The ceiling is 2%, as the idle tree's is, because a difference this small moves with whatever else the machine is doing."
     }
   }
 }
