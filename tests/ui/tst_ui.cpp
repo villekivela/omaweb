@@ -66,6 +66,10 @@
 #include <QQmlEngine>
 #include <QTemporaryDir>
 #include <QUuid>
+#ifdef Q_OS_LINUX
+#include <QDBusConnection>
+#endif
+#include <QPointer>
 #include <QUrl>
 #include <QWindow>
 #include <QtQuickTest/quicktest.h>
@@ -75,6 +79,16 @@
 #include <memory>
 
 namespace {
+
+// A run by hand reaches the desktop it runs on through its session bus, and
+// the desktop's file chooser portal opens a window there that outlives the
+// suite (#894). The suite takes the bus away before Qt starts, as ctest
+// does, and Qt's own dialogs are kept off the portal as well.
+const bool g_cutOffFromTheDesktop = [] {
+    qputenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/nonexistent/omaweb");
+    qputenv("QT_NO_XDG_DESKTOP_PORTAL", "1");
+    return true;
+}();
 
 // The seeded lists, fetched from the fixtures in `tests/ui/filter-lists` rather
 // than from easylist.to, so a suite's list check never leaves the machine
@@ -574,6 +588,154 @@ private:
 
 } // namespace
 
+namespace {
+
+// The desktop's file chooser as the suite has it: it records what was asked
+// and answers as a test says, so nothing in a run reaches the portal of the
+// desktop the suite runs on (#894). `available` false is a desktop with no
+// portal, where the picker opens Qt's own dialog.
+class FileChooserStandIn final : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(bool available MEMBER available NOTIFY availableChanged)
+    Q_PROPERTY(QVariantList asked READ asked NOTIFY askedChanged)
+    Q_PROPERTY(int closes READ closes NOTIFY askedChanged)
+    Q_PROPERTY(bool sessionBusReachable READ sessionBusReachable CONSTANT)
+
+public:
+    static FileChooserStandIn &instance()
+    {
+        static FileChooserStandIn standIn;
+        return standIn;
+    }
+
+    bool available = false;
+
+    QVariantList asked() const { return m_asked; }
+    int closes() const { return m_closes; }
+    bool sessionBusReachable() const
+    {
+#ifdef Q_OS_LINUX
+        return QDBusConnection::sessionBus().isConnected();
+#else
+        return false;
+#endif
+    }
+
+    // The stand-in the picker currently holds a dialog open on, if any.
+    void opened(QObject *chooser, const QVariantMap &question)
+    {
+        m_asked.append(question);
+        m_open = chooser;
+        emit askedChanged();
+    }
+    void closed(QObject *chooser, bool taken)
+    {
+        if (m_open != chooser) {
+            return;
+        }
+        m_open = nullptr;
+        if (taken) {
+            ++m_closes;
+            emit askedChanged();
+        }
+    }
+
+    Q_INVOKABLE void reset()
+    {
+        available = false;
+        m_asked.clear();
+        m_closes = 0;
+        emit availableChanged();
+        emit askedChanged();
+    }
+    Q_INVOKABLE void choose(const QStringList &urls);
+    Q_INVOKABLE void cancel();
+
+signals:
+    void availableChanged();
+    void askedChanged();
+
+private:
+    QVariantList m_asked;
+    int m_closes = 0;
+    QPointer<QObject> m_open;
+};
+
+// `omaweb::FileChooser` with no D-Bus behind it, under the name QML knows.
+class StandInFileChooser : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(bool open READ isOpen NOTIFY openChanged)
+
+public:
+    explicit StandInFileChooser(QObject *parent = nullptr)
+        : QObject(parent)
+    {
+    }
+    ~StandInFileChooser() override { close(); }
+
+    bool isOpen() const { return m_open; }
+
+    Q_INVOKABLE bool ask(const QVariantMap &question, QWindow * = nullptr)
+    {
+        close();
+        auto &standIn = FileChooserStandIn::instance();
+        if (!standIn.available) {
+            return false;
+        }
+        m_open = true;
+        standIn.opened(this, question);
+        emit openChanged();
+        return true;
+    }
+    Q_INVOKABLE void close()
+    {
+        if (!m_open) {
+            return;
+        }
+        m_open = false;
+        FileChooserStandIn::instance().closed(this, true);
+        emit openChanged();
+    }
+
+    void answer(const QList<QUrl> &urls)
+    {
+        if (!m_open) {
+            return;
+        }
+        m_open = false;
+        FileChooserStandIn::instance().closed(this, false);
+        emit openChanged();
+        if (urls.isEmpty()) {
+            emit cancelled();
+        } else {
+            emit chosen(urls);
+        }
+    }
+
+signals:
+    void openChanged();
+    void chosen(const QList<QUrl> &urls);
+    void cancelled();
+
+private:
+    bool m_open = false;
+};
+
+void FileChooserStandIn::choose(const QStringList &urls)
+{
+    QList<QUrl> answer;
+    for (const auto &url : urls) {
+        answer.append(QUrl(url));
+    }
+    if (auto *chooser = qobject_cast<StandInFileChooser *>(m_open.data())) {
+        chooser->answer(answer);
+    }
+}
+
+void FileChooserStandIn::cancel() { choose({}); }
+
+} // namespace
+
 class UiTestSetup final : public QObject {
     Q_OBJECT
 
@@ -603,7 +765,13 @@ public slots:
         omaweb::registerScenes();
         omaweb::registerExternalProtocolHandler();
         omaweb::registerPagePrinter();
-        omaweb::registerFileChooser();
+        qmlRegisterType<StandInFileChooser>("Omaweb", 1, 0, "FileChooser");
+        qmlRegisterSingletonType<FileChooserStandIn>(
+            "Omaweb", 1, 0, "FileChooserStandIn", [](QQmlEngine *, QJSEngine *) -> QObject * {
+                auto &standIn = FileChooserStandIn::instance();
+                QQmlEngine::setObjectOwnership(&standIn, QQmlEngine::CppOwnership);
+                return &standIn;
+            });
         omaweb::registerSystemNotifier();
         omaweb::registerSoundingTabs();
         omaweb::registerMediaAnnouncer();

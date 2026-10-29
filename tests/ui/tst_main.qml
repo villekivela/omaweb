@@ -1986,9 +1986,9 @@ TestCase {
         verify(engine.fileSelectionCancelled);
     }
 
-    // The suite runs on a desktop with no session bus, so no file chooser
-    // portal answers and a page's chooser is Qt's own dialog, in the mode the
-    // page asked for. Cancelling it cancels the page's request.
+    // The suite stands in for a desktop whose file chooser portal does not
+    // answer, so a page's chooser is Qt's own dialog, in the mode the page
+    // asked for. Cancelling it cancels the page's request.
     function test_pageFileSelectionFallsBackToQtsDialogWithoutAPortal() {
         const engine = openPage("https://files.example/form");
         const picker = findChild(window, "pageFileDialog");
@@ -2013,6 +2013,47 @@ TestCase {
         files.reject();
         verify(engine.fileSelectionCancelled);
         verify(!picker.showing);
+    }
+
+    // The desktop's chooser is a stand-in in the suite, which records what the
+    // picker asked and answers as the test says, so no run reaches the
+    // portal of the desktop it runs on. The reader's choice reaches the page.
+    function test_pageFileSelectionIsAskedOfTheDesktopsChooser() {
+        FileChooserStandIn.reset();
+        FileChooserStandIn.available = true;
+        const engine = openPage("https://files.example/form");
+        const picker = findChild(window, "pageFileDialog");
+
+        engine.simulateFileSelection("open-multiple", ["image/png", ".pdf"]);
+        compare(FileChooserStandIn.asked.length, 1);
+        compare(FileChooserStandIn.asked[0].mode, "open-multiple");
+        compare(FileChooserStandIn.asked[0].acceptedTypes, ["image/png", ".pdf"]);
+        verify(picker.showing);
+        verify(!findChild(picker, "qtFileDialog").visible);
+
+        FileChooserStandIn.choose(["file:///home/reader/one.png", "file:///home/reader/two.png"]);
+        compare(engine.lastSelectedFiles.length, 2);
+        verify(!picker.showing);
+
+        engine.simulateFileSelection("open", []);
+        verify(picker.showing);
+        FileChooserStandIn.cancel();
+        verify(engine.fileSelectionCancelled);
+        verify(!picker.showing);
+
+        engine.simulateFileSelection("open", []);
+        verify(picker.showing);
+        picker.close();
+        compare(FileChooserStandIn.closes, 1);
+        verify(!picker.showing);
+        FileChooserStandIn.reset();
+    }
+
+    // The suite is cut off from the session bus of the desktop it runs on, so
+    // no dialog test can reach that desktop's file chooser portal, whether it
+    // was started by ctest or by hand.
+    function test_theSuiteCannotReachTheDesktopsSessionBus() {
+        verify(!FileChooserStandIn.sessionBusReachable);
     }
 
     // A save opens in the downloads location under the name it was offered:
