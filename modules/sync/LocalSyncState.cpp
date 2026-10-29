@@ -88,6 +88,12 @@ LocalSyncApplyResult LocalSyncState::applyRemoteState(
                 .message = QCoreApplication::translate(
                     "LocalSyncState", "Sync is unavailable in a Private window")}};
     }
+    // A page's new address reaches the store a moment after the tab, and the
+    // check the tab set off has already read the store without it. Without
+    // landing it and checking again, the apply would send the page back to
+    // the address this machine pushed before it moved.
+    m_exchange.landPendingChanges();
+    checkProjection();
     if (expectedGeneration != m_generation) {
         return {.status = LocalSyncApplyStatus::Stale,
             .error = {.failure = SyncFailure::LocalStateChanged,

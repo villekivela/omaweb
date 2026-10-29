@@ -3588,6 +3588,7 @@ void BrowserController::landAwayPageStates()
         }
         saveAwayTabs(windows.key(), std::move(tabs));
     }
+    emit tabsWritten();
 }
 
 // Site artwork belongs to the loaded page. What the Space stored of it stands
@@ -5191,6 +5192,7 @@ void BrowserController::recordTabs()
 {
     m_persistTabsTimer.stop();
     m_store->recordTabs(m_activeSpaceId, m_tabs.items(), m_activeTabId);
+    emit tabsWritten();
 }
 
 // A loading page reports a new address and then several titles in quick

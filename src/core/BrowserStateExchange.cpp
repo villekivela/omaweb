@@ -38,6 +38,7 @@ BrowserStateExchangeAdapter::BrowserStateExchangeAdapter(BrowserController *brow
     connect(browser->tabs(), &QAbstractItemModel::rowsMoved, this, reportPossibleChange);
     connect(browser->tabs(), &QAbstractItemModel::modelReset, this, reportPossibleChange);
     connect(browser, &BrowserController::preferenceChanged, this, reportPossibleChange);
+    connect(browser, &BrowserController::tabsWritten, this, reportPossibleChange);
     if (blocker) {
         connect(blocker, &ContentBlocker::subscriptionsChanged, this, reportPossibleChange);
     }
@@ -133,6 +134,8 @@ BrowserStateImage BrowserStateExchangeAdapter::capture(const BrowserStateSelecti
     }
     return image;
 }
+
+void BrowserStateExchangeAdapter::landPendingChanges() { m_browser->landPendingTabs(); }
 
 void BrowserStateExchangeAdapter::refresh(BrowserStateSections sections)
 {

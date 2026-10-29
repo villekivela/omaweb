@@ -49,6 +49,9 @@ public:
     virtual bool eligible() const = 0;
     virtual BrowserStateImage capture(const BrowserStateSelection &selection) const = 0;
     virtual void refresh(BrowserStateSections sections) = 0;
+    // Stores what the browser holds but has not written yet, so the next
+    // capture reads it.
+    virtual void landPendingChanges() { }
 
 signals:
     void possiblyChanged();
@@ -65,6 +68,7 @@ public:
     bool eligible() const override;
     BrowserStateImage capture(const BrowserStateSelection &selection) const override;
     void refresh(BrowserStateSections sections) override;
+    void landPendingChanges() override;
 
 private:
     BrowserController *m_browser = nullptr;

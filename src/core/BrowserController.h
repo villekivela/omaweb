@@ -256,6 +256,9 @@ public:
     SessionStore *sessionStore() const;
     bool startedWithEmptyState() const;
     void reloadSyncedState();
+    // Writes the tab changes still waiting to be stored, so a read of the
+    // store sees what the pages last reported.
+    void landPendingTabs();
 
     QString permissionOrigin(const QUrl &url) const override;
     int automaticDownloadDecision(const QString &origin, const QString &spaceId) const override;
@@ -762,6 +765,9 @@ public:
     Q_INVOKABLE bool closeTabInSpace(const QString &tabId, const QString &spaceHint = {});
 
 signals:
+    // A tab change held back to coalesce writes has gone to the store. The
+    // tab models announced the change before the store had it.
+    void tabsWritten();
     void paymentCardsChanged();
     void activeSpaceChanged();
     void activeTabChanged();
@@ -886,7 +892,6 @@ private:
     void ensureActiveTab();
     bool persistTabs();
     void recordTabs();
-    void landPendingTabs();
     QUrl storedFaviconIn(const QString &spaceId, const QUrl &pageUrl) const;
     // The icon a tab shows: its page's own, or while it has none, the one its
     // Space stored for the address.
