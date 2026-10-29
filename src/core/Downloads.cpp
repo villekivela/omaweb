@@ -26,6 +26,16 @@ namespace {
         return state == QStringLiteral("in-progress") || state == QStringLiteral("requested");
     }
 
+    // Only an interrupted download has a reason. QtWebEngine words "no reason" as
+    // this text, and earlier builds stored it for downloads nothing interrupted.
+    QString errorOf(const QString &state, const QString &error)
+    {
+        return state == QStringLiteral("interrupted")
+                && error != QStringLiteral("Unknown reason or not interrupted")
+            ? error
+            : QString();
+    }
+
 } // namespace
 
 qreal Downloads::Row::fraction() const
@@ -48,7 +58,7 @@ Downloads::Downloads(SessionStore *store, DownloadPermissions *permissions, QObj
         row.url = record.value(QStringLiteral("url")).toUrl();
         row.path = record.value(QStringLiteral("path")).toString();
         row.state = record.value(QStringLiteral("state")).toString();
-        row.error = record.value(QStringLiteral("error")).toString();
+        row.error = errorOf(row.state, record.value(QStringLiteral("error")).toString());
         row.receivedBytes = record.value(QStringLiteral("receivedBytes")).toLongLong();
         row.totalBytes = record.value(QStringLiteral("totalBytes")).toLongLong();
         row.spaceId = record.value(QStringLiteral("spaceId")).toString();
@@ -309,18 +319,18 @@ void Downloads::updated(const QString &runtimeId, const QString &state, qint64 r
     auto &row = m_rows[index];
     const auto wasRunning = row.running;
     row.state = state;
-    row.error = error;
+    row.error = errorOf(state, error);
     row.receivedBytes = receivedBytes;
     row.totalBytes = totalBytes;
     row.running = isRunning(state);
     if (m_store && !row.recordId.isEmpty()) {
-        m_store->updateDownload(row.recordId, state, receivedBytes, totalBytes, error);
+        m_store->updateDownload(row.recordId, state, receivedBytes, totalBytes, row.error);
     }
     if (state == QStringLiteral("completed")) {
         m_finished += 1;
         emit downloadCompleted(row.path, row.url, row.pageUrl, fileNameOf(row.path));
     } else if (state == QStringLiteral("interrupted")) {
-        emit downloadFailed(fileNameOf(row.path), error);
+        emit downloadFailed(fileNameOf(row.path), row.error);
     }
     // A settled download a Space did not record is not a Download record and
     // cannot become one, so nothing is left to show once it stops running.

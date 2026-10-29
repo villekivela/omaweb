@@ -2234,6 +2234,24 @@ Rectangle {
                                 return line;
                             }
 
+                            // Under the note, in the row's lower padding, where it
+                            // moves nothing: only a running download draws one.
+                            DownloadBar {
+                                name: "downloadProgress"
+                                parent: downloadRow
+                                colors: root.colors
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                anchors.bottomMargin: Style.spacing.huge / 2
+                                visible: String(downloadRow.model.state) === "in-progress"
+                                fraction: Number(downloadRow.model.totalBytes || 0) > 0 ? Math.min(1,
+                                                                                                   Number(downloadRow.model.receivedBytes
+                                                                                                          || 0) / Number(
+                                                                                                       downloadRow.model.totalBytes)) :
+                                                                                          -1
+                            }
+
                             Row {
                                 spacing: Style.spacing.md
 

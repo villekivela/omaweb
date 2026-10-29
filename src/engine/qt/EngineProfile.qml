@@ -234,9 +234,17 @@ QtObject {
                         || download.state === WebEngineDownloadRequest.DownloadRequested;
             }
 
+            // The string for no reason reads "Unknown reason or not interrupted",
+            // so the enum decides whether there is a reason at all.
+            function interruptReason() {
+                return download.interruptReason === WebEngineDownloadRequest.NoReason ? "" : (
+                                                                                            download.interruptReasonString
+                                                                                            || "");
+            }
+
             function updateRecord() {
                 root.downloadUpdated(runtimeId(), stateName(), download.receivedBytes,
-                                     download.totalBytes, download.interruptReasonString || "");
+                                     download.totalBytes, interruptReason());
                 if (!running() && !settled) {
                     settled = true;
                     root.activeDownloadCount -= 1;

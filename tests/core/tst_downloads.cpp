@@ -80,6 +80,7 @@ private slots:
     void publishesTheDownloadActivityWithoutBeingRefreshed();
     void asksOneHeldQuestionAtATimeAcrossEngineProfiles();
     void routesCancelAndRetryByTheDownloadNamespace();
+    void keepsAnErrorOnlyForAnInterruptedDownload();
     void forgetsOneDownloadWithoutForgettingTheRest();
     void persistsOnlyNonPrivateDownloadHistory();
     void asksBeforeWritingDownAProgram();
@@ -362,6 +363,47 @@ void DownloadsTest::routesCancelAndRetryByTheDownloadNamespace()
     QCOMPARE(restoredRetries.count(), 1);
     QVERIFY(restoredRetries.first().at(0).toString().isEmpty());
     QVERIFY(restoredRetries.first().at(1).toString().isEmpty());
+}
+
+void DownloadsTest::keepsAnErrorOnlyForAnInterruptedDownload()
+{
+    QTemporaryDir root;
+    StubHost host;
+    SqliteSessionStore store(root.path());
+    QVERIFY(store.open());
+    // Stored by a build that kept the engine's text for a download nothing
+    // interrupted.
+    const auto notInterrupted = QStringLiteral("Unknown reason or not interrupted");
+    QVERIFY(store.recordDownload(QStringLiteral("old"), {},
+        QUrl(QStringLiteral("https://files.example/old.zip")), QStringLiteral("/d/old.zip"),
+        QStringLiteral("completed"), 10, 10));
+    QVERIFY(store.updateDownload(
+        QStringLiteral("old"), QStringLiteral("completed"), 10, 10, notInterrupted));
+    QVERIFY(store.recordDownload(QStringLiteral("failed"), {},
+        QUrl(QStringLiteral("https://files.example/failed.zip")), QStringLiteral("/d/failed.zip"),
+        QStringLiteral("interrupted"), 3, 10));
+    QVERIFY(store.updateDownload(QStringLiteral("failed"), QStringLiteral("interrupted"), 3, 10,
+        QStringLiteral("Network failure")));
+
+    Downloads downloads(&store, &host);
+    QCOMPARE(downloads.rowCount(), 2);
+    for (int row = 0; row < downloads.rowCount(); ++row) {
+        const auto id = roleOf(downloads, row, Downloads::RecordIdRole).toString();
+        const auto error = roleOf(downloads, row, Downloads::ErrorRole).toString();
+        if (id == QStringLiteral("old")) {
+            QVERIFY(error.isEmpty());
+        } else {
+            QCOMPARE(error, QStringLiteral("Network failure"));
+        }
+    }
+
+    downloads.started(QStringLiteral("work:1"), QUrl(QStringLiteral("https://a.example/one.zip")),
+        QUrl(QStringLiteral("https://a.example/page")), QStringLiteral("/d/one.zip"),
+        QStringLiteral("in-progress"), 0, 100);
+    downloads.updated(QStringLiteral("work:1"), QStringLiteral("in-progress"), 40, 100, {});
+    QVERIFY(roleOf(downloads, 0, Downloads::ErrorRole).toString().isEmpty());
+    downloads.updated(QStringLiteral("work:1"), QStringLiteral("completed"), 100, 100, {});
+    QVERIFY(roleOf(downloads, 0, Downloads::ErrorRole).toString().isEmpty());
 }
 
 void DownloadsTest::forgetsOneDownloadWithoutForgettingTheRest()

@@ -108,7 +108,10 @@ CPP_ENGLISH = {
         "New tab": "compared with the stored title, then translated",
         "Agent activity": "compared with the stored title, then translated",
     },
-    "Downloads.cpp": {"A window is given the downloads its controller holds.": "an assertion"},
+    "Downloads.cpp": {
+        "A window is given the downloads its controller holds.": "an assertion",
+        "Unknown reason or not interrupted": "QtWebEngine's text, compared with a stored error",
+    },
     "FontSettings.cpp": {"The reader's font settings are handed to QML, not built there.": "an assertion"},
     "PaymentCards.cpp": {
         "American Express": "a card network's name",

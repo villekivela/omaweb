@@ -295,7 +295,7 @@ TestCase {
 
     // The page takes the window's download list, which is a model with roles,
     // so the fixture is one too rather than an array of maps.
-    readonly property int downloadsFixtureCount: 2
+    readonly property int downloadsFixtureCount: 4
 
     ListModel {
         id: downloadsFixture
@@ -318,6 +318,26 @@ TestCase {
             error: "the connection was lost"
             receivedBytes: 5
             totalBytes: 100
+        }
+
+        ListElement {
+            recordId: ""
+            runtimeId: "work:1"
+            path: "/home/reader/Downloads/measured.iso"
+            state: "in-progress"
+            error: ""
+            receivedBytes: 50
+            totalBytes: 100
+        }
+
+        ListElement {
+            recordId: ""
+            runtimeId: "work:2"
+            path: "/home/reader/Downloads/streamed.iso"
+            state: "in-progress"
+            error: ""
+            receivedBytes: 7
+            totalBytes: 0
         }
     }
 
@@ -2546,6 +2566,51 @@ TestCase {
         tryVerify(function () {
             return ruledGap() === 0;
         });
+    }
+
+    // A running download draws how far it has come: a bar filled to the share
+    // received when the size is known, and a segment sliding along the track
+    // when it is not. A settled one draws no bar.
+    function test_aRunningDownloadDrawsItsProgress() {
+        const page = makePage();
+        page.section = page.sections.indexOf("downloads");
+
+        const measured = findChild(page, "recordedDownload-2");
+        const track = findChild(measured, "downloadProgressTrack");
+        const fill = findChild(measured, "downloadProgressFill");
+        verify(track !== null && track.visible);
+        verify(Math.abs(fill.width - track.width / 2) <= 0.5);
+        verify(!findChild(measured, "downloadProgressSlide").visible);
+
+        const unmeasured = findChild(page, "recordedDownload-3");
+        const slide = findChild(unmeasured, "downloadProgressSlide");
+        verify(findChild(unmeasured, "downloadProgressTrack").visible);
+        compare(findChild(unmeasured, "downloadProgressFill").width, 0);
+        verify(slide.visible);
+        verify(slide.width > 0);
+
+        for (let index = 0; index < 2; ++index) {
+            const settled = findChild(page, "recordedDownload-" + index);
+            verify(!findChild(settled, "downloadProgressTrack").visible);
+            verify(!findChild(settled, "downloadProgressSlide").animating);
+        }
+    }
+
+    function test_theSlidingSegmentStopsUnderReducedMotion() {
+        const page = makePage();
+        page.section = page.sections.indexOf("downloads");
+        const slide = findChild(findChild(page, "recordedDownload-3"), "downloadProgressSlide");
+        tryVerify(function () {
+            return slide.animating;
+        });
+        SystemMotion.reduced = true;
+        try {
+            tryVerify(function () {
+                return !slide.animating;
+            });
+        } finally {
+            SystemMotion.reduced = false;
+        }
     }
 
     // And a ruled list is a ruled list wherever it is, not a rule the tabs
