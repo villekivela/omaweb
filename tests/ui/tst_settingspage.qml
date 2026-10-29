@@ -2589,9 +2589,11 @@ TestCase {
         verify(slide.visible);
         verify(slide.width > 0);
 
-        for (let index = 0; index < 2; ++index)
-            verify(!findChild(findChild(page, "recordedDownload-" + index),
-                              "downloadProgressTrack").visible);
+        for (let index = 0; index < 2; ++index) {
+            const settled = findChild(page, "recordedDownload-" + index);
+            verify(!findChild(settled, "downloadProgressTrack").visible);
+            verify(!findChild(settled, "downloadProgressSlide").animating);
+        }
     }
 
     function test_theSlidingSegmentStopsUnderReducedMotion() {

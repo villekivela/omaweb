@@ -1,6 +1,7 @@
 import QtQuick
 import Omaweb
 import qs.Commons
+import "DevicePixels.mjs" as DevicePixels
 
 // How far a download has come, drawn as a thin track. With a known size the
 // fill is the share received; without one a segment slides along the track
@@ -21,6 +22,7 @@ Rectangle {
     property bool full: false
 
     readonly property bool measured: root.fraction >= 0
+    readonly property real pixelRatio: Window.window ? Window.window.devicePixelRatio : 1
 
     objectName: root.name + "Track"
     height: 3
@@ -41,7 +43,9 @@ Rectangle {
         id: slide
         objectName: root.name + "Slide"
 
-        readonly property real restingX: Math.round((root.width - width) / 2)
+        readonly property real restingX: DevicePixels.snap((root.width - width) / 2,
+                                                           root.pixelRatio)
+
         readonly property bool animating: sliding.running
 
         anchors.top: parent.top
@@ -50,12 +54,16 @@ Rectangle {
         radius: parent.radius
         color: root.colors.accent
         visible: root.running && !root.measured && !root.full
+        // Resting, it must not read as a third of the download.
+        opacity: SystemMotion.reduced ? 0.5 : 1
         x: slide.restingX
 
         SequentialAnimation on x {
             id: sliding
             running: slide.visible && !SystemMotion.reduced
             loops: Animation.Infinite
+            // Stopping leaves `x` where the animation ended, so it goes back to
+            // resting rather than freezing the segment at one end.
             onRunningChanged: if (!running)
                                   slide.x = Qt.binding(function () {
                                       return slide.restingX;

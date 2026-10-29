@@ -27,7 +27,7 @@ namespace {
     }
 
     // Only an interrupted download has a reason. QtWebEngine words "no reason" as
-    // this text, and builds before the engine sent it by enum stored it.
+    // this text, and earlier builds stored it for downloads nothing interrupted.
     QString errorOf(const QString &state, const QString &error)
     {
         return state == QStringLiteral("interrupted")

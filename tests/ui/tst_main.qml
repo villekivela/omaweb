@@ -22328,14 +22328,20 @@ TestCase {
             return slide.animating;
         });
         SystemMotion.reduced = true;
-        tryVerify(function () {
-            return !slide.animating;
-        });
-        SystemMotion.reduced = false;
+        try {
+            tryVerify(function () {
+                return !slide.animating;
+            });
+        } finally {
+            SystemMotion.reduced = false;
+        }
 
         host.simulateDownloadFinished(measured);
         host.simulateDownloadFinished(unmeasured);
         tryCompare(mark, "running", 0);
+        // Nothing running, nothing sliding: the animation costs nothing.
+        verify(!slide.visible);
+        verify(!slide.animating);
         findChild(window.contentItem, "pageNotice").dismiss();
         tryCompare(mark, "visible", false);
     }
