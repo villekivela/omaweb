@@ -8324,6 +8324,45 @@ TestCase {
         control.destroy();
     }
 
+    // Under the pointer an away Space's square lifts and grows within the
+    // footer, as the sidebar's other rows lift from muted to full, and the
+    // kit's filled, bordered box does not come. The one on show stays as it is.
+    function test_aSpaceSquareLiftsUnderThePointerWithoutABox() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const personalId = browser.activeSpaceId;
+        const workId = browser.createSpace("Work");
+        const work = findChild(sidebar, "spaceMark-" + workId);
+        const personal = findChild(sidebar, "spaceMark-" + personalId);
+        const button = findChild(sidebar, "space-" + workId);
+        tryCompare(work, "width", 8);
+        compare(work.opacity, 0.7);
+        compare(personal.opacity, 1);
+
+        // The row slides to make room for the new Space; the pointer waits
+        // for it to settle.
+        let settled = -1;
+        tryVerify(function () {
+            const at = button.mapToItem(null, 0, 0).x;
+            const done = at === settled;
+            settled = at;
+            return done;
+        });
+        mouseMove(button, button.width / 2, button.height / 2);
+        tryCompare(button, "hot", true);
+        tryCompare(work, "width", 10);
+        tryCompare(work, "opacity", 1);
+        compare(work.height, 10);
+        verify(work.height <= button.height);
+        verify(Qt.colorEqual(button.color, "transparent"));
+        compare(button.borderSpec.widths.top + button.borderSpec.widths.left, 0);
+        compare(personal.width, 12);
+
+        mouseMove(window.contentItem, window.width / 2, 1);
+        tryCompare(work, "width", 8);
+        tryCompare(work, "opacity", 0.7);
+        verify(browser.deleteSpace(workId, "Work"));
+    }
+
     // The palette name the core gave a Space.
     function spaceColourName(spaceId) {
         const spaces = browser.spaces;
@@ -9378,14 +9417,9 @@ TestCase {
         verify(browser.setTabKeepActive(tabId, true));
         verify(labels().indexOf("Stop keeping active") >= 0);
 
-        // The row says so too, so the setting is legible without opening the
-        // menu that made it. The mark is a pin's: unpinning gives Keep active
-        // up, and the mark goes with it.
-        const mark = findChild(window.contentItem, "keepActive-" + tabId);
-        verify(mark !== null);
-        tryVerify(function () {
-            return mark.visible;
-        });
+        // The row carries no mark for it: the menu says so, and the row's
+        // accessible name does.
+        verify(findChild(window.contentItem, "keepActive-" + tabId) === null);
 
         // Running the entry the menu is showing turns the setting off rather
         // than on again.
@@ -9394,9 +9428,6 @@ TestCase {
             return action.label;
         }).indexOf("Stop keeping active"));
         verify(!browser.tabKeepActive(tabId));
-        tryVerify(function () {
-            return !mark.visible;
-        });
 
         browser.activateTab(tabId);
         browser.toggleActivePinned();

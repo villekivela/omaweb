@@ -367,26 +367,6 @@ Item {
         siteColoredMark: root.siteColored
     }
 
-    // The pin's own corner, opposite the speaker, so a page being heard and a
-    // page kept running can both be read off one tile. Ringed in the sidebar's
-    // ground rather than left bare: the mark lies over site artwork, which is
-    // any colour at all, and a dot the artwork swallows says nothing.
-    Rectangle {
-        objectName: "keepActive-" + root.tabId
-        visible: root.showsKeepActive
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.rightMargin: 4
-        anchors.bottomMargin: 4
-        width: 8
-        height: 8
-        radius: width / 2
-        color: root.siteColored && root.active ? root.siteColor : root.colors.accent
-        border.width: 1
-        border.color: root.colors.windowOpaque
-        Accessible.ignored: true
-    }
-
     // A window's outline, where the row ends, in the row's own text colour. On
     // an ordinary row it gives way to the close button under the pointer; a
     // pin carries it in the corner the speaker leaves free.
