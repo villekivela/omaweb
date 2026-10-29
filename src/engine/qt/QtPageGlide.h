@@ -18,6 +18,10 @@ namespace omaweb {
 // scrolled views do (#808). A mouse wheel scrolls as it always has. "Touchpad glide" in
 // `docs/architecture.md` says why the glide is made here rather than by Chromium.
 //
+// A list or pane in the chrome, any Qt Quick `Flickable`, glides the same way and stops on the
+// same input (#864), measured and sent in pixels, which are what a `Flickable` scrolls a touchpad
+// by. It stops at the view's end, as a page's stops at Chromium's.
+//
 // When fingers lift from a page fast enough, this holds the lift's `ScrollEnd` back from the
 // item QtWebEngine takes input through and goes on sending it `ScrollUpdate`s from `GlideSpeed`
 // and `GlideCurve`, every `frame` ms, then the `ScrollEnd`. To Chromium the gesture is still the
@@ -33,6 +37,9 @@ class QtPageGlide final : public QObject {
 public:
     // Two steps to a 60 Hz display's frame, so a 120 Hz display has one in each of its own.
     static constexpr int frame = 8;
+    // The angle Qt's Wayland plugin gives each pixel of fingers' scrolling, which a chrome view's
+    // glide gives its own.
+    static constexpr int anglePerPixel = 12;
 
     // Watches the application's events from now on.
     explicit QtPageGlide(QObject *parent = nullptr);
@@ -46,15 +53,19 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
-    // Follows a touchpad's wheel event to a page, and starts the glide when it is the lift.
-    // True to keep the event from the page.
-    bool follow(QQuickItem *page, QWheelEvent *event);
+    // What the fingers scroll: a page, by a wheel's angle, or a view in the chrome, by its pixels.
+    enum class Scroller { Page, ChromeView };
+
+    // Follows a touchpad's wheel event to a page or a chrome view, and starts the glide when it
+    // is the lift. True to keep the event from it.
+    bool follow(QQuickItem *scrolled, Scroller scroller, QWheelEvent *event);
     // Stops the glide, logging `cause`.
     void halt(const char *cause);
     void step();
-    void send(Qt::ScrollPhase phase, QPoint angleDelta);
+    // Sends `delta` in the units `m_scroller` scrolls by.
+    void send(Qt::ScrollPhase phase, QPoint delta);
 
-    // Where the fingers last were over the page, which the glide's events say too.
+    // Where the fingers last were over what they scroll, which the glide's events say too.
     struct Pointer {
         QPointF position;
         QPointF globalPosition;
@@ -63,10 +74,13 @@ private:
         const QPointingDevice *device = nullptr;
     };
 
-    // The page the fingers are scrolling.
-    QPointer<QQuickItem> m_page;
+    // The page or chrome view the fingers are scrolling.
+    QPointer<QQuickItem> m_scrolled;
+    Scroller m_scroller = Scroller::Page;
     Pointer m_pointer;
     quint64 m_liftedAt = 0;
+    // When the glide's last event said it was sent.
+    quint64 m_stampedAt = 0;
     GlideSpeed m_speed;
     // For the log: the fingers' movements in this gesture, and when they last moved.
     int m_moves = 0;
