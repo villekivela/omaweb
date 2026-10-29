@@ -54,7 +54,7 @@ and reads `hyprctl clients` back, and CI has neither.
 Usage:
 
     scripts/benchmark_runtime.py
-    scripts/benchmark_runtime.py startup --browser build/dev/omaweb
+    scripts/benchmark_runtime.py startup --browser build/release/omaweb-browser
     scripts/benchmark_runtime.py startup livedin --cache cold
     scripts/benchmark_runtime.py spaces --spaces 4
     scripts/benchmark_runtime.py pageload --require-dns
@@ -1247,16 +1247,16 @@ def directory_mib(path: str) -> float:
 
 
 def lived_in_seeder(executable: str, seeder: str) -> str:
-    """The session seeder: the one asked for, else the one beside the browser or the CI build's."""
+    """The session seeder: the one asked for, else the one beside the browser or the release build's."""
     candidates = [seeder] if seeder else [
         os.path.join(os.path.dirname(os.path.abspath(executable)), "omaweb-lived-in-session"),
-        str(ROOT / "build" / "ci" / "omaweb-lived-in-session"),
+        str(ROOT / "build" / "release" / "omaweb-lived-in-session"),
     ]
     for candidate in candidates:
         if os.access(candidate, os.X_OK):
             return candidate
     raise Unavailable("no omaweb-lived-in-session is built to seed the lived-in session with; "
-                      "build it with the ci preset or name it with --seeder")
+                      "build it with the release preset or name it with --seeder")
 
 
 def build_lived_in(workspace: Workspace, site: LivedInSite, executable: str, seeder: str) -> None:
@@ -2514,7 +2514,7 @@ def main() -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("measurement", nargs="*",
                         help=f"which of {', '.join(MEASUREMENTS)} to run, all of them by default")
-    parser.add_argument("--browser", default="build/dev/omaweb", help="the browser to measure")
+    parser.add_argument("--browser", default="build/release/omaweb-browser", help="the browser to measure")
     parser.add_argument("--repetitions", type=int, default=3,
                         help="launches to take the median startup from")
     parser.add_argument("--cache", choices=("cold", "warm"), default=None,
@@ -2522,7 +2522,7 @@ def main() -> int:
                         "not; startup is warm and livedin cold by default, as their budgets are")
     parser.add_argument("--seeder", default="",
                         help="the omaweb-lived-in-session that seeds livedin's session, found "
-                        "beside the browser or in build/ci by default")
+                        "beside the browser or in build/release by default")
     parser.add_argument("--require-lived-in", action="store_true",
                         help="fail livedin rather than skip it where no seeder is built")
     parser.add_argument("--spaces", type=int, default=4,

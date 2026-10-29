@@ -83,7 +83,15 @@ Settings glides after a touchpad lift and moves between sections with the arrow 
 ([#865](https://github.com/villekivela/omaweb/issues/865)), and About says Omaweb is the default
 when Omarchy's browser router opens it ([#867](https://github.com/villekivela/omaweb/issues/867)).
 Files are chosen through the desktop's file chooser portal
-([#868](https://github.com/villekivela/omaweb/issues/868)).
+([#868](https://github.com/villekivela/omaweb/issues/868)). The drifts the new budget showed are
+named. Startup's 0.2 s is mostly the runner, and a Start page closed before the first frame no
+longer fades over it ([#883](https://github.com/villekivela/omaweb/issues/883)). The 21 MiB is the
+chrome added since September and is kept ([#884](https://github.com/villekivela/omaweb/issues/884)).
+A frozen away page that keeps growing is traced
+([#885](https://github.com/villekivela/omaweb/issues/885)). The budget is measured on the release
+build readers run ([#889](https://github.com/villekivela/omaweb/issues/889)), and the engine closes
+its Speedometer gap to Chromium through its build flags
+([#886](https://github.com/villekivela/omaweb/issues/886)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 

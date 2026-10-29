@@ -1535,7 +1535,7 @@ budget that speaks only when it breaks hides the drift that is about to break it
 
 ```sh
 scripts/benchmark_runtime.py
-scripts/benchmark_runtime.py startup --browser build/dev/omaweb
+scripts/benchmark_runtime.py startup --browser build/release/omaweb-browser
 scripts/benchmark_runtime.py startup livedin --cache cold
 scripts/benchmark_runtime.py spaces --spaces 4
 scripts/benchmark_runtime.py pageload
@@ -1598,7 +1598,7 @@ to cage:
 ```sh
 env -u HYPRLAND_INSTANCE_SIGNATURE WLR_BACKENDS=headless WLR_RENDERER=pixman \
     WLR_LIBINPUT_NO_DEVICES=1 QT_QPA_PLATFORM=wayland cage -- \
-    scripts/benchmark_runtime.py livetabs --browser build/dev/omaweb-browser
+    scripts/benchmark_runtime.py livetabs --browser build/release/omaweb-browser
 ```
 
 The window mapping is read from the browser's own Wayland protocol log rather than from a
