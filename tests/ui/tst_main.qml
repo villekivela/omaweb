@@ -334,6 +334,8 @@ TestCase {
     // each one starts from a settled window. It is put back as a key would put
     // it, so nothing restored here is still moving when the test begins.
     function init() {
+        // A stand-in chooser a failed test left answering is a desktop with no portal again.
+        FileChooserStandIn.reset();
         while (frameWatches.length > 0)
             stopWatching(frameWatches[0]);
         // A Tab window a failed test left open goes back to the sidebar, and
@@ -2046,7 +2048,6 @@ TestCase {
         picker.close();
         compare(FileChooserStandIn.closes, 1);
         verify(!picker.showing);
-        FileChooserStandIn.reset();
     }
 
     // The suite is cut off from the session bus of the desktop it runs on, so

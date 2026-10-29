@@ -621,7 +621,6 @@ public:
 #endif
     }
 
-    // The stand-in the picker currently holds a dialog open on, if any.
     void opened(QObject *chooser, const QVariantMap &question)
     {
         m_asked.append(question);
@@ -658,6 +657,7 @@ signals:
 private:
     QVariantList m_asked;
     int m_closes = 0;
+    // The stand-in the picker currently holds a dialog open on, if any.
     QPointer<QObject> m_open;
 };
 
