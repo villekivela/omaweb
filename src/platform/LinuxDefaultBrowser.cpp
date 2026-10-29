@@ -14,7 +14,8 @@ namespace {
     // `xdg-settings` rather than writing `mimeapps.list` here. The file is only
     // where most desktops keep the answer; the tool knows the ones that keep it
     // somewhere else, and editing a shared file from inside a browser would put
-    // Omaweb in the business of parsing whatever else is in it.
+    // Omaweb in the business of parsing whatever else is in it. Looked up on
+    // each use, not cached, so a test can put its own on `PATH`.
     QString settingsTool()
     {
         return QStandardPaths::findExecutable(QStringLiteral("xdg-settings"));

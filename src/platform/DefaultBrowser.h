@@ -20,8 +20,8 @@ namespace omaweb {
 class DefaultBrowser final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool available READ available CONSTANT)
-    // Not constant: the reader can change this from outside the browser, and
-    // the answer here follows when `refresh` asks again.
+    // Not constant: the reader can change this from outside the browser. It is
+    // read when the object is made, and again by `refresh` and `makeDefault`.
     Q_PROPERTY(bool isDefault READ isDefault NOTIFY changed)
 
 public:
@@ -35,8 +35,9 @@ public:
     // setting stands where it was.
     Q_INVOKABLE bool makeDefault();
     // Re-reads the desktop's setting, for a reader who changed it elsewhere
-    // while the browser was open. The tools take tens of milliseconds, so the
-    // answer is read off the interface's thread and `changed` follows it.
+    // while the browser was open. Settings calls it each time it opens, so,
+    // unlike the first read and the one after `makeDefault`, it runs off the
+    // interface's thread, and `changed` follows when the answer differs.
     Q_INVOKABLE void refresh();
 
 signals:
