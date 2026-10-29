@@ -70,13 +70,15 @@ namespace {
 
 DefaultBrowser::DefaultBrowser(QObject *parent)
     : QObject(parent)
-    , m_isDefault(readDefault())
 {
+    refresh();
 }
 
 bool DefaultBrowser::available() const { return !settingsTool().isEmpty(); }
 
 bool DefaultBrowser::isDefault() const { return m_isDefault; }
+
+bool DefaultBrowser::known() const { return m_known; }
 
 bool DefaultBrowser::makeDefault()
 {
@@ -113,9 +115,10 @@ void DefaultBrowser::refresh()
 
 void DefaultBrowser::setDefault(bool isDefault)
 {
-    if (m_isDefault == isDefault) {
+    if (m_known && m_isDefault == isDefault) {
         return;
     }
+    m_known = true;
     m_isDefault = isDefault;
     emit changed();
 }

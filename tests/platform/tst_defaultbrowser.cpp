@@ -1,5 +1,6 @@
 #include "DefaultBrowser.h"
 
+#include <QElapsedTimer>
 #include <QFile>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -40,6 +41,19 @@ read -r answer < '%1/browser'
 printf '%s\n' "$answer"
 )");
 
+// The same answer from a tool slower than any frame, as on a loaded machine.
+const auto kSlowOmarchyTool = QStringLiteral(R"(#!/bin/sh
+/usr/bin/sleep 1
+read -r answer < '%1/browser'
+printf '%s\n' "$answer"
+)");
+
+// Whether `browser` holds the desktop's answer, once it has one.
+bool answers(DefaultBrowser &browser)
+{
+    return QTest::qWaitFor([&] { return browser.known(); }, 5000) && browser.isDefault();
+}
+
 } // namespace
 
 class DefaultBrowserTest final : public QObject {
@@ -54,6 +68,7 @@ private slots:
     void becomesTheDefault();
     void becomesTheDefaultBehindOmarchysRouter();
     void readsTheAnswerAgain();
+    void asksWithoutHoldingTheInterface();
 
 private:
     // A desktop with `browser` as its default, and with Omarchy's router in
@@ -124,10 +139,13 @@ void DefaultBrowserTest::install(const QString &name, const QString &body)
 void DefaultBrowserTest::takesTheDesktopsAnswer()
 {
     desktop(QStringLiteral("omaweb.desktop"), false);
-    QVERIFY(DefaultBrowser().isDefault());
+    DefaultBrowser omaweb;
+    QVERIFY(answers(omaweb));
 
     desktop(QStringLiteral("firefox.desktop"), false);
-    QVERIFY(!DefaultBrowser().isDefault());
+    DefaultBrowser other;
+    QVERIFY(!answers(other));
+    QVERIFY(other.known());
 }
 
 // On Omarchy `xdg-settings` names the router, which opens whatever browser
@@ -135,16 +153,20 @@ void DefaultBrowserTest::takesTheDesktopsAnswer()
 void DefaultBrowserTest::seesTheBrowserBehindOmarchysRouter()
 {
     desktop(QStringLiteral("omaweb.desktop"), true);
-    QVERIFY(DefaultBrowser().isDefault());
+    DefaultBrowser omaweb;
+    QVERIFY(answers(omaweb));
 
     desktop(QStringLiteral("firefox.desktop"), true);
-    QVERIFY(!DefaultBrowser().isDefault());
+    DefaultBrowser other;
+    QVERIFY(!answers(other));
+    QVERIFY(other.known());
 }
 
 void DefaultBrowserTest::becomesTheDefault()
 {
     desktop(QStringLiteral("firefox.desktop"), false);
     DefaultBrowser browser;
+    QVERIFY(!answers(browser));
     QSignalSpy changed(&browser, &DefaultBrowser::changed);
     QVERIFY(browser.makeDefault());
     QVERIFY(browser.isDefault());
@@ -157,7 +179,7 @@ void DefaultBrowserTest::becomesTheDefaultBehindOmarchysRouter()
 {
     desktop(QStringLiteral("firefox.desktop"), true);
     DefaultBrowser browser;
-    QVERIFY(!browser.isDefault());
+    QVERIFY(!answers(browser));
     QVERIFY(browser.makeDefault());
     QVERIFY(browser.isDefault());
 }
@@ -167,12 +189,29 @@ void DefaultBrowserTest::readsTheAnswerAgain()
 {
     desktop(QStringLiteral("firefox.desktop"), true);
     DefaultBrowser browser;
-    QVERIFY(!browser.isDefault());
+    QVERIFY(!answers(browser));
     QSignalSpy changed(&browser, &DefaultBrowser::changed);
 
     setBrowser(QStringLiteral("omaweb.desktop"));
     browser.refresh();
     QTRY_VERIFY(browser.isDefault());
+    QCOMPARE(changed.count(), 1);
+}
+
+// Settings makes the object as it first opens, so the first answer is read off
+// the interface's thread too, and nothing is said until it arrives.
+void DefaultBrowserTest::asksWithoutHoldingTheInterface()
+{
+    desktop(QStringLiteral("omaweb.desktop"), true);
+    install(QStringLiteral("omarchy-cmd-default-browser"), kSlowOmarchyTool);
+    QElapsedTimer made;
+    made.start();
+    DefaultBrowser browser;
+    QVERIFY2(made.elapsed() < 500, qPrintable(QString::number(made.elapsed())));
+    QVERIFY(!browser.known());
+    QVERIFY(!browser.isDefault());
+    QSignalSpy changed(&browser, &DefaultBrowser::changed);
+    QVERIFY(answers(browser));
     QCOMPARE(changed.count(), 1);
 }
 

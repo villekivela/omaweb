@@ -4311,7 +4311,7 @@ Rectangle {
 
                     Text {
                         objectName: "defaultBrowserState"
-                        visible: DefaultBrowser.available
+                        visible: DefaultBrowser.available && DefaultBrowser.known
                         width: pane.width
                         text: DefaultBrowser.isDefault ? qsTr(
                                                              "Omaweb opens links from other applications.") :
@@ -4324,7 +4324,8 @@ Rectangle {
 
                     ActionButton {
                         objectName: "makeDefaultBrowserButton"
-                        visible: DefaultBrowser.available && !DefaultBrowser.isDefault
+                        visible: DefaultBrowser.available && DefaultBrowser.known &&
+                                 !DefaultBrowser.isDefault
                         colors: root.colors
                         label: qsTr("Make Omaweb the default")
                         accessibleName: qsTr("Make Omaweb the default browser")

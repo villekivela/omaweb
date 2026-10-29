@@ -156,19 +156,19 @@ public:
     Q_INVOKABLE bool load() { return false; }
 };
 
-// The desktop's default-browser setting as a desktop that offers no way to ask
-// for it answers. The real one runs `xdg-settings` on the host, which would
-// make the settings page under test draw whatever this machine says. It counts
-// how often the page asks again.
+// The desktop's default-browser setting, which a test sets for itself. It
+// starts as a desktop that offers no way to ask for it answers: the real one
+// runs `xdg-settings` on the host, which would make the settings page under
+// test draw whatever this machine says. It counts how often the page asks
+// again.
 class DefaultBrowserProbe final : public QObject {
     Q_OBJECT
-    Q_PROPERTY(bool available READ available CONSTANT)
-    Q_PROPERTY(bool isDefault READ isDefault NOTIFY changed)
+    Q_PROPERTY(bool available MEMBER m_available NOTIFY changed)
+    Q_PROPERTY(bool known MEMBER m_known NOTIFY changed)
+    Q_PROPERTY(bool isDefault MEMBER m_isDefault NOTIFY changed)
     Q_PROPERTY(int refreshes READ refreshes NOTIFY changed)
 
 public:
-    bool available() const { return false; }
-    bool isDefault() const { return false; }
     int refreshes() const { return m_refreshes; }
     Q_INVOKABLE bool makeDefault() { return false; }
     Q_INVOKABLE void refresh()
@@ -181,6 +181,9 @@ signals:
     void changed();
 
 private:
+    bool m_available = false;
+    bool m_known = false;
+    bool m_isDefault = false;
     int m_refreshes = 0;
 };
 

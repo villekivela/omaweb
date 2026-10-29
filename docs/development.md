@@ -590,7 +590,7 @@ On Omarchy, `xdg-settings` names Omarchy's router, `omarchy-browser.desktop`, wh
 browser `omarchy-cmd-default-browser` names, so Settings asks that command instead. It sets the
 default as `omarchy-default-browser` does, with `BROWSER` unset and `XDG_CURRENT_DESKTOP` empty,
 because that command takes only the browsers on its own list. Settings asks again each time it
-opens.
+opens, off the interface's thread, and says nothing about the default until the first answer.
 
 ### The Arch package
 
