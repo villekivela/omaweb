@@ -3080,11 +3080,23 @@ ApplicationWindow {
         window.recordPendingSave(engine, action);
         const address = String(url).split("?")[0].split("#")[0];
         const slash = address.lastIndexOf("/");
-        const suggested = slash >= 0 && slash + 1 < address.length ? address.substring(slash + 1) :
-                                                                     "download";
-        saveTargetDialog.currentFile = "file://" + window.windowBrowser.downloadDirectory + "/"
-                + suggested;
+        const segment = slash >= 0 && slash + 1 < address.length ? address.substring(slash + 1) :
+                                                                   "";
+
+
+        saveTargetDialog.startAt(window.windowBrowser.downloadDirectory, window.decodedName(
+                                     segment) || "download");
         saveTargetDialog.open();
+    }
+
+    // A link's last segment as the name it spells: `my%20file.zip` is
+    // "my file.zip". A segment that is not valid escaping is taken as written.
+    function decodedName(segment) {
+        try {
+            return decodeURIComponent(segment);
+        } catch (error) {
+            return segment;
+        }
     }
 
     function completeTargetSave(fileUrl) {
@@ -3258,10 +3270,6 @@ ApplicationWindow {
         return String(fileUrl).replace(/^file:\/\//, "");
     }
 
-    function fileUrl(path) {
-        return "file://" + String(path);
-    }
-
     function downloadFileName(path) {
         const separator = Math.max(String(path).lastIndexOf("/"), String(path).lastIndexOf("\\"));
         return separator >= 0 ? String(path).substring(separator + 1) : String(path);
@@ -3350,8 +3358,8 @@ ApplicationWindow {
         function onQuestionChanged() {
             const question = window.downloads.question;
             if (question.disposition === BrowserController.SaveDownloadAs) {
-                downloadTargetDialog.currentFile = window.fileUrl(
-                            window.windowBrowser.downloadDirectory + "/" + question.fileName);
+                downloadTargetDialog.startAt(window.windowBrowser.downloadDirectory,
+                                             question.fileName);
                 downloadTargetDialog.open();
             } else {
                 downloadTargetDialog.close();

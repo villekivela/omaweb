@@ -56,10 +56,17 @@ Item {
     }
 
     // Starts a save in `folder` under `name`, the part after its last slash,
-    // since a page's suggestion is the page's to make up. No name, no start.
+    // since a page's suggestion is the page's to make up. Each part of the
+    // path is escaped, so a `#`, `?` or `%` in a name stays in the name rather
+    // than ending the path. No name, `.` or `..` is no start.
     function startAt(folder, name) {
         const base = String(name || "").split("/").pop();
-        root.currentFile = base.length > 0 ? "file://" + folder + "/" + base : "";
+        if (base === "" || base === "." || base === "..") {
+            root.currentFile = "";
+            return;
+        }
+        const parts = String(folder).split("/").concat([base]);
+        root.currentFile = "file://" + parts.map(encodeURIComponent).join("/");
     }
 
     function close() {

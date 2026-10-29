@@ -2038,12 +2038,32 @@ TestCase {
         engine.simulateFileSelection("save", [], "../elsewhere/report.csv");
         compare(String(pageDialog.currentFile), expected("report.csv"));
         pageDialog.reject();
+        // A name stays a name in the address: what would read as a fragment,
+        // a query or an escape is escaped, and the dialog opens on it whole.
+        const names = [["a#b.txt", "a%23b.txt"], ["q?.pdf", "q%3F.pdf"], ["100%.txt", "100%25.txt"],
+                       ["100%41.txt", "100%2541.txt"]];
+        for (let index = 0; index < names.length; ++index) {
+            engine.simulateFileSelection("save", [], names[index][0]);
+            compare(String(pageDialog.currentFile), expected(names[index][1]), names[index][0]);
+            pageDialog.reject();
+        }
+        // A suggestion that names no file starts the save with no name.
+        const nothing = ["..", ".", "", "folder/"];
+        for (let index = 0; index < nothing.length; ++index) {
+            engine.simulateFileSelection("save", [], nothing[index]);
+            compare(String(pageDialog.currentFile), "", "\"" + nothing[index] + "\"");
+            pageDialog.reject();
+        }
 
         const saveAs = findChild(window, "saveTargetDialog");
         window.requestTargetSave(engine, "save-link", "https://files.example/archive.zip?v=2");
         const saveAsDialog = findChild(saveAs, "qtFileDialog");
         verify(saveAsDialog.visible);
         compare(String(saveAsDialog.currentFile), expected("archive.zip"));
+        saveAsDialog.reject();
+        // A link's name is offered as it spells, not as it is escaped.
+        window.requestTargetSave(engine, "save-link", "https://files.example/annual%20report.pdf");
+        compare(String(saveAsDialog.currentFile), expected("annual report.pdf"));
         saveAsDialog.reject();
 
         const target = findChild(window, "downloadTargetDialog");
@@ -2057,6 +2077,14 @@ TestCase {
         compare(String(targetDialog.currentFile), expected("data.bin"));
         targetDialog.reject();
         verify(!target.showing);
+        window.downloads.hold("files", "2", BrowserController.SaveDownloadAs,
+                              "https://files.example", "https://files.example/a%23b.bin", "a#b.bin",
+                              "", "");
+        tryVerify(function () {
+            return targetDialog.visible;
+        });
+        compare(String(targetDialog.currentFile), expected("a%23b.bin"));
+        targetDialog.reject();
     }
 
     // The address of the page on show goes to the clipboard on its own: no

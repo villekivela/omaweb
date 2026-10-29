@@ -37,7 +37,8 @@ asks, because the specification makes that path predictable so an answer cannot 
   its save picker, the linked file's name for Save as, and the download's for the download target.
   The portal gets them as `current_folder` and `current_name`, and Qt's dialog as its `currentFile`.
   A page's suggestion keeps only the part after its last slash, so it names a file and never another
-  folder.
+  folder, and `.`, `..` or nothing is no name. Each part of the address is escaped, so a `#`, `?` or
+  `%` in a name stays in the name, and a link's escaped name is offered as it spells.
 - The dialog is parented to the window that asked, by the name `PortalWindow.h` already gives the
   print portal: `wayland:<handle>` from Qt's own xdg-foreign export, or `x11:<xid>`.
 - Cancelling the dialog cancels the page's request. A page that goes away while its dialog is open
