@@ -9,12 +9,14 @@ measures that binary, and every note in `performance/budget.json` names the buil
 
 from __future__ import annotations
 
+import json
 import re
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
+BUDGET = ROOT / "performance" / "budget.json"
 
 
 def budget_job() -> str:
@@ -42,6 +44,12 @@ class BudgetBuild(unittest.TestCase):
         shell = commands(budget_job())
         self.assertIn("--browser build/release/omaweb-browser", shell)
         self.assertNotIn("build/ci", shell)
+
+    def test_everyNoteNamesTheBuildType(self) -> None:
+        measurements = json.loads(BUDGET.read_text(encoding="utf-8"))["measurements"]
+        for name, measurement in measurements.items():
+            with self.subTest(name):
+                self.assertRegex(measurement["note"], r"[Rr]elease build")
 
 
 if __name__ == "__main__":
