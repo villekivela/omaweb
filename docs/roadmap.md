@@ -60,20 +60,30 @@ scrolling that glides on after the lift, and link hints that follow Vimium's rul
 still 6.11.2-16. [v0.18.1](https://github.com/villekivela/omaweb/releases/tag/v0.18.1) shipped the
 engine on QtWebEngine 6.11.3, with Chromium's security fixes up to 155.0.8059.85, Omarchy's private
 browser key opening a Private window, and the Sync avatar drawn as a circle.
+[v0.19.0](https://github.com/villekivela/omaweb/releases/tag/v0.19.0) shipped Link rules, which open
+a link from another app in the Space they name or in a Private window, chosen from Site information
+too, `omaweb --diagnose` for a run with named overrides, the sidebar footer as the Space row with
+short-lived marks in a pill, no floating navigation strip, and a Glance head with its own back,
+forward and reload.
 
-[v0.19.0](https://github.com/villekivela/omaweb/milestone/20) is the release in progress. A Link
-rule opens a link from another app in the Space it names, or in a Private window
-([#388](https://github.com/villekivela/omaweb/issues/388)), and Site information chooses one for the
-site on show ([#828](https://github.com/villekivela/omaweb/issues/828)). `omaweb --diagnose` starts
-a run with named overrides, such as the Chrome version a page reads, for testing a suspicion without
-a one-off build ([#753](https://github.com/villekivela/omaweb/issues/753)). The sidebar footer
-becomes the Space row, centred: Settings moves to the top row, downloads, a problem recording and a
-new release share a pill above the footer while they last, and the extension mark moves into the
-address box ([#835](https://github.com/villekivela/omaweb/issues/835),
-[#838](https://github.com/villekivela/omaweb/issues/838)). The floating navigation strip goes, since
-a hidden sidebar peeks from its edge ([#837](https://github.com/villekivela/omaweb/issues/837)). A
-Glance gets a head with back, forward and reload that act on the Glance rather than the page behind
-it, reachable from the keyboard ([#839](https://github.com/villekivela/omaweb/issues/839)).
+[v0.20.0](https://github.com/villekivela/omaweb/milestone/21) is the release in progress, for polish
+and performance. Sync stops reloading an open page with this machine's own state
+([#861](https://github.com/villekivela/omaweb/issues/861)). The Glance comes inside its frame budget
+([#858](https://github.com/villekivela/omaweb/issues/858)), after its buttons read over a light page
+and its key to become a tab works ([#863](https://github.com/villekivela/omaweb/issues/863)). The
+runtime budget is taken again on the 6.11.3 engine
+([#859](https://github.com/villekivela/omaweb/issues/859)), and so is the comparison with Chromium
+([#860](https://github.com/villekivela/omaweb/issues/860)). The address row gets quieter: the
+extension mark is muted and the search button goes
+([#862](https://github.com/villekivela/omaweb/issues/862)), and then the Space buttons get a quieter
+hover and the keep-active dot goes ([#869](https://github.com/villekivela/omaweb/issues/869)).
+Settings glides after a touchpad lift and moves between sections with the arrow keys
+([#864](https://github.com/villekivela/omaweb/issues/864)), its toggles stand apart
+([#866](https://github.com/villekivela/omaweb/issues/866)), downloads show progress
+([#865](https://github.com/villekivela/omaweb/issues/865)), and About says Omaweb is the default
+when Omarchy's browser router opens it ([#867](https://github.com/villekivela/omaweb/issues/867)).
+Files are chosen through the desktop's file chooser portal
+([#868](https://github.com/villekivela/omaweb/issues/868)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
