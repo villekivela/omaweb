@@ -756,6 +756,7 @@ Window {
         };
         fileDialog.mode = selection.mode;
         fileDialog.acceptedTypes = selection.mimeTypes || [];
+        fileDialog.startAt(root.browser.downloadDirectory, selection.suggestedName);
         fileDialog.open();
     }
 

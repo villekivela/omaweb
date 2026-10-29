@@ -2015,6 +2015,50 @@ TestCase {
         verify(!picker.showing);
     }
 
+    // A save opens in the downloads location under the name it was offered:
+    // the page's own suggestion, the linked file's name, or the download's.
+    // The suite has no portal, so this is the name Qt's dialog opens with; the
+    // portal is given the same address as `current_name` and `current_folder`.
+    function test_savesOpenWithTheSuggestedName() {
+        const engine = openPage("https://files.example/form");
+        const folder = String(window.windowBrowser.downloadDirectory);
+        const expected = function (name) {
+            return "file://" + folder + "/" + name;
+        };
+
+        const page = findChild(window, "pageFileDialog");
+        engine.simulateFileSelection("save", [], "report.csv");
+        const pageDialog = findChild(page, "qtFileDialog");
+        verify(pageDialog.visible);
+        compare(pageDialog.fileMode, Dialogs.FileDialog.SaveFile);
+        compare(String(pageDialog.currentFile), expected("report.csv"));
+        pageDialog.reject();
+        verify(engine.fileSelectionCancelled);
+        // A name is a name: a page cannot start the save in another folder.
+        engine.simulateFileSelection("save", [], "../elsewhere/report.csv");
+        compare(String(pageDialog.currentFile), expected("report.csv"));
+        pageDialog.reject();
+
+        const saveAs = findChild(window, "saveTargetDialog");
+        window.requestTargetSave(engine, "save-link", "https://files.example/archive.zip?v=2");
+        const saveAsDialog = findChild(saveAs, "qtFileDialog");
+        verify(saveAsDialog.visible);
+        compare(String(saveAsDialog.currentFile), expected("archive.zip"));
+        saveAsDialog.reject();
+
+        const target = findChild(window, "downloadTargetDialog");
+        window.downloads.hold("files", "1", BrowserController.SaveDownloadAs,
+                              "https://files.example", "https://files.example/data.bin", "data.bin",
+                              "", "");
+        const targetDialog = findChild(target, "qtFileDialog");
+        tryVerify(function () {
+            return targetDialog.visible;
+        });
+        compare(String(targetDialog.currentFile), expected("data.bin"));
+        targetDialog.reject();
+        verify(!target.showing);
+    }
+
     // The address of the page on show goes to the clipboard on its own: no
     // title, no markup, and nothing at all from a tab that has no address.
     function test_copyAddressPutsOnlyTheAddressOnTheClipboard() {

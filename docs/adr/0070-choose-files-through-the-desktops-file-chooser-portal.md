@@ -33,8 +33,11 @@ asks, because the specification makes that path predictable so an answer cannot 
   Chrome does both.
 - Omaweb's own dialogs keep Qt's filter strings, such as `Text files (*.txt)`, and the portal is
   given the same filters.
-- A save starts in the folder and under the name the shell suggests, through `current_folder` and
-  `current_name`.
+- A save starts in the downloads location under the name it was offered: a page's own suggestion for
+  its save picker, the linked file's name for Save as, and the download's for the download target.
+  The portal gets them as `current_folder` and `current_name`, and Qt's dialog as its `currentFile`.
+  A page's suggestion keeps only the part after its last slash, so it names a file and never another
+  folder.
 - The dialog is parented to the window that asked, by the name `PortalWindow.h` already gives the
   print portal: `wayland:<handle>` from Qt's own xdg-foreign export, or `x11:<xid>`.
 - Cancelling the dialog cancels the page's request. A page that goes away while its dialog is open

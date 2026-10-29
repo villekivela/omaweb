@@ -50,9 +50,16 @@ Item {
                                                                                               === "save"
                                                                                               ? Dialogs.FileDialog.SaveFile :
                                                                                                 Dialogs.FileDialog.OpenFile);
-        if (root.mode === "save" && String(root.currentFile).length > 0)
+        if (root.mode === "save")
             fileDialog.currentFile = root.currentFile;
         fileDialog.open();
+    }
+
+    // Starts a save in `folder` under `name`, the part after its last slash,
+    // since a page's suggestion is the page's to make up. No name, no start.
+    function startAt(folder, name) {
+        const base = String(name || "").split("/").pop();
+        root.currentFile = base.length > 0 ? "file://" + folder + "/" + base : "";
     }
 
     function close() {

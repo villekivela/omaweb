@@ -3023,6 +3023,7 @@ ApplicationWindow {
         window.pendingFileSelection = selection;
         pageFileDialog.mode = selection.mode;
         pageFileDialog.acceptedTypes = selection.mimeTypes || [];
+        pageFileDialog.startAt(window.windowBrowser.downloadDirectory, selection.suggestedName);
         pageFileDialog.open();
     }
 
