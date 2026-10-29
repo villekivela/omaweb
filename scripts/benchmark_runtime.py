@@ -151,12 +151,12 @@ AWAY_WINDOW = 10.0
 
 # The reading the away window is measured from waits for the away page's processes to stop moving,
 # because Freezing is not instant: the page goes on for a moment after its Space is put away. Three
-# readings in a row, each within the tolerance of
-# the one before, are still; one agreeing pair can be a pause in work that starts again. A page
-# still running while away is throttled to one timer tick a second, so the allocator page then
-# takes a megabyte a second, eight times the tolerance per interval, and never settles. The limit
-# ends the wait for such a page, and the away window then reads it as growth: ten mebibytes, twice
-# the ceiling, and still far from its 500 MiB cap when the window closes.
+# readings in a row, each within the tolerance of the one before, are still; one agreeing pair can
+# be a pause in work that starts again. A page still running while away is throttled to one timer
+# tick a second, so the allocator page then takes a megabyte a second, eight times the tolerance per
+# interval, and never settles. The limit ends the wait for such a page, and the away window then
+# reads it as growth: ten mebibytes, twice the ceiling, and still far from its 500 MiB cap when the
+# window closes.
 STEADY_INTERVAL = 2.0
 STEADY_READINGS = 3
 STEADY_TOLERANCE = 0.25
@@ -461,18 +461,12 @@ class Keyboard:
 
 
 def read_pss_kib(pid: int) -> int:
-    """One process's proportional set size, or nothing for a process that has gone.
-
-    The engine starts and ends processes while this reads them, and one that ended between the
-    scan and the read holds nothing. One that is still there and cannot be read is different: it
-    holds memory this would silently leave out of the total, so it is worth the run.
-    """
+    """One process's proportional set size, by `read_rollup_kib`."""
     return read_rollup_kib(pid, "Pss:")
 
 
 def read_held_kib(pid: int) -> int:
-    """What one process holds, resident or swapped out, or nothing for a process that has gone, as
-    `read_pss_kib`.
+    """What one process holds, resident or swapped out, by `read_rollup_kib`.
 
     Unlike its proportional share, it moves only when the process itself touches or gives back a
     page: another process mapping or leaving the engine's library does not move it, and neither
@@ -482,6 +476,12 @@ def read_held_kib(pid: int) -> int:
 
 
 def read_rollup_kib(pid: int, field: str) -> int:
+    """One field of a process's memory summary, or nothing for a process that has gone.
+
+    The engine starts and ends processes while this reads them, and one that ended between the
+    scan and the read holds nothing. One that is still there and cannot be read is different: it
+    holds memory this would silently leave out of the total, so it is worth the run.
+    """
     try:
         with open(f"/proc/{pid}/smaps_rollup", encoding="utf-8") as handle:
             for line in handle:
@@ -707,14 +707,7 @@ def held_mib(pids: Iterable[int]) -> float:
 
 def below_mib(root: int) -> float:
     """Proportional set size of everything below a process, without the process, in mebibytes."""
-    tree = children_by_parent()
-    total = 0
-    pending = list(tree.get(root, []))
-    while pending:
-        pid = pending.pop()
-        total += read_pss_kib(pid)
-        pending += tree.get(pid, [])
-    return total / KIB_PER_MIB
+    return sum(read_pss_kib(pid) for pid in processes_below(root)) / KIB_PER_MIB
 
 
 class Browser:
@@ -1395,6 +1388,10 @@ def measure_freezing(executable: str) -> dict:
     switch and faults in up to a mebibyte of the engine's library (#885). And they are read by what
     they hold, resident or swapped out, rather than by their proportional share, because a share
     moves when another process maps or leaves the same library, which the frozen page has not done.
+
+    The set is the one the page started by the time it loaded. A page runs its script in its own
+    renderer, which is where the allocator's growth lands, and CI's runner starts no GPU or utility
+    process for a page's work to land in instead. A process the page starts later is not read.
     """
     workspace = Workspace()
     browser = workspace.browser(executable)

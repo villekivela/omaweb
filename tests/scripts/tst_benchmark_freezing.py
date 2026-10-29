@@ -109,7 +109,7 @@ class TreeReadingTest(unittest.TestCase):
     def test_the_whole_tree_counts_every_process(self):
         self.assertEqual(runtime.tree_mib(1), 473.0)
 
-    def test_the_engine_reading_leaves_out_the_process_it_is_read_below(self):
+    def test_the_reading_below_a_process_leaves_it_out(self):
         self.assertEqual(runtime.below_mib(2), 72.0)
 
 
@@ -181,6 +181,7 @@ class AwayReadingTest(unittest.TestCase):
     def test_a_process_that_ended_holds_nothing(self):
         del self.rss_kib[5], self.pss_kib[5]
         self.assertEqual(self.away(), 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()
