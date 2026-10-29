@@ -14452,29 +14452,20 @@ TestCase {
         compare(String(dot.color), String(avatar.colors.urgent));
     }
 
-    // Settings, open on its tallest section, and the view that scrolls it.
-    // Settings has finished arriving: a glide stops in a view drawn at no
-    // opacity, which Settings is as it starts to rise.
+    // Settings, open on Interface, which has far more than a glide's room to
+    // scroll, and the view that scrolls it. Settings has finished arriving: a
+    // glide stops in a view drawn at no opacity, which Settings is as it
+    // starts to rise.
     function openTallSettings() {
         const settingsSurface = findChild(window.contentItem, "settingsSurface");
         window.requestSettings();
         tryCompare(settingsSurface, "opacity", 1);
         tryCompare(settingsSurface, "lift", 0);
+        settingsSurface.section = settingsSurface.sections.indexOf("interface");
         const view = findChild(settingsSurface, "settingsScroll").contentItem;
-        let tallest = 0;
-        let height = 0;
-        for (let index = 0; index < settingsSurface.sections.length; ++index) {
-            settingsSurface.section = index;
-            wait(0);
-            if (view.contentHeight > height) {
-                height = view.contentHeight;
-                tallest = index;
-            }
-        }
-        settingsSurface.section = tallest;
         tryVerify(function () {
-            return view.contentHeight === height;
-        });
+            return view.contentHeight - view.height > 400;
+        }, 5000, "Interface is too short to glide in");
         view.contentY = 0;
         return view;
     }
@@ -14502,7 +14493,6 @@ TestCase {
     // pixels.
     function test_aSwipeInSettingsGlidesOnAfterTheLift() {
         const view = openTallSettings();
-        verify(view.contentHeight - view.height > 160, "Settings is too short to glide in");
 
         swipeAcross(view, 0, 11, 10, -4);
         const lifted = view.contentY;
