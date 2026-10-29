@@ -1473,6 +1473,12 @@ if(BUILD_TESTING)
             COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_benchmark_freezing.py"
         )
+        # Which kind of process holds the memory budget's reading: the browser's
+        # own, or which of the engine's.
+        add_test(NAME omaweb-benchmark-memory
+            COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_benchmark_memory.py"
+        )
         # The startup phases read from a launch's log, the pages that fill the
         # lived-in profile, and the ceiling the lived-in launch is held to.
         add_test(NAME omaweb-benchmark-startup
