@@ -400,6 +400,41 @@ export function grade(colour, y, crt, hue) {
   return colour.map((channel, i) => Math.min(1, channel + (tinted[i] - channel) * amount));
 }
 
+// A whole picture of `width` by `height` RGBA pixels, graded in place as `grade` grades a colour,
+// every frame. The same sums, without a colour or a call per pixel: the glass grades every pixel of
+// the Scene thirty times a second, and a night picture is mostly too dark for either range to
+// touch, so those pixels are passed over.
+export function gradePicture(data, width, height, crt, hue) {
+  if (!crt.grade) return;
+  const { top, depth, highlights, midtones } = crt.grade;
+  const [toneRed, toneGreen, toneBlue] = hue.map((channel) => channel / 255);
+  const toTone = 1 / Math.max(luma([toneRed, toneGreen, toneBlue]), 0.05);
+  const darkest = Math.min(highlights.from, midtones.from);
+  for (let row = 0; row < height; ++row) {
+    const y = (row + 0.5) / height;
+    // Above the sunset's top nothing takes the hue.
+    if (y <= top) continue;
+    const down = Math.max(0, Math.min(1, (y - top) / depth));
+    const high = highlights.strength * down;
+    const mid = midtones.strength * down * down;
+    for (let at = row * width * 4, end = at + width * 4; at < end; at += 4) {
+      const red = data[at] / 255;
+      const green = data[at + 1] / 255;
+      const blue = data[at + 2] / 255;
+      const level = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+      if (level <= darkest) continue;
+      const amount = Math.max(
+        smoothstep(highlights.from, highlights.to, level) * high,
+        smoothstep(midtones.from, midtones.to, level) * mid,
+      );
+      const scale = level * toTone;
+      data[at] = Math.min(1, red + (toneRed * scale - red) * amount) * 255;
+      data[at + 1] = Math.min(1, green + (toneGreen * scale - green) * amount) * 255;
+      data[at + 2] = Math.min(1, blue + (toneBlue * scale - blue) * amount) * 255;
+    }
+  }
+}
+
 // Where the refresh band is at `time` on a picture `height` of the Scene's pixels tall, how far it
 // reaches and how strong it is, and how much the flicker darkens: never less than its least, and
 // never a flash. A Scene that declares no band, as a vector one, has none.
@@ -517,23 +552,7 @@ class CrtGlass {
     if (!this.crt.grade) return;
     const { width, height } = input;
     const image = context.getImageData(0, 0, width, height);
-    const { data } = image;
-    for (let row = 0; row < height; ++row) {
-      const y = (row + 0.5) / height;
-      // Above the sunset's top nothing takes the hue.
-      if (y <= this.crt.grade.top) continue;
-      for (let at = row * width * 4; at < (row + 1) * width * 4; at += 4) {
-        const graded = grade(
-          [data[at] / 255, data[at + 1] / 255, data[at + 2] / 255],
-          y,
-          this.crt,
-          this.hue,
-        );
-        data[at] = graded[0] * 255;
-        data[at + 1] = graded[1] * 255;
-        data[at + 2] = graded[2] * 255;
-      }
-    }
+    gradePicture(image.data, width, height, this.crt, this.hue);
     context.putImageData(image, 0, 0);
   }
 

@@ -556,8 +556,11 @@ body:has(.drive) > .top {
 }
 
 /* Ignite, at the field's end where the page is a drive: a round play button in the accent, its
-   ring pulsing outward while it waits to be pressed. */
+   ring pulsing outward while it waits to be pressed. The ring is a layer of its own that only grows
+   and fades, which the compositor draws without painting the page again, since it pulses for as
+   long as the page is open. */
 .omnibar__ignite:not([hidden]) {
+  position: relative;
   display: grid;
   flex: none;
   place-items: center;
@@ -570,8 +573,18 @@ body:has(.drive) > .top {
   background: var(--accent);
   color: var(--bg);
   cursor: pointer;
-  animation: ignite-waits 2.2s ease-out infinite;
   transition: transform 0.15s;
+}
+
+.omnibar__ignite::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  animation: ignite-waits 2.2s ease-out infinite;
 }
 
 .omnibar__ignite svg {
@@ -587,12 +600,14 @@ body:has(.drive) > .top {
 
 @keyframes ignite-waits {
   from {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent);
+    opacity: 0.6;
+    transform: scale(1);
   }
 
   70%,
   to {
-    box-shadow: 0 0 0 12px color-mix(in srgb, var(--accent) 0%, transparent);
+    opacity: 0;
+    transform: scale(1.67);
   }
 }
 
@@ -615,8 +630,7 @@ body:has(.drive) > .top {
   align-content: center;
   margin: 0;
   padding: 7px 12px;
-  background: color-mix(in srgb, var(--plate) 80%, transparent);
-  backdrop-filter: blur(14px);
+  background: color-mix(in srgb, var(--plate) 94%, transparent);
   font-size: 13px;
 }
 
@@ -1058,8 +1072,7 @@ body:has(.drive) > .top {
   max-width: min(100% - 32px, 720px);
   margin: 14px auto 0;
   padding: 7px 12px;
-  background: color-mix(in srgb, var(--plate) 80%, transparent);
-  backdrop-filter: blur(14px);
+  background: color-mix(in srgb, var(--plate) 94%, transparent);
   color: var(--fg);
   font-size: 13px;
   text-align: center;
@@ -1630,8 +1643,9 @@ html.highway {
     color 0.2s;
 }
 
-/* Cruise control's place: the stop it is at and the way out, on glass as the Omnibar is, its one
-   edge, and the song's progress filling along its foot. */
+/* Cruise control's place: the stop it is at and the way out, on a plate with one edge and the
+   song's progress filling along its foot. Nearly opaque rather than glass: a blur behind it would
+   be worked out again for every frame of the road. */
 .cruise {
   position: fixed;
   right: 16px;
@@ -1645,8 +1659,7 @@ html.highway {
   overflow: hidden;
   border: 1px solid var(--edge);
   border-radius: 3px;
-  background: color-mix(in srgb, var(--plate) 80%, transparent);
-  backdrop-filter: blur(14px);
+  background: color-mix(in srgb, var(--plate) 94%, transparent);
   font-size: 13px;
 }
 
