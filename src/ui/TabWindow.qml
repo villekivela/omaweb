@@ -348,7 +348,7 @@ Window {
             required property string modelData
 
             Shortcut {
-                sequence: root.keymap.keySequence(modelData)
+                sequences: root.keymap.keySequences(modelData)
                 enabled: !root.omnibarOpen && (root.keymap.isChord(modelData)
                                                || root.keymap.pageCommandsEnabled)
                 context: Qt.WindowShortcut

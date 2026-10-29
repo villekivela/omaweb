@@ -246,6 +246,7 @@ private slots:
     void qtNavigationDrivesPageLoadingIndicator();
     void qtPaintsThePageAgainWhenItsWindowIsExposedAgain();
     void qtKeepsTheKeyboardWhereItWasWhenItPaintsThePageAgain();
+    void qtLeavesTheWindowsChordsToItFromATextField();
     void qtLeavesAHiddenPageHiddenWhenItsWindowIsExposedAgain();
     void qtShowsThePagesOwnColourWhereThePageDrawsNothing();
     void qtShowsThePageAsItWasUntilItDrawsAgain();
@@ -2843,6 +2844,46 @@ void QtEngineContractTest::qtKeepsTheKeyboardWhereItWasWhenItPaintsThePageAgain(
     QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
     QTest::qWait(100);
     QVERIFY(!shown.adapter->property("pageHasFocus").toBool());
+}
+
+// A text field a page has focused takes typing and its own editing keys, and
+// leaves a chord the window binds to the window: the key that keeps a Glance
+// is pressed in a Glance's field as often as anywhere (#863).
+void QtEngineContractTest::qtLeavesTheWindowsChordsToItFromATextField()
+{
+    ViewInWindow shown;
+    QVERIFY(shown.create(QUrl(QStringLiteral(
+        "data:text/html,<title>ready</title><input autofocus "
+        "onfocus=\"document.title='focused'\" onkeydown=\"document.title='typed'\">"))));
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    QQmlComponent component(&shown.engine);
+    component.setData(QByteArrayLiteral(R"QML(
+import QtQuick
+Shortcut {
+    property int activations: 0
+    sequences: ["Ctrl+Shift+Return", "Ctrl+Shift+Enter"]
+    context: Qt.WindowShortcut
+    onActivated: ++activations
+}
+)QML"),
+        QUrl());
+    std::unique_ptr<QObject> shortcut(component.create());
+    QVERIFY2(shortcut, qPrintable(component.errorString()));
+    shortcut->setParent(shown.window.contentItem());
+    shown.window.requestActivate();
+    QVERIFY(QTest::qWaitForWindowActive(&shown.window));
+    QVERIFY(QMetaObject::invokeMethod(shown.adapter.get(), "focusPage"));
+    QTRY_COMPARE(shown.webView->property("title").toString(), QStringLiteral("focused"));
+
+    QTest::keyClick(&shown.window, Qt::Key_Return, Qt::ControlModifier | Qt::ShiftModifier);
+    QTRY_COMPARE(shortcut->property("activations").toInt(), 1);
+    QTest::keyClick(
+        &shown.window, Qt::Key_Enter, Qt::ControlModifier | Qt::ShiftModifier | Qt::KeypadModifier);
+    QTRY_COMPARE(shortcut->property("activations").toInt(), 2);
+    // The field still has the keyboard, and takes a key the window does not.
+    QTest::keyClick(&shown.window, Qt::Key_A);
+    QTRY_COMPARE(shown.webView->property("title").toString(), QStringLiteral("typed"));
+    QCOMPARE(shortcut->property("activations").toInt(), 2);
 }
 
 void QtEngineContractTest::qtLeavesAHiddenPageHiddenWhenItsWindowIsExposedAgain()

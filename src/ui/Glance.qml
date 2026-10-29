@@ -335,10 +335,10 @@ FocusScope {
         }
     }
 
-    // The Glance's controls, a column of bare buttons beside the panel's top
-    // corner: close and open as tab, then back, forward and reload for the
-    // page inside. Gone early in the keeping, as the controls of a page that
-    // is a tab now.
+    // The Glance's controls, a column of buttons on a plate beside the
+    // panel's top corner: close and open as tab, then back, forward and reload
+    // for the page inside. Gone early in the keeping, as the controls of a
+    // page that is a tab now.
     //
     // The buttons are no keyboard stops of their own. The column holds the
     // keyboard and walks a cursor over them, as the outline walks the Sidebar
@@ -418,6 +418,25 @@ FocusScope {
             event.accepted = true;
         }
 
+        // The panel's own ground under the buttons (#863). They stand over the
+        // dimmed page the Glance came from, which over a white page is a mid
+        // grey and over a black one black, and a glyph in the theme's text
+        // colour fades into one or the other. On the plate it keeps the
+        // contrast the theme gives text on its own surfaces, whatever the page.
+        Rectangle {
+            objectName: "glanceButtonsPlate"
+            anchors.fill: parent
+            radius: 3
+            color: plateDither.fill
+            border.width: DevicePixels.snap(1, root.pixelRatio)
+            border.color: root.colors.separator
+
+            GroundDither {
+                id: plateDither
+                ground: root.colors.overlay
+            }
+        }
+
         // A click on a disabled button, or between two, is not a click
         // outside the Glance: the column stands over the dim, which would
         // take it and close the Glance.
@@ -427,6 +446,7 @@ FocusScope {
 
         Column {
             id: buttons
+            padding: Style.spacing.sm
             spacing: Style.spacing.sm
 
             GlanceButton {
@@ -529,6 +549,9 @@ FocusScope {
         // The column walks its cursor over the buttons, so none is a stop the
         // kit marks with its own focus ring.
         focusable: false
+        // The window's own text, as the panel's ground is the window's own
+        // overlay: a Private window draws both in its own palette.
+        foreground: root.colors.text
         fontFamily: root.iconFontFamily
         accent: root.colors.accent
     }
@@ -537,8 +560,14 @@ FocusScope {
         required property Item button
         required property string command
 
+        // Beside its button, away from the panel, or on the panel's side over
+        // the edge of the page where that would run past the window, as the
+        // whole chord on Open as tab does in a narrow one (#863).
+        readonly property real beside: button.x + button.width + Style.spacing.sm
+        readonly property bool fits: controls.x + beside + width <= root.width
+
         iconFontFamily: root.iconFontFamily
-        x: DevicePixels.snap(button.x + button.width + Style.spacing.sm, root.pixelRatio)
+        x: DevicePixels.snap(fits ? beside : -Style.spacing.sm - width, root.pixelRatio)
         y: DevicePixels.snap(button.y + (button.height - height) / 2, root.pixelRatio)
         keys: root.keyLabelsShown && root.keyMap ? root.keyMap.labelFor(command) : ""
         shown: root.keyLabelsShown && button.visible

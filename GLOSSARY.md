@@ -181,9 +181,10 @@ same mark shows which of a Glance's controls holds the keyboard. _Avoid_: Select
 focused tab
 
 **Key label**: The key a control answers to, laid over the control while Primary is held on its own.
-A chord on Primary is labelled by the key that finishes it, and a single key by itself, only while
-single keys are answered. The labels read the live keymap and go the moment Primary is released or
-another key joins it. _Avoid_: Shortcut badge, key hint
+A chord on Primary alone is labelled by the key that finishes it, a chord with more keys in it
+whole, and a single key by itself, only while single keys are answered. The labels read the live
+keymap and go the moment Primary is released or another key joins it. _Avoid_: Shortcut badge, key
+hint
 
 **Space notice**: The name of the Space a switch arrived in, shown at the top of the page for about
 a second. With the window title, it names the Space the footer shows only by its colour. A Private
