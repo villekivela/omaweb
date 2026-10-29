@@ -42,6 +42,7 @@ Rectangle {
     property bool keyLabelsShown: false
     // What this window's Space is hosting, as `{ key, name, id, popupUrl }`.
     property var hostedExtensions: []
+    property bool extensionAttention: false
     property bool privateWindow: false
     property bool collapsed: false
     // Whether the sidebar stands against the window's right edge, which puts
@@ -457,7 +458,6 @@ Rectangle {
     signal forwardRequested
     signal reloadRequested
     signal sidebarToggled
-    signal commandScopeRequested
     signal windowMoveRequested
     signal pageFocusRequested
 
@@ -939,18 +939,6 @@ Rectangle {
                     accent: root.colors.accent
                     onClicked: root.sidebarToggled()
                 }
-
-                ChromeButton {
-                    id: commandScopeButton
-                    objectName: "commandScopeButton"
-                    width: 28
-                    height: 26
-                    icon: "search"
-                    accessibleName: qsTr("Search commands")
-                    fontFamily: root.iconFontFamily
-                    accent: root.colors.accent
-                    onClicked: root.commandScopeRequested()
-                }
             }
 
             Row {
@@ -1004,13 +992,6 @@ Rectangle {
                 button: collapseButton
                 row: outlineControls
                 command: "toggle-sidebar"
-            }
-
-            NavigationKeyLabel {
-                objectName: "keyLabel-commandScopeButton"
-                button: commandScopeButton
-                row: outlineControls
-                command: "command-scope"
             }
 
             NavigationKeyLabel {
@@ -1095,6 +1076,7 @@ Rectangle {
                 colors: root.colors
                 iconFontFamily: root.iconFontFamily
                 hosted: root.hostedExtensions
+                attention: root.extensionAttention
                 onClicked: root.extensionRequested(root.extensionMarkRect())
             }
 

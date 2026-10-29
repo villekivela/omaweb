@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import "SiteChip.mjs" as SiteChip
 
 // The mark a Known extension is reached from. It is here because a
 // keyboard-driven browser still has to be usable with a pointer, and because a
@@ -22,6 +23,9 @@ ChromeButton {
     // What this window's Space is hosting, as `{ key, name, id, popupUrl }`.
     property var hosted: []
 
+    // Whether an extension wants the reader to see it, as its popup is open.
+    // The mark then brightens as Site information turns urgent.
+    property bool attention: false
     readonly property bool single: root.hosted.length === 1
     readonly property string summary: root.hosted.length === 0 ? "" : (root.single
                                                                        ? root.hosted[0].name : qsTr(
@@ -30,6 +34,10 @@ ChromeButton {
 
     visible: root.hosted.length > 0
     icon: "extension"
+    // At rest the mark is as quiet as Site information beside it: the same
+    // colour and size. It brightens under the cursor and when it has news.
+    foreground: root.hot || root.attention ? root.restingForeground : root.colors.mutedText
+    iconSize: SiteChip.side(Style.font.caption)
     accent: root.colors.accent
     fontFamily: root.iconFontFamily
     focusable: root.visible

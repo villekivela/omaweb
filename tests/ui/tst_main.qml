@@ -5305,8 +5305,7 @@ TestCase {
     // The navigation controls on show anywhere in the window. An item's
     // visible is false under a hidden ancestor, so these are the ones drawn.
     function navigationControlsOnShow() {
-        const names = ["backButton", "forwardButton", "reloadButton", "collapseButton",
-                       "commandScopeButton"];
+        const names = ["backButton", "forwardButton", "reloadButton", "collapseButton"];
         const shown = [];
         const visit = function (item) {
             for (let at = 0; at < item.children.length; ++at) {
@@ -6163,9 +6162,7 @@ TestCase {
 
         const controls = [["backButton", "back"], ["forwardButton", "forward"], ["reloadButton",
                                                                                  "reload"],
-                          ["collapseButton", "toggle-sidebar"], ["commandScopeButton",
-                                                                 "command-scope"], ["addressButton",
-                                                                                    "open-address"]];
+                          ["collapseButton", "toggle-sidebar"], ["addressButton", "open-address"]];
         const label = findChild(window.contentItem, "keyLabel-backButton");
         verify(label !== null);
         verify(!label.visible);
@@ -6287,8 +6284,8 @@ TestCase {
             window.commands.run("record-problem", -1);
         // A page with no history leaves back and forward disabled, drawn at 35%.
         verify(!findChild(window.contentItem, "backButton").enabled);
-        const names = ["collapseButton", "commandScopeButton", "backButton", "forwardButton",
-                       "reloadButton", "addressButton", "space-" + browser.activeSpaceId, "tab-"
+        const names = ["collapseButton", "backButton", "forwardButton", "reloadButton",
+                       "addressButton", "space-" + browser.activeSpaceId, "tab-"
                        + browser.activeTabId];
         keyPress(Qt.Key_Control);
         tryVerify(function () {
@@ -7084,8 +7081,8 @@ TestCase {
     // a theme that names a quiet colour close to its fills cannot dim them.
     function test_chromeIconsRestInTheThemesText() {
         verify(!Qt.colorEqual(window.colors.text, window.colors.mutedText));
-        const names = ["collapseButton", "commandScopeButton", "backButton", "forwardButton",
-                       "reloadButton", "settingsButton", "extensionMark"];
+        const names = ["collapseButton", "backButton", "forwardButton", "reloadButton",
+                       "settingsButton"];
         for (const name of names) {
             const button = findChild(window.contentItem, name);
             verify(button !== null, name);
@@ -7096,6 +7093,70 @@ TestCase {
         compare(forward.opacity, 0.35);
     }
 
+    // Command scope is a key and an Omnibar mode, not a button beside the
+    // sidebar's: clicking the address already reaches it (#862).
+    function test_theTopRowHasNoSearchButton() {
+        verify(findChild(window.contentItem, "commandScopeButton") === null);
+        verify(findChild(window.contentItem, "keyLabel-commandScopeButton") === null);
+        verify(findChild(window.contentItem, "collapseButton") !== null);
+        verify(bindingFor("command-scope") !== "");
+    }
+
+    // The extension mark rests as quiet as Site information beside it, and
+    // brightens under the cursor and when an extension asks to be seen (#862).
+    function test_theExtensionMarkRestsQuietAndBrightens() {
+        openPage("https://shelf.example/quiet");
+        const outline = findChild(window.contentItem, "sidebar");
+        const mark = findChild(outline, "extensionMark");
+        const site = findChild(outline, "securityIndicator");
+        verify(!Qt.colorEqual(window.colors.text, window.colors.mutedText));
+        outline.hostedExtensions = [
+                    {
+                        "key": "omaweb-test-notes",
+                        "name": "Notes",
+                        "id": "omaweb-test-notes",
+                        "popupUrl": "chrome-extension://omaweb-test-notes/popup.html"
+                    }
+                ];
+        tryCompare(mark, "visible", true);
+        mouseMove(window.contentItem, 1, 1);
+        verify(Qt.colorEqual(site.color, window.colors.mutedText));
+        verify(Qt.colorEqual(mark.foreground, site.color), "rests in Site information's colour");
+        compare(mark.iconSize, site.font.pixelSize);
+
+        mouseMove(mark, mark.width / 2, mark.height / 2);
+        tryVerify(function () {
+            return Qt.colorEqual(mark.foreground, window.colors.text);
+        });
+        mouseMove(window.contentItem, 1, 1);
+        tryVerify(function () {
+            return Qt.colorEqual(mark.foreground, window.colors.mutedText);
+        });
+
+        // An open popup is an extension asking to be seen, whether it was
+        // opened from the mark or from the keyboard.
+        window.extensionMenuOpen = true;
+        tryVerify(function () {
+            return Qt.colorEqual(mark.foreground, window.colors.text);
+        });
+        window.extensionMenuOpen = false;
+        tryVerify(function () {
+            return Qt.colorEqual(mark.foreground, window.colors.mutedText);
+        });
+        window.glanceIsExtension = true;
+        tryVerify(function () {
+            return Qt.colorEqual(mark.foreground, window.colors.text);
+        });
+        window.glanceIsExtension = false;
+        tryVerify(function () {
+            return Qt.colorEqual(mark.foreground, window.colors.mutedText);
+        });
+
+        outline.hostedExtensions = Qt.binding(function () {
+            return window.hostedExtensions;
+        });
+    }
+
     function test_primaryChromeIsAccessibleFromKeyboard() {
         window.requestActivate();
         tryVerify(function () {
@@ -7104,7 +7165,6 @@ TestCase {
         const addressButton = findChild(window.contentItem, "addressButton");
         const collapseButton = findChild(window.contentItem, "collapseButton");
         const reloadButton = findChild(window.contentItem, "reloadButton");
-        const commandScopeButton = findChild(window.contentItem, "commandScopeButton");
         const newSpaceButton = findChild(window.contentItem, "newSpaceButton");
         const settingsButton = findChild(window.contentItem, "settingsButton");
         const materialSymbolsFont = findChild(window, "materialSymbolsFont");
@@ -7112,7 +7172,6 @@ TestCase {
         compare(settingsButton.accessibleName, "Browsing settings and downloads");
         compare(addressButton.accessibleName, "Search or enter address");
         compare(collapseButton.accessibleName, "Hide sidebar");
-        compare(commandScopeButton.accessibleName, "Search commands");
         compare(newSpaceButton.label, "New Space");
         verify(iconFontSource.toString().endsWith("/material-symbols-rounded.ttf"));
         verify(materialSymbolsFont !== null);
