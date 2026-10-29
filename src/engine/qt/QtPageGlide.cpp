@@ -8,6 +8,7 @@
 #include <QQuickItem>
 #include <QWheelEvent>
 
+#include <algorithm>
 #include <cmath>
 
 namespace omaweb {
@@ -207,6 +208,7 @@ bool QtPageGlide::follow(QQuickItem *scrolled, Scroller scroller, QWheelEvent *e
         return false;
     }
     m_liftedAt = event->timestamp();
+    m_stampedAt = m_liftedAt;
     m_sent = {};
     m_since.start();
     m_frames.start();
@@ -248,7 +250,14 @@ void QtPageGlide::send(Qt::ScrollPhase phase, QPoint delta)
     QWheelEvent event(m_pointer.position, m_pointer.globalPosition, page ? QPoint() : delta,
         page ? delta : delta * anglePerPixel, Qt::NoButton, m_pointer.modifiers, phase,
         m_pointer.inverted, Qt::MouseEventSynthesizedBySystem, m_pointer.device);
-    event.setTimestamp(m_liftedAt + static_cast<quint64>(m_since.elapsed()));
+    quint64 at = m_liftedAt + static_cast<quint64>(m_since.elapsed());
+    // A `Flickable` drops a wheel event no later than the one before it, and its movement with
+    // it. A busy machine can run two steps in one millisecond, so each comes a millisecond on.
+    if (!page) {
+        at = std::max(at, m_stampedAt + 1);
+    }
+    m_stampedAt = at;
+    event.setTimestamp(at);
     m_sending = true;
     QCoreApplication::sendEvent(m_scrolled, &event);
     m_sending = false;

@@ -79,6 +79,8 @@ private:
     Scroller m_scroller = Scroller::Page;
     Pointer m_pointer;
     quint64 m_liftedAt = 0;
+    // When the glide's last event said it was sent.
+    quint64 m_stampedAt = 0;
     GlideSpeed m_speed;
     // For the log: the fingers' movements in this gesture, and when they last moved.
     int m_moves = 0;

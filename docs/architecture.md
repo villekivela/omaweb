@@ -627,8 +627,10 @@ glide measures pixels, sends updates that carry pixels, with the angle twelve ti
 Wayland plugin gives fingers, and ends with under a pixel to go. With the `ScrollEnd` held back, the
 `Flickable` takes the updates as the fingers' own drag. A `ListView` may be dragged past its ends,
 where the glide would hold it until it ran out, so the glide does not start at a view's end and
-stops at the step that reaches it. The UI tests compile the filter in, since it needs Qt Quick and
-not QtWebEngine.
+stops at the step that reaches it. A `Flickable` drops an event stamped no later than the one before
+it, movement and all, and a busy machine can run two steps in one millisecond, so a view's glide
+stamps each event at least a millisecond after the last. The UI tests compile the filter in, since
+it needs Qt Quick and not QtWebEngine.
 
 ## Page context menu
 

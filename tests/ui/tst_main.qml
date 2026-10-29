@@ -14453,12 +14453,13 @@ TestCase {
     }
 
     // Settings, open on its tallest section, and the view that scrolls it.
+    // Settings has finished arriving: a glide stops in a view drawn at no
+    // opacity, which Settings is as it starts to rise.
     function openTallSettings() {
         const settingsSurface = findChild(window.contentItem, "settingsSurface");
         window.requestSettings();
-        tryVerify(function () {
-            return settingsSurface.visible;
-        });
+        tryCompare(settingsSurface, "opacity", 1);
+        tryCompare(settingsSurface, "lift", 0);
         const view = findChild(settingsSurface, "settingsScroll").contentItem;
         let tallest = 0;
         let height = 0;
@@ -14478,15 +14479,11 @@ TestCase {
         return view;
     }
 
-    // Until a view has not moved for 100 ms.
+    // Until the gesture the fingers began has ended, the glide's with it: a
+    // view moves from the fingers' first drag to the gesture's `ScrollEnd`,
+    // which a glide holds back until it has come to rest.
     function waitForRest(view) {
-        let resting = -1;
-        tryVerify(function () {
-            const still = view.contentY === resting;
-            resting = view.contentY;
-            wait(100);
-            return still;
-        }, 5000);
+        tryCompare(view, "moving", false, 5000);
     }
 
     function closeSettings() {
@@ -14510,10 +14507,8 @@ TestCase {
         swipeAcross(view, 0, 11, 10, -4);
         const lifted = view.contentY;
         verify(lifted > 20);
+        verify(view.moving);
         liftFingers(view);
-        tryVerify(function () {
-            return view.contentY > lifted + 20;
-        });
         waitForRest(view);
         const glided = view.contentY - lifted;
         verify(glided >= 98 && glided <= 99, "glided " + glided + " pixels");
@@ -14521,18 +14516,24 @@ TestCase {
         closeSettings();
     }
 
-    // The glide stops on the first press, as a page's does.
+    // The glide stops on the first press, as a page's does. The press is on
+    // the heading, which a click does nothing to.
     function test_aPressStopsTheGlideInSettings() {
         const view = openTallSettings();
+        const heading = findChild(window.contentItem, "settingsHeading");
         swipeAcross(view, 0, 11, 10, -4);
+        const lifted = view.contentY;
         liftFingers(view);
         tryVerify(function () {
-            return view.contentY > 70;
-        });
-        mousePress(view, 4, 4);
+            return view.contentY > lifted;
+        }, 5000, "the glide did not start");
+        verify(view.moving);
+        mousePress(heading);
         const pressedAt = view.contentY;
-        wait(200);
-        mouseRelease(view, 4, 4);
+        waitForRest(view);
+        // Long enough for a glide that went on to have sent several steps.
+        wait(100);
+        mouseRelease(heading);
         compare(view.contentY, pressedAt);
 
         closeSettings();
@@ -14555,6 +14556,7 @@ TestCase {
         swipeAcross(tabList, 0, 11, 10, -4);
         const lifted = tabList.contentY;
         verify(lifted > 20);
+        verify(tabList.moving);
         liftFingers(tabList);
         waitForRest(tabList);
         const glided = tabList.contentY - lifted;
