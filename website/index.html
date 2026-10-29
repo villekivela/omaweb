@@ -508,12 +508,12 @@
           </ul>
         </section>
 
-        <!-- Installing. The one line runs scripts/install.sh, which the build serves at /install;
-           installing by hand is the README's, which scripts/check_repository_instructions.py
-           holds to the script and the key. -->
+        <!-- Installing: the one line, which runs scripts/install.sh, served by the build at
+           /install. Installing by hand is the README's, which
+           scripts/check_repository_instructions.py holds to the script and the key. -->
         <section class="plate install" id="install" aria-labelledby="install-title">
-          <h2 id="install-title">Get on the road.</h2>
-          <p>One line, once. It upgrades with the rest of your system.</p>
+          <h2 class="display install__title" id="install-title">Get on the road.</h2>
+          <p class="install__lede">One line, once. It upgrades with the rest of your system.</p>
           <figure class="hud">
             <figcaption class="hud__bar">
               <span>Install</span>
@@ -527,15 +527,6 @@
               <pre><code><span class="hud__prompt" aria-hidden="true">$ </span>curl -fsSL https://omaweb.app/install | sh</code></pre>
             </div>
           </figure>
-          <p>
-            It asks before it uses <code>sudo</code>. <a href="install">Read the script</a> first,
-            or <a href="https://github.com/villekivela/omaweb#install">install by hand</a>.
-          </p>
-          <p class="install__notes">
-            <a class="more" href="releases/"
-              >What changed in each release <span aria-hidden="true">&rarr;</span></a
-            >
-          </p>
         </section>
       </div>
     </main>

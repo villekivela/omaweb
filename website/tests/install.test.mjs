@@ -44,12 +44,9 @@ function leadsWithTheLine(text, start) {
 
 test("page: the install is the one line, and installing by hand is the README's", () => {
   const page = readFileSync(new URL("../index.html", import.meta.url), "utf8");
-  const install = page.slice(
-    page.indexOf('id="install"'),
-    page.indexOf("</section>", page.indexOf('id="install"')),
-  );
+  const start = page.indexOf('id="install"');
+  const install = page.slice(start, page.indexOf("</section>", start));
   assert.notEqual(install.indexOf(LINE), -1);
-  assert.match(install, /href="https:\/\/github\.com\/villekivela\/omaweb#install"/);
   // The README holds the steps, which check_repository_instructions.py holds to the key.
   assert.equal(install.indexOf("[omaweb]"), -1);
 });

@@ -16,9 +16,9 @@ node --test 'build/*.test.mjs' 'tests/*.test.mjs'
 
 - `index.html` and `styles.css` are the page. The landing page opens on the Start page, the Omnibar
   resting on a night road with the features as its rows, then the introduction film, a card for each
-  feature with a crop of the real interface, the install and a link to the release notes. Each
-  section is plain HTML with a comment saying what it is, so the words are edited where they are
-  read; a card's crop is a modifier class in `styles.css`.
+  feature with a crop of the real interface, and the install. Each section is plain HTML with a
+  comment saying what it is, so the words are edited where they are read; a card's crop is a
+  modifier class in `styles.css`.
 - `drive.js` is the landing page's behaviour: the road behind it, the Omnibar's rows, the film, the
   theme picker and the drive (below), and on a release page the road as a still header. `script.js`
   is what the landing page and the release pages share: the menu, the copy buttons, the radio and
