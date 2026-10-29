@@ -439,8 +439,9 @@ reports the gap and remains experimental rather than imitating behavior it canno
   the button holding it. `Tab`, `Shift+Tab` and the up and down arrows walk the buttons that can be
   pressed, `Tab` going round the ends, and `Return` or `Space` presses one. `Alt+J` or `Escape`
   returns the keyboard to the Glance's page. Holding Primary labels the controls beside each button,
-  Open as tab with the whole of its chord: the caps Ctrl, Shift and Enter. A chord on `Return` is
-  answered from the keypad's `Enter` too.
+  Open as tab with the whole of its chord: the caps Ctrl, Shift and Enter. A label that would run
+  past the window beside its button stands on the panel's side of it, over the edge of the page. A
+  chord on `Return` is answered from the keypad's `Enter` too.
 - The Shortcut sheet lists the browser commands and the keys that run them, read from the live
   keymap so it cannot promise a key the window does not answer. The Keyboard shortcuts command
   summons it, from the Omnibar or with `Primary+/` and `?`, over a page or over the Start page,

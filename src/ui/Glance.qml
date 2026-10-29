@@ -560,8 +560,14 @@ FocusScope {
         required property Item button
         required property string command
 
+        // Beside its button, away from the panel, or on the panel's side over
+        // the edge of the page where that would run past the window, as the
+        // whole chord on Open as tab does in a narrow one (#863).
+        readonly property real beside: button.x + button.width + Style.spacing.sm
+        readonly property bool fits: controls.x + beside + width <= root.width
+
         iconFontFamily: root.iconFontFamily
-        x: DevicePixels.snap(button.x + button.width + Style.spacing.sm, root.pixelRatio)
+        x: DevicePixels.snap(fits ? beside : -Style.spacing.sm - width, root.pixelRatio)
         y: DevicePixels.snap(button.y + (button.height - height) / 2, root.pixelRatio)
         keys: root.keyLabelsShown && root.keyMap ? root.keyMap.labelFor(command) : ""
         shown: root.keyLabelsShown && button.visible

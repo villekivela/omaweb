@@ -11390,8 +11390,8 @@ TestCase {
             // A chord on Primary alone is still labelled by the key that
             // finishes it.
             compare(findChild(glance, "keyLabel-glanceBackButton").text, "[");
-            // Each label stands beside its button, away from the panel and
-            // within the button's height, so none covers the next button.
+            // Each label stands beside its button and within its height, so
+            // none covers the next button.
             for (const [name, keys] of [["openGlanceAsTabButton", "Ctrl+Shift+Return"],
                                         ["glanceBackButton", "Ctrl+["], ["glanceForwardButton",
                                                                          "Ctrl+]"],
@@ -11402,7 +11402,10 @@ TestCase {
                 verify(label.visible, name);
                 compare(label.keys, keys, name);
                 const at = button.mapToItem(label.parent, 0, 0);
-                verify(label.x >= at.x + button.width, name + "'s label beside it: " + label.x);
+                // Beside it, on the panel's side where it would not fit away
+                // from it (see the test after this one).
+                verify(label.x >= at.x + button.width || label.x + label.width <= at.x, name
+                       + "'s label beside it: " + label.x);
                 verify(label.y >= at.y && label.y + label.height <= at.y + button.height, name
                        + "'s label within its height: " + label.y);
             }
@@ -11416,6 +11419,56 @@ TestCase {
             window.closeGlance();
         }
         verify(!openAsTab.visible);
+    }
+
+    // A label that would run past the window beside its button stands on the
+    // panel's side of it instead, over the edge of the Glance's page, while
+    // the rest stay beside theirs (#863). The whole chord on Open as tab is
+    // the one that does not fit in a window 1280 px wide.
+    function test_aGlanceKeyLabelThatDoesNotFitStandsOnThePanelSide() {
+        const width = window.width;
+        window.requestActivate();
+        try {
+            window.width = 1280;
+            tryCompare(window.contentItem, "width", 1280);
+            const opener = openPage("https://opener.example");
+            tryVerify(function () {
+                return window.active && opener.activeFocus;
+            });
+            const glance = openGlance("https://glanced.example/first");
+            tryCompare(glance, "arrival", 1);
+            keyPress(Qt.Key_Control);
+            const openAsTab = findChild(glance, "keyLabel-openGlanceAsTabButton");
+            tryVerify(function () {
+                return openAsTab.visible;
+            });
+            const panel = findChild(glance, "glancePanel");
+            const plate = findChild(glance, "glanceButtonsPlate");
+            for (const name of ["closeGlanceButton", "openGlanceAsTabButton", "glanceBackButton",
+                                "glanceForwardButton", "glanceReloadButton"]) {
+                const label = findChild(glance, "keyLabel-" + name);
+                const left = label.mapToItem(window.contentItem, 0, 0).x;
+                verify(left + label.width <= window.width, name + "'s label ends at " + (left
+                                                                                         + label.width)
+                       + " in a window " + window.width + " wide");
+                const plateLeft = plate.mapToItem(window.contentItem, 0, 0).x;
+                if (name === "openGlanceAsTabButton") {
+                    verify(left + label.width < plateLeft, name
+                           + "'s label is not on the panel side");
+                    verify(left > panel.mapToItem(window.contentItem, 0, 0).x, name
+                           + "'s label leaves the panel");
+
+                } else {
+                    verify(left >= plateLeft + plate.width, name
+                           + "'s label left its button's side");
+                }
+            }
+        } finally {
+            keyRelease(Qt.Key_Control);
+            window.closeGlance();
+            window.width = width;
+            tryCompare(window.contentItem, "width", width);
+        }
     }
 
     // Open as tab is pressed from the keyboard too.
