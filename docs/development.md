@@ -1555,10 +1555,13 @@ Eight measurements, one subcommand each, so a developer can run the one they are
   after the first added. That is the price of the engine profile per Space that
   [ADR 0008](adr/0008-isolate-space-storage-on-disk.md) buys.
 - `freezing` loads a page that takes a megabyte every fifth of a second into a second Space, puts
-  that Space away, and reports how much the engine's processes grew over the ten seconds after they
-  had settled. The browser's own process is left out: a page runs in a renderer, and on CI the
-  browser process takes a step of about 6 MiB at a moment nothing can predict, more than the whole
-  budget. A Space switch leaves the engine busy for a moment, so the probe first reads every two
+  that Space away, and reports how much the processes that page started grew over the ten seconds
+  after they had settled. Every other process is left out. On CI the browser's own process takes a
+  step of about 6 MiB at a moment nothing can predict, more than the whole budget, and the page
+  brought back on show runs V8's memory reducer about twelve seconds after the switch, which faults
+  in up to a mebibyte of the engine's library (#885). The processes are read by what they hold,
+  resident or swapped out, not by proportional share, because a share moves when another process
+  maps or leaves the same library. Freezing is not instant, so the probe first reads every two
   seconds until three readings in a row agree within a quarter of a mebibyte, for at most thirty
   seconds. The log says how long that took and how far the reading moved meanwhile.
   [ADR 0033](adr/0033-stop-an-away-spaces-pages-instead-of-taking-them.md) keeps a frozen page's

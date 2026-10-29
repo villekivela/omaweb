@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """When the freezing budget takes its frozen reading, without a browser.
 
-`scripts/benchmark_runtime.py freezing` reads the whole process tree, so whatever the browser is
-still doing after a Space switch lands in the window it attributes to the frozen page. The reading
-it measures from waits for the tree to stop moving, and that wait is decided by code that needs no
-browser, so it is checked here against readings played back in order.
+`scripts/benchmark_runtime.py freezing` reads the processes the away Space's page started, so
+nothing the browser or the page on show does after a Space switch lands in the window it attributes
+to the frozen page. The reading it measures from waits for them to stop moving. Which processes it
+reads and when that wait ends are decided by code that needs no browser, so they are checked here
+against process trees and readings played back in order.
 """
 
 from __future__ import annotations
@@ -91,8 +92,8 @@ class SettledReadingTest(unittest.TestCase):
         self.assertEqual(tree.reads, steps + 1)
 
 
-class EngineReadingTest(unittest.TestCase):
-    """The frozen page lives in the engine's processes, and the browser's own is left out."""
+class TreeReadingTest(unittest.TestCase):
+    """The whole tree's reading, and the part of it below the browser's own process."""
 
     def setUp(self):
         # launcher 1 -> browser 2 -> engine processes 3 and 4, and 4 has a child 5.
@@ -111,12 +112,75 @@ class EngineReadingTest(unittest.TestCase):
     def test_the_engine_reading_leaves_out_the_process_it_is_read_below(self):
         self.assertEqual(runtime.below_mib(2), 72.0)
 
-    # What a Freezing check saw cross its ceiling: a step in the browser's own process.
-    def test_a_step_in_the_browser_process_does_not_move_the_engine_reading(self):
-        before = runtime.below_mib(2)
-        self.pss_kib[2] += 6 * 1024
-        self.assertEqual(runtime.below_mib(2), before)
 
+class AwayReadingTest(unittest.TestCase):
+    """The frozen page is read from the processes its Space started, and from nothing else."""
+
+    def setUp(self):
+        # browser 2 -> zygote 3 -> renderer 4, the page of the Space on show.
+        self.tree = {2: [3], 3: [4]}
+        self.rss_kib = {3: 10 * 1024, 4: 20 * 1024}
+        self.pss_kib = dict(self.rss_kib)
+        self.swap_kib: dict[int, int] = {}
+        self.saved = runtime.children_by_parent, runtime.read_rollup_kib
+        runtime.children_by_parent = lambda: self.tree
+        runtime.read_rollup_kib = self.rollup
+        self.shown = runtime.processes_below(2)
+        # The away Space's page starts renderer 5.
+        self.tree[3].append(5)
+        self.rss_kib[5] = self.pss_kib[5] = 70 * 1024
+
+    def tearDown(self):
+        runtime.children_by_parent, runtime.read_rollup_kib = self.saved
+
+    def rollup(self, pid: int, field: str) -> int:
+        return {"Rss:": self.rss_kib, "Pss:": self.pss_kib,
+                "Swap:": self.swap_kib}[field].get(pid, 0)
+
+    def away(self) -> float:
+        return runtime.held_mib(runtime.started_since(2, self.shown))
+
+    def test_the_away_reading_is_what_the_away_spaces_page_started(self):
+        self.assertEqual(self.away(), 70.0)
+
+    # What #885 found on CI: the page brought back on show runs V8's memory reducer about twelve
+    # seconds after the switch, faulting in most of a mebibyte of the engine's library.
+    def test_the_page_on_show_does_not_move_the_away_reading(self):
+        before = self.away()
+        self.rss_kib[4] += 1024
+        self.pss_kib[4] += 1024
+        self.assertEqual(self.away(), before)
+
+    # What a Freezing check saw cross its ceiling before #467: a step in the browser's own process.
+    def test_the_browser_process_does_not_move_the_away_reading(self):
+        before = self.away()
+        self.rss_kib[2] = self.pss_kib[2] = 400 * 1024
+        self.assertEqual(self.away(), before)
+
+    # A process leaving the engine's library leaves the frozen page a larger share of it, which
+    # #885 saw add 2 MiB to a frozen renderer that had touched nothing.
+    def test_a_larger_share_of_the_same_pages_does_not_move_it(self):
+        before = self.away()
+        self.pss_kib[5] += 2 * 1024
+        self.assertEqual(self.away(), before)
+
+    # On a desktop that swaps, the kernel takes a frozen page's idle memory out of residence, which
+    # read alone took 56 MiB off a frozen page that had done nothing.
+    def test_the_kernel_swapping_the_page_out_does_not_move_it(self):
+        before = self.away()
+        self.rss_kib[5] -= 8 * 1024
+        self.swap_kib[5] = 8 * 1024
+        self.assertEqual(self.away(), before)
+
+    def test_the_away_page_still_running_moves_it(self):
+        before = self.away()
+        self.rss_kib[5] += 1024
+        self.pss_kib[5] += 1024
+        self.assertEqual(self.away(), before + 1.0)
+
+    def test_a_process_that_ended_holds_nothing(self):
+        del self.rss_kib[5], self.pss_kib[5]
+        self.assertEqual(self.away(), 0.0)
 
 if __name__ == "__main__":
     unittest.main()
