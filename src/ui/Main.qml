@@ -3565,7 +3565,7 @@ ApplicationWindow {
             required property string modelData
 
             Shortcut {
-                sequence: keymap.keySequence(modelData)
+                sequences: keymap.keySequences(modelData)
                 enabled: !window.settingsOpen && (keymap.isChord(modelData) || (
                                                       keymap.pageCommandsEnabled &&
                                                       !engineLoader.hintModeActive))

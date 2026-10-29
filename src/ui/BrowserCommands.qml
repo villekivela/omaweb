@@ -326,7 +326,12 @@ QtObject {
                                              "glance-to-tab": {
                                                  group: "tabs",
                                                  title: qsTr("Open the Glance as a tab"),
-                                                 requires: "glance"
+                                                 requires: "glance",
+                                                 // A Glance is gone as soon as
+                                                 // the reader looks elsewhere,
+                                                 // so its key is learnt before
+                                                 // one is open (#863).
+                                                 alwaysListed: true
                                              },
                                              "duplicate-tab": {
                                                  group: "tabs",
