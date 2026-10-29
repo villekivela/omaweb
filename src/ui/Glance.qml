@@ -92,6 +92,8 @@ FocusScope {
     // control that closes when it is done with, and a tab holding one would go
     // on showing a menu for a window it no longer belongs to.
     property bool openAsTabAllowed: true
+    onOpenAsTabAllowedChanged: if (!openAsTabAllowed)
+                                   controls.passOver(openAsTabButton)
     readonly property real restWidth: root.preferredSize.width > 0 ? Math.min(
                                                                          root.preferredSize.width,
                                                                          Math.max(0, width - 2
@@ -365,11 +367,16 @@ FocusScope {
             return button !== undefined && button.visible && button.enabled;
         }
 
-        // Back at the first page, back is disabled under the cursor: the
-        // cursor moves on to a button the keyboard can still press.
-        readonly property bool cursorPressable: controls.pressable(controls.cursor)
-        onCursorPressableChanged: if (!controls.cursorPressable)
-                                      controls.cursor = controls.step(controls.cursor, 1, true)
+        // Back at the first page, back is disabled under the cursor, and an
+        // extension's popup offers no Open as tab: the cursor moves on to a
+        // button the keyboard can still press. The button that went asks,
+        // rather than a binding on what is under the cursor: every button
+        // reads as hidden while the Glance is, so a binding would walk the
+        // cursor on every closing and opening.
+        function passOver(button) {
+            if (controls.order[controls.cursor] === button)
+                controls.cursor = controls.step(controls.cursor, 1, true);
+        }
 
         // The next button the keyboard can press from `from` towards `delta`,
         // round the ends when `wrap` is set, or `from` itself when there is
@@ -544,11 +551,14 @@ FocusScope {
     }
 
     component GlanceButton: ChromeButton {
+        id: glanceButton
         width: 30
         height: 30
         // The column walks its cursor over the buttons, so none is a stop the
         // kit marks with its own focus ring.
         focusable: false
+        onEnabledChanged: if (!enabled)
+                              controls.passOver(glanceButton)
         // The window's own text, as the panel's ground is the window's own
         // overlay: a Private window draws both in its own palette.
         foreground: root.colors.text
