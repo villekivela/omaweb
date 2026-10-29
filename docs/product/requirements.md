@@ -214,11 +214,13 @@ reports the gap and remains experimental rather than imitating behavior it canno
   accent at 10% over the plate, and the key in the accent in the mono face at weight 500 and 12 px,
   all scaled with the interface font size. A chord is a row of caps, one to a key. A Key label's cap
   keeps the ground when Primary finishes the chord it names, and is outlined without it for a key
-  pressed on its own, so the difference the old filled and outlined labels made is kept. A special
-  key is a symbol, not a word: Return and Enter `↵`, the arrows `↑ ↓ ← →`, Tab `⇥`, Backspace `⌫`,
-  Delete `⌦`, Shift `⇧` and Space `␣`, as a Material Symbols icon where the font carries a matching
-  glyph and as the Unicode symbol in the mono face where it does not. Escape is "Esc", and Ctrl,
-  Alt, Home, End, Page Up and Page Down stay words. A cap keeps the key's spoken name.
+  pressed on its own, so the difference the old filled and outlined labels made is kept. A chord on
+  Primary alone is labelled by the key that finishes it, and a chord with more keys in it is
+  labelled whole, with Return named Enter, the name on the key. A special key is a symbol, not a
+  word: Return and Enter `↵`, the arrows `↑ ↓ ← →`, Tab `⇥`, Backspace `⌫`, Delete `⌦`, Shift `⇧`
+  and Space `␣`, as a Material Symbols icon where the font carries a matching glyph and as the
+  Unicode symbol in the mono face where it does not. Escape is "Esc", and Ctrl, Alt, Home, End, Page
+  Up and Page Down stay words. A cap keeps the key's spoken name.
 - The window title names the page and the Space on show, and a Space switch shows the Space notice
   at the top of the page. A Private window's title names neither, and it shows no notice.
 - An Agent tab's row ends with an Agent mark in the Agent accent, in the place the close button
@@ -414,29 +416,30 @@ reports the gap and remains experimental rather than imitating behavior it canno
   new-window request was handed to.
 - A Glance is one accent-bordered panel the page area's full height, between margins of 12% of its
   width, grown out of the link that asked for it and retreating into it when it closes. The page
-  beneath stands back and is dimmed, not blurred. Its controls are bare buttons in a column beside
-  the panel's top corner, with no ground or border of their own: close, Open as tab, back, forward
-  and reload. Back and forward are disabled where the Glance has no history that way, and Open as
-  tab is hidden for an extension's popup. The controls arrive and go with the panel and fade early
-  as the Glance is kept. Open as tab grows the panel's width into the page area, then the page is a
-  tab listed right after the one it came from, its row lit for a moment; with reduced motion it is a
-  cut. It takes the opener's engine profile, so logins hold, and its visits enter the Space's
+  beneath stands back and is dimmed, not blurred. Its controls are buttons in a column beside the
+  panel's top corner, on a plate of the panel's ground with a 1 px border in the separator colour
+  and a 3 px radius, so they read over a white page and a black one alike: close, Open as tab, back,
+  forward and reload. Back and forward are disabled where the Glance has no history that way, and
+  Open as tab is hidden for an extension's popup. The controls arrive and go with the panel and fade
+  early as the Glance is kept. Open as tab grows the panel's width into the page area, then the page
+  is a tab listed right after the one it came from, its row lit for a moment; with reduced motion it
+  is a cut. It takes the opener's engine profile, so logins hold, and its visits enter the Space's
   history. It is not a tab: the outline does not list it, the session store and the Sync projection
   do not carry it, and the address trigger, find bar and prompt bars keep answering for the tab
   beneath. `back`, `forward`, `reload` and `reload-bypassing-cache` act on the Glance's page while
   it is open, from keys, the command scope and its controls, and leave the tab's page where it was;
   back with no Glance history does nothing. It ends with `Escape` from its page, its close button, a
   click outside its panel, the close-tab command, and anything that changes the tab on show: a tab
-  or Space switch, the tab closing, settings or history opening. `Primary+Shift+Return` or the Open
-  as tab button makes it an ordinary tab after the tab it stood over, keeping its engine and so its
-  history, scroll and form state. A new-tab request from inside a Glance opens a tab, which ends the
-  Glance; a second request from the page beneath replaces it. Settings' interface section turns the
-  Glance off, locally.
+  or Space switch, the tab closing, settings or history opening. `Primary+Shift+Return`, the
+  keypad's `Enter` as well as `Return`, or the Open as tab button makes it an ordinary tab after the
+  tab it stood over, keeping its engine and so its history, scroll and form state. A new-tab request
+  from inside a Glance opens a tab, which ends the Glance; a second request from the page beneath
+  replaces it. Settings' interface section turns the Glance off, locally.
 - `Alt+K` from a Glance's page moves the keyboard into its controls, where the Sidebar cursor marks
   the button holding it. `Tab`, `Shift+Tab` and the up and down arrows walk the buttons that can be
   pressed, `Tab` going round the ends, and `Return` or `Space` presses one. `Alt+J` or `Escape`
   returns the keyboard to the Glance's page. Holding Primary labels the controls beside each button,
-  `Primary+Shift+Return` on Open as tab included.
+  Open as tab with the whole of its chord, `Ctrl+Shift+Enter`.
 - The Shortcut sheet lists the browser commands and the keys that run them, read from the live
   keymap so it cannot promise a key the window does not answer. The Keyboard shortcuts command
   summons it, from the Omnibar or with `Primary+/` and `?`, over a page or over the Start page,

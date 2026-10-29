@@ -50,6 +50,16 @@ QtObject {
         return steps.join(",");
     }
 
+    // Every sequence a binding answers: its own, and for a chord on Return the
+    // same chord on the keypad's Enter, which Qt reports as a key of its own
+    // (#863). The sheet and the labels name the binding alone.
+    function keySequences(binding) {
+        const sequence = keySequence(binding);
+        if (isChord(binding) && /\+Return$/.test(sequence))
+            return [sequence, sequence.replace(/Return$/, "Enter")];
+        return [sequence];
+    }
+
     // Omaweb ships for Linux, so its hints name Linux keys wherever it is run:
     // a build on another desktop is a development convenience, and a hint that
     // followed the host's symbols there would put that host's keys into every

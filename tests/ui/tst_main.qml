@@ -11075,6 +11075,136 @@ TestCase {
         }
     }
 
+    // The key that keeps a Glance is pressed, not run (#863): with the
+    // keyboard in the Glance's page, in the chrome, and as the keypad's Enter.
+    function test_theKeepKeyMakesAGlanceATab() {
+        window.requestActivate();
+        openPage("https://opener.example");
+        const openerTabId = browser.activeTabId;
+        const keptTabIds = [];
+        const keep = function (url, key, modifiers, focus) {
+            browser.activateTab(openerTabId);
+            const glance = openGlance(url);
+            focus(window.glanceEngine);
+            keyClick(key, Qt.ControlModifier | Qt.ShiftModifier | modifiers);
+            tryVerify(function () {
+                return browser.activeUrl.toString() === url;
+            }, 5000, "the key did not keep " + url);
+            keptTabIds.push(browser.activeTabId);
+            tryVerify(function () {
+                return !glance.visible;
+            });
+        };
+        const inThePage = function (glanced) {
+            tryVerify(function () {
+                return window.active && glanced.activeFocus;
+            });
+        };
+        try {
+            keep("https://in-the-page.example/", Qt.Key_Return, Qt.NoModifier, inThePage);
+            keep("https://in-the-chrome.example/", Qt.Key_Return, Qt.NoModifier, function (
+                glanced) {
+                window.focusSidebar();
+                tryVerify(function () {
+                    return !glanced.activeFocus && window.activeFocusItem !== null;
+                });
+            });
+            keep("https://on-the-keypad.example/", Qt.Key_Enter, Qt.KeypadModifier, inThePage);
+        } finally {
+            for (const tabId of keptTabIds)
+                browser.closeTab(tabId);
+            browser.activateTab(openerTabId);
+        }
+    }
+
+    // The Glance's buttons stand beside its panel, over the dimmed page the
+    // Glance came from, so a light page must not wash them out (#863). Each
+    // glyph holds 3:1 against what is drawn around it over a white page and a
+    // black one, in the theme on show and in a light one, and a disabled one
+    // is still drawn, fainter than the rest.
+    function test_theGlanceButtonsReadOverAnyPage_data() {
+        return [
+                    {
+                        tag: "theme"
+                    },
+                    {
+                        tag: "light",
+                        text: "#1c1b22",
+                        overlay: Qt.rgba(0.957, 0.953, 0.973, 0.96),
+                        separator: "#d4d2dc"
+                    }
+                ];
+    }
+
+    function test_theGlanceButtonsReadOverAnyPage(data) {
+        if (data.text) {
+            const changed = Object.assign({}, window.colors);
+            changed.text = data.text;
+            changed.overlay = data.overlay;
+            changed.separator = data.separator;
+            window.colors = changed;
+        }
+        const opener = openPage("https://opener.example");
+        const glance = openGlance("https://glanced.example/page");
+        tryCompare(glance, "arrival", 1);
+        const ratio = window.devicePixelRatio;
+        // The glyph's own colour against the ground around it: the pixel in
+        // the button that stands furthest from its corner.
+        const legibility = function (image, name) {
+            const button = findChild(glance, name);
+            const corner = button.mapToItem(window.contentItem, 0, 0);
+            const left = Math.ceil(corner.x * ratio);
+            const top = Math.ceil(corner.y * ratio);
+            const side = Math.floor(button.width * ratio) - 1;
+            const ground = image.pixel(left + 1, top + 1);
+            let best = 1;
+            for (let y = 0; y < side; ++y) {
+                for (let x = 0; x < side; ++x)
+                    best = Math.max(best, contrastRatio(image.pixel(left + x, top + y), ground));
+            }
+            return best;
+        };
+        try {
+            for (const page of ["white", "black"]) {
+                opener.pageBackgroundColor = page;
+                window.glanceEngine.pageBackgroundColor = page;
+                wait(50);
+                const image = grabImage(window.contentItem);
+                for (const name of ["closeGlanceButton", "openGlanceAsTabButton",
+                                    "glanceReloadButton"]) {
+                    const legible = legibility(image, name);
+                    verify(legible >= 3, name + " over a " + page + " page: " + legible.toFixed(2));
+                }
+                const enabled = legibility(image, "glanceReloadButton");
+                const disabled = legibility(image, "glanceBackButton");
+                verify(disabled >= 1.5 && disabled < enabled, "disabled back over a " + page
+                       + " page: " + disabled.toFixed(2) + " beside " + enabled.toFixed(2));
+            }
+        } finally {
+            opener.pageBackgroundColor = "#16151d";
+            window.closeGlance();
+            window.colors = Qt.binding(function () {
+                return theme.palette;
+            });
+        }
+    }
+
+    // A Glance lasts only as long as the reader is looking at it, so its key
+    // is learnt before one is open: the Shortcut sheet lists it without one.
+    function test_theShortcutSheetListsTheKeepKey() {
+        openPage("https://opener.example");
+        verify(!window.glanceOpen);
+        const title = window.commands.descriptions["glance-to-tab"].title;
+        const tabs = shortcutSheetSections().filter(function (section) {
+            return section.group === "tabs";
+        })[0];
+        const entries = tabs.entries.filter(function (entry) {
+            return entry.title === title;
+        });
+        compare(entries.length, 1, "the sheet does not list " + title);
+        compare(entries[0].keys, "Ctrl+Shift+Return");
+    }
+
     // The Glance's buttons act on its page, as the commands do. Open as tab is
     // not on offer for an extension's popup.
     function test_theGlanceButtonsActOnTheGlance() {
@@ -11250,10 +11380,15 @@ TestCase {
                 return openAsTab.visible;
             });
             compare(openAsTab.keys, "Ctrl+Shift+Return");
-            // What finishes the chord is a cap a key.
+            // A chord with more than the held Primary in it is labelled whole,
+            // a cap a key, and Return by the name on the key (#863): labelled
+            // Shift and Return alone, it was pressed without Ctrl.
             const caps = findChild(openAsTab, "keycaps");
             verify(caps !== null && caps.visible);
-            compare(caps.parts, ["Shift", "Return"]);
+            compare(caps.parts, ["Ctrl", "Shift", "Enter"]);
+            // A chord on Primary alone is still labelled by the key that
+            // finishes it.
+            compare(findChild(glance, "keyLabel-glanceBackButton").text, "[");
             // Each label stands beside its button, away from the panel and
             // within the button's height, so none covers the next button.
             for (const [name, keys] of [["openGlanceAsTabButton", "Ctrl+Shift+Return"],
