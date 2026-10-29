@@ -170,7 +170,7 @@ its own, and they run side by side:
 | `commit-messages`    | Every non-merge subject in the range                                                                       |
 | `changes`            | Whether the range holds anything the Arch jobs below could break                                           |
 | `arch-linux-clang`   | The `ci` preset under clang against Omaweb's engine, and `ctest --preset ci`                               |
-| `arch-linux-budget`  | The browser from the `ci` preset under clang, held to [the runtime budget](#the-runtime-budget)            |
+| `arch-linux-budget`  | The browser from the `release` preset under clang, held to [the runtime budget](#the-runtime-budget)       |
 | `arch-linux-release` | The `release` preset under clang against Omaweb's engine, and the tests that load its compiled QML         |
 | `arch-linux`         | The required check: passes when `changes` and the three above passed or were skipped                       |
 | `arch-linux-gcc`     | The `ci` preset under GCC against Arch's `qt6-webengine`, and `ctest --preset ci`                          |
@@ -1585,10 +1585,11 @@ map a window, Spaces or tabs that never open and an allocator page that never al
 skips: each of those fails the run, because each is either a broken browser or a number that would
 mean nothing.
 
-CI runs it in the `arch-linux-budget` job, which builds the browser from the `ci` preset and runs
-nothing else, under cage on the headless backend, with `--require-dns` so that `pageload` fails
-there rather than skips. What it measures there is what needs no hardware, and a page's first paint,
-which is held against CI's own software renderer rather than a reader's GPU. Scrolling is not in it.
+CI runs it in the `arch-linux-budget` job, which builds the browser from the `release` preset, the
+build the package ships, and runs nothing else, under cage on the headless backend, with
+`--require-dns` so that `pageload` fails there rather than skips. What it measures there is what
+needs no hardware, and a page's first paint, which is held against CI's own software renderer rather
+than a reader's GPU. Scrolling is not in it.
 
 To run it on a Hyprland desktop without its keys reaching the desktop, run it as the program of a
 headless cage, as CI does, with `HYPRLAND_INSTANCE_SIGNATURE` unset so that keys go through `wtype`
