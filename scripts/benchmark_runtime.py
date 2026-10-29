@@ -662,7 +662,7 @@ def tree_split_mib(root: int) -> dict[str, float]:
         pid = pending.pop()
         pending += tree.get(pid, [])
         argv = read_argv(pid)
-        if argv:
+        if any(part.strip() for part in argv):
             kind = process_kind(argv)
             split[kind] = split.get(kind, 0.0) + read_pss_kib(pid) / KIB_PER_MIB
     return dict(sorted(split.items()))
@@ -1312,8 +1312,11 @@ def measure_memory(executable: str) -> dict:
         browser.await_title(PROBE_TITLE)
         time.sleep(LOAD_SETTLE)
         memory = browser.memory_mib()
-        for kind, mebibytes in tree_split_mib(browser.pid).items():
+        # Read after the total, so the parts are summed for a reader to set beside it.
+        split = tree_split_mib(browser.pid)
+        for kind, mebibytes in split.items():
             log(f"  {kind}: {mebibytes:.1f} MiB")
+        log(f"  the parts: {sum(split.values()):.1f} MiB")
         return {"memory_mebibytes": memory}
     finally:
         browser.stop()

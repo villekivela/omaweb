@@ -34,7 +34,7 @@ class ProcessKindTest(unittest.TestCase):
         self.assertEqual(runtime.process_kind([ENGINE, "--type=zygote"]), "zygote")
 
     # Chromium retitles a process it forks from its zygote, and the new title is one string with
-    # spaces where the separators were. CI's first split read every engine process as the browser.
+    # spaces where the separators were.
     def test_a_retitled_engine_process_is_still_named_by_its_type(self):
         self.assertEqual(runtime.process_kind([f"{ENGINE} --type=renderer --lang=en"]),
                          "renderer")
@@ -91,6 +91,12 @@ class SplitTest(unittest.TestCase):
 
     def test_a_process_gone_before_its_command_line_is_read_is_left_out(self):
         self.argv[6] = []
+        self.pss_kib[6] = 0
+        self.assertEqual(runtime.tree_split_mib(1)["renderer"], 60.0)
+
+    # A title of nothing but blanks names no kind either.
+    def test_a_process_with_a_blank_title_is_left_out(self):
+        self.argv[6] = ["   "]
         self.pss_kib[6] = 0
         self.assertEqual(runtime.tree_split_mib(1)["renderer"], 60.0)
 
