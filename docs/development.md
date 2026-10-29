@@ -1455,16 +1455,14 @@ changed in at least three frames a movement: the page under it redraws every fra
 do not say the surface moved. The Omnibar's word is set into the field a letter at a time rather
 than sent as keys, because a compositor need not give the test window the keyboard.
 
-The sidebar, a Space switch and the Omnibar hold the budget. The Glance does not hold it in CI yet.
-It prints both budget lines with the reason it is over, and holds a guard instead: the same count of
-movements, at most one in ten, with a frame slower than its guard rather than the ceiling. The guard
-sits over the slowest movement CI's runner has drawn. It catches a change that puts a frame over the
-guard in more than one movement, such as a stall on every opening, and nothing smaller: on CI a
-stall on each opening goes unnoticed under about 25 ms. The change that brings the Glance inside
-removes its `overBudget` argument, and the budget is held.
-
-- The Glance. Inside the budget on this laptop and on the GPU, but on CI's runner three of its ten
-  movements hold a frame, at 36 to 40 ms.
+All four hold the budget. The Glance held a frame on some of its openings until the closed Shortcut
+sheet stopped listing commands (#597): the sheet asked the command registry about every command
+whenever its answers changed, and a Glance opening or closing changes two of them, keeping the
+Glance as a tab and popping the tab out. Before that change one opening of each run took 28 to 37 ms
+offscreen on the Dell XPS below. Making the closed sheet list nothing at that commit, and nothing
+else, brought every movement under 24 ms. CI's runner has held the Glance to none of ten since, and
+the blurred backdrop #704 took away was not what held it: openings took 19 to 21 ms on CI before it
+went and 16 to 18 ms after.
 
 The Omnibar reads the commands when it opens and when the Space changes, and the tabs and the Spaces
 then and again after one of them changes, rather than for each keystroke. It ranks them once for
@@ -1489,20 +1487,22 @@ display, drawn through radeonsi. The Omnibar's row is #595's: offscreen is eight
 CI is its pull request's `arch-linux` and `arch-linux-gcc` runs, which then printed a probe's
 numbers only when it failed, and GPU is three runs. The sidebar and Space switch rows are #594's, on
 2026-10-06: offscreen is three runs of the whole `tst_performance.qml`, CI is #597's two jobs at
-816e61e, read from the step that prints the probes' numbers from ctest's log, and GPU is three runs:
+816e61e, read from the step that prints the probes' numbers from ctest's log, and GPU is three runs.
+The Glance's row is #858's, on 2026-10-29 at ea0d26a, with its controls (#848) and their plate
+(#873), on a Dell XPS 14 with an Intel Core Ultra X7 358H, with the `ui` preset: offscreen is five
+runs of its probe alone, CI is the `arch-linux-clang` and `arch-linux-gcc` jobs of the seven commits
+on `main` from 5feea57 to ea0d26a, and GPU is three runs on the laptop's 60 Hz display:
 
-| Surface      | Offscreen p95 | Held, offscreen | CI p95      | CI slowest  | Held, CI | GPU p95 | Held, GPU | Guard |
-| ------------ | ------------- | --------------- | ----------- | ----------- | -------- | ------- | --------- | ----- |
-| Sidebar      | 17 to 18 ms   | 0               | 17 to 18 ms | 21 to 23 ms | 0        | 17 ms   | 0         | none  |
-| Space switch | 17 to 18 ms   | 0 to 1          | 17 to 19 ms | 24 to 31 ms | 0        | 17 ms   | 0         | none  |
-| Omnibar      | 14 to 15 ms   | 0 of 10         | not printed | not printed | 0 to 1   | 17 ms   | 0         | none  |
-| Glance       | 18 to 22 ms   | 0 to 1          | 26 to 27 ms | 39 to 40 ms | 3        | 17 ms   | 1         | 67 ms |
+| Surface      | Offscreen p95 | Held, offscreen | CI p95        | CI slowest    | Held, CI | GPU p95         | Held, GPU |
+| ------------ | ------------- | --------------- | ------------- | ------------- | -------- | --------------- | --------- |
+| Sidebar      | 17 to 18 ms   | 0               | 17 to 18 ms   | 21 to 23 ms   | 0        | 17 ms           | 0         |
+| Space switch | 17 to 18 ms   | 0 to 1          | 17 to 19 ms   | 24 to 31 ms   | 0        | 17 ms           | 0         |
+| Omnibar      | 14 to 15 ms   | 0 of 10         | not printed   | not printed   | 0 to 1   | 17 ms           | 0         |
+| Glance       | 17 to 18 ms   | 0               | 16.5 to 17 ms | 17 to 20.5 ms | 0        | 18.6 to 19.6 ms | 0         |
 
-On this laptop the Glance's one held movement is the same opening in every run, the fourth, at 32 to
-35 ms. On the GPU all four are inside the budget. The software rasteriser draws no blur, so the
-Omnibar's glass and the sidebar's floating shelf are priced only by the GPU columns, as the Glance's
-blurred backdrop was when these were measured; it draws none since #704. Take those from a terminal
-in the session, where the test window opens over the desktop for about fifteen seconds:
+The software rasteriser draws no blur, so the Omnibar's glass and the sidebar's floating shelf are
+priced only by the GPU columns. Take those from a terminal in the session, where the test window
+opens over the desktop for about fifteen seconds:
 
 ```sh
 QT_QPA_PLATFORM=wayland QSG_RHI_PROFILE=1 build/ci/omaweb-ui-tests \
