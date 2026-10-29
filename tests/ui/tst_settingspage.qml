@@ -239,8 +239,20 @@ TestCase {
             return false;
         }
 
+        // The Link rules settings.json holds, which the page reads back
+        // through the same preference the core answers.
+        property string linkRulesJson: "[]"
+
         function preference(key, fallback) {
-            return fallback;
+            return key === "link-rules" ? linkRulesJson : fallback;
+        }
+
+        function linkPatternParses(pattern) {
+            return true;
+        }
+
+        function readersSpaceNames() {
+            return ["Personal", "Work", "Reading"];
         }
 
         property var preferenceCalls: []
@@ -483,6 +495,137 @@ TestCase {
         settleAction(control);
         const inWindow = control.mapToItem(testCase, 0, control.height);
         verify(inWindow.y <= testCase.height, "the control is still below the window");
+    }
+
+    // Every item under `item` that is visible and for which `matches` holds.
+    function visibleItems(item, matches, found) {
+        for (let index = 0; index < item.children.length; ++index) {
+            const child = item.children[index];
+            if (!child.visible)
+                continue;
+            if (matches(child))
+                found.push(child);
+            testCase.visibleItems(child, matches, found);
+        }
+        return found;
+    }
+
+    function isToggle(item) {
+        return item.title !== undefined && item.note !== undefined && item.checked !== undefined
+                && item.accessibleName !== undefined;
+    }
+
+    // Two bordered controls that share a column are cards, so the pane's gap
+    // sits between them. A toggle draws its own border, which makes the touch
+    // visible as one thick rule where two meet.
+    function test_everyStackOfToggleCardsIsSpacedByThePane() {
+        const page = makePage();
+        page.globalPrivacyControl = Qt.createQmlObject(
+                    'import QtQml; QtObject { property bool enabled: false }', page);
+        page.httpsOnly = Qt.createQmlObject('import QtQml; QtObject { property bool enabled: true }',
+                                            page);
+        page.knownExtensions = [
+                    {
+                        key: "one",
+                        name: "One",
+                        publisher: "A",
+                        licence: "MIT",
+                        fetching: false,
+                        installed: true,
+                        enabled: false,
+                        summary: "First."
+                    },
+                    {
+                        key: "two",
+                        name: "Two",
+                        publisher: "B",
+                        licence: "MIT",
+                        fetching: false,
+                        installed: true,
+                        enabled: false,
+                        summary: "Second."
+                    }
+                ];
+        page.knownExtensionsAvailable = true;
+        const pane = findChild(page, "settingsPane");
+        verify(pane !== null);
+
+        let stacks = 0;
+        for (let section = 0; section < page.sections.length; ++section) {
+            page.section = section;
+            const toggles = testCase.visibleItems(page, testCase.isToggle, []);
+            toggles.sort(function (left, right) {
+                return left.mapToItem(page, 0, 0).y - right.mapToItem(page, 0, 0).y;
+            });
+            for (let index = 1; index < toggles.length; ++index) {
+                const above = toggles[index - 1];
+                const below = toggles[index];
+                if (above.parent !== below.parent)
+                    continue;
+                ++stacks;
+                const name = page.sections[section] + ": " + above.objectName + " / "
+                      + below.objectName;
+                tryVerify(function () {
+                    return testCase.gapBetween(page, above, below) >= pane.spacing;
+                }, 1000, name + " touch");
+            }
+        }
+        // The privacy pair and the extensions pair, so an empty walk fails.
+        verify(stacks >= 2, "found " + stacks + " stacks");
+    }
+
+    // A text field and a dropdown set side by side are one row of controls, so
+    // they are as tall as each other.
+    function test_aFieldBesideADropdownIsAsTallAsIt() {
+        const page = makePage();
+        browserStub.linkRulesJson = JSON.stringify([
+                                                       {
+                                                           pattern: "*.acme.com",
+                                                           space: "Work"
+                                                       }
+                                                   ]);
+        page.browser = browserStub;
+        page.readLinkRules();
+        page.section = page.sections.indexOf("spaces");
+
+        const field = findChild(page, "linkRulePattern-0");
+        const dropdown = findChild(page, "linkRuleSpace-0");
+        verify(field !== null && dropdown !== null);
+        tryVerify(function () {
+            return field.height > 0 && dropdown.height > 0;
+        });
+        compare(dropdown.height, field.height);
+
+        // And wherever else a row sets the two together.
+        const rows = testCase.visibleItems(page, function (item) {
+            return item.children.some(function (child) {
+                return child.placeholderText !== undefined;
+            }) && item.children.some(function (child) {
+                return child.rowHeight !== undefined;
+            });
+        }, []);
+        for (const row of rows) {
+            const heights = row.children.filter(function (child) {
+                return child.visible && (child.placeholderText !== undefined || child.rowHeight
+                                         !== undefined);
+            }).map(function (child) {
+                return child.height;
+            });
+            for (const height of heights)
+                compare(height, heights[0]);
+        }
+    }
+
+    // The Spaces list removes with the X the Link rules list uses, and the X
+    // still names the Space it removes.
+    function test_aSpaceIsRemovedWithTheXTheLinkRulesUse() {
+        const page = makeSpacesPage();
+        const remove = findChild(page, "deleteSpace-work");
+        verify(remove !== null);
+        compare(remove.icon, "close");
+        compare(remove.Accessible.name, "Delete Work");
+        verify(remove.enabled);
+        compare(findChild(page, "renameSpace-work").label, "Rename");
     }
 
     // The Spaces as the page draws them, top to bottom, so the order under
