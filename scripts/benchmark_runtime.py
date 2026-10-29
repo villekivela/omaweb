@@ -624,6 +624,50 @@ def tree_mib(root: int) -> float:
     return read_pss_kib(root) / KIB_PER_MIB + below_mib(root)
 
 
+def read_argv(pid: int) -> list[str]:
+    """One process's command line, or nothing for a process that has gone."""
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as handle:
+            return [part.decode(errors="replace") for part in handle.read().split(b"\0") if part]
+    except OSError:
+        return []
+
+
+def process_kind(argv: list[str]) -> str:
+    """What a process in the browser's tree is, from its command line.
+
+    Every engine process has the same name, so its `--type` says which it is, and a utility's
+    service says which utility. A process with no type is the browser's own. Chromium retitles the
+    processes its zygote forks into one string, so the words are split out of each part.
+    """
+    words = [word for part in argv for word in part.split()]
+    if os.path.basename(words[0]).startswith("dbus-"):
+        return "session bus"
+    flags = dict(word[2:].split("=", 1) for word in words[1:]
+                 if word.startswith("--") and "=" in word)
+    kind = flags.get("type")
+    if kind is None:
+        return "browser"
+    if kind == "utility" and "utility-sub-type" in flags:
+        return f"utility {flags['utility-sub-type']}"
+    return kind
+
+
+def tree_split_mib(root: int) -> dict[str, float]:
+    """`tree_mib`'s reading by the kind of process holding it, in mebibytes."""
+    tree = children_by_parent()
+    split: dict[str, float] = {}
+    pending = [root]
+    while pending:
+        pid = pending.pop()
+        pending += tree.get(pid, [])
+        argv = read_argv(pid)
+        if any(part.strip() for part in argv):
+            kind = process_kind(argv)
+            split[kind] = split.get(kind, 0.0) + read_pss_kib(pid) / KIB_PER_MIB
+    return dict(sorted(split.items()))
+
+
 def below_mib(root: int) -> float:
     """Proportional set size of everything below a process, without the process, in mebibytes."""
     tree = children_by_parent()
@@ -1267,7 +1311,13 @@ def measure_memory(executable: str) -> dict:
         browser.start(workspace.page_url)
         browser.await_title(PROBE_TITLE)
         time.sleep(LOAD_SETTLE)
-        return {"memory_mebibytes": browser.memory_mib()}
+        memory = browser.memory_mib()
+        # Read after the total, so the parts are summed for a reader to set beside it.
+        split = tree_split_mib(browser.pid)
+        for kind, mebibytes in split.items():
+            log(f"  {kind}: {mebibytes:.1f} MiB")
+        log(f"  the parts: {sum(split.values()):.1f} MiB")
+        return {"memory_mebibytes": memory}
     finally:
         browser.stop()
         workspace.discard()
