@@ -11261,8 +11261,10 @@ TestCase {
     // the key that moves the keyboard up a region (#839). There the Sidebar
     // cursor marks the button holding it, Tab and the arrows walk the buttons
     // past any that are disabled, Return and Space press one, and the key
-    // down a region or Escape hands the keyboard back to the page.
+    // down a region or Escape hands the keyboard back to the page. The cursor
+    // moves on without a binding loop, and closing the Glance leaves it be.
     function test_altKReachesTheGlanceControlsAndAltJReturns() {
+        failOnWarning(/Binding loop/);
         window.requestActivate();
         const opener = openPage("https://opener.example");
         tryVerify(function () {
