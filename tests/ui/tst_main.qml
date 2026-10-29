@@ -17558,6 +17558,31 @@ TestCase {
         }
     }
 
+    // A window that comes up on a page stands the Start page in while the
+    // page's view loads. Closed before the window has drawn a frame, it goes
+    // at once: a fade would draw its Scene and glass over the first frames for
+    // nobody, which held the window back by 50 ms on CI's runner (#883).
+    function test_aStartPageClosedBeforeTheFirstFrameGoesAtOnce() {
+        browser.openInput("about:blank", true);
+        const fresh = windowComponent.createObject(null);
+        verify(fresh !== null);
+        try {
+            const startPage = findChild(fresh.contentItem, "startPage");
+            verify(startPage.open, "a blank tab stands the Start page in");
+            verify(startPage.visible);
+            browser.openInput("https://before-the-first-frame.example", false);
+            verify(!startPage.open);
+            verify(!startPage.visible, "the Start page faded out over frames nobody had seen");
+        } finally {
+            fresh.destroy();
+            // The fresh window took the keyboard, and the suite's goes on.
+            window.requestActivate();
+            tryVerify(function () {
+                return window.active;
+            });
+        }
+    }
+
     // A reader who asks for Settings before it has been built gets it at once,
     // on the section they asked for.
     function test_settingsAskedForBeforeItIsBuiltIsBuiltAtOnce() {

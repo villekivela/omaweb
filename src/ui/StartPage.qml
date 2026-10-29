@@ -100,11 +100,26 @@ Item {
         root.readPages();
     }
 
+    // Whether the window has drawn a frame. Until it has, the Start page has
+    // not been seen: a window that comes up on a page stands it in while the
+    // page's view loads, and a fade would draw its Scene and glass over the
+    // first frames for nobody (#883).
+    property bool drawn: false
+
+    Connections {
+        target: root.Window.window
+        enabled: !root.drawn
+
+        function onFrameSwapped() {
+            root.drawn = true;
+        }
+    }
+
     // The fade after a drive is the Scene reporting the page's arrival, as the
     // loading indicator reports a load, so it plays after a key's Return as
     // after a click, and only reduced motion stills it.
     Behavior on opacity {
-        enabled: root.ease || root.drove && !SystemMotion.reduced
+        enabled: root.drawn && (root.ease || root.drove && !SystemMotion.reduced)
 
         // Leaving after a drive is slower: the page is already there under
         // it, so the longer fade costs no waiting.
