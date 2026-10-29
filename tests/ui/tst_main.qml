@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import QtQuick.Dialogs as Dialogs
 import Omaweb
 import Omaweb.Engine
 import "../../src/ui" as Omaweb
@@ -1983,6 +1984,107 @@ TestCase {
         engine.simulateFileSelection("open", ["text/plain"]);
         window.respondToFileSelection([]);
         verify(engine.fileSelectionCancelled);
+    }
+
+    // The suite runs on a desktop with no session bus, so no file chooser
+    // portal answers and a page's chooser is Qt's own dialog, in the mode the
+    // page asked for. Cancelling it cancels the page's request.
+    function test_pageFileSelectionFallsBackToQtsDialogWithoutAPortal() {
+        const engine = openPage("https://files.example/form");
+        const picker = findChild(window, "pageFileDialog");
+        const files = findChild(picker, "qtFileDialog");
+        const folders = findChild(picker, "qtFolderDialog");
+        verify(files !== null);
+        verify(folders !== null);
+
+        engine.simulateFileSelection("folder", []);
+        verify(picker.showing);
+        verify(folders.visible);
+        verify(!files.visible);
+        folders.reject();
+        verify(engine.fileSelectionCancelled);
+        verify(!picker.showing);
+
+        engine.simulateFileSelection("open-multiple", ["image/png", ".pdf"]);
+        compare(picker.acceptedTypes, ["image/png", ".pdf"]);
+        verify(files.visible);
+        compare(files.fileMode, Dialogs.FileDialog.OpenFiles);
+        engine.fileSelectionCancelled = false;
+        files.reject();
+        verify(engine.fileSelectionCancelled);
+        verify(!picker.showing);
+    }
+
+    // A save opens in the downloads location under the name it was offered:
+    // the page's own suggestion, the linked file's name, or the download's.
+    // The suite has no portal, so this is the name Qt's dialog opens with; the
+    // portal is given the same address as `current_name` and `current_folder`.
+    function test_savesOpenWithTheSuggestedName() {
+        const engine = openPage("https://files.example/form");
+        const folder = String(window.windowBrowser.downloadDirectory);
+        const expected = function (name) {
+            return "file://" + folder + "/" + name;
+        };
+
+        const page = findChild(window, "pageFileDialog");
+        engine.simulateFileSelection("save", [], "report.csv");
+        const pageDialog = findChild(page, "qtFileDialog");
+        verify(pageDialog.visible);
+        compare(pageDialog.fileMode, Dialogs.FileDialog.SaveFile);
+        compare(String(pageDialog.currentFile), expected("report.csv"));
+        pageDialog.reject();
+        verify(engine.fileSelectionCancelled);
+        // A name is a name: a page cannot start the save in another folder.
+        engine.simulateFileSelection("save", [], "../elsewhere/report.csv");
+        compare(String(pageDialog.currentFile), expected("report.csv"));
+        pageDialog.reject();
+        // A name stays a name in the address: what would read as a fragment,
+        // a query or an escape is escaped, and the dialog opens on it whole.
+        const names = [["a#b.txt", "a%23b.txt"], ["q?.pdf", "q%3F.pdf"], ["100%.txt", "100%25.txt"],
+                       ["100%41.txt", "100%2541.txt"]];
+        for (let index = 0; index < names.length; ++index) {
+            engine.simulateFileSelection("save", [], names[index][0]);
+            compare(String(pageDialog.currentFile), expected(names[index][1]), names[index][0]);
+            pageDialog.reject();
+        }
+        // A suggestion that names no file starts the save with no name.
+        const nothing = ["..", ".", "", "folder/"];
+        for (let index = 0; index < nothing.length; ++index) {
+            engine.simulateFileSelection("save", [], nothing[index]);
+            compare(String(pageDialog.currentFile), "", "\"" + nothing[index] + "\"");
+            pageDialog.reject();
+        }
+
+        const saveAs = findChild(window, "saveTargetDialog");
+        window.requestTargetSave(engine, "save-link", "https://files.example/archive.zip?v=2");
+        const saveAsDialog = findChild(saveAs, "qtFileDialog");
+        verify(saveAsDialog.visible);
+        compare(String(saveAsDialog.currentFile), expected("archive.zip"));
+        saveAsDialog.reject();
+        // A link's name is offered as it spells, not as it is escaped.
+        window.requestTargetSave(engine, "save-link", "https://files.example/annual%20report.pdf");
+        compare(String(saveAsDialog.currentFile), expected("annual report.pdf"));
+        saveAsDialog.reject();
+
+        const target = findChild(window, "downloadTargetDialog");
+        window.downloads.hold("files", "1", BrowserController.SaveDownloadAs,
+                              "https://files.example", "https://files.example/data.bin", "data.bin",
+                              "", "");
+        const targetDialog = findChild(target, "qtFileDialog");
+        tryVerify(function () {
+            return targetDialog.visible;
+        });
+        compare(String(targetDialog.currentFile), expected("data.bin"));
+        targetDialog.reject();
+        verify(!target.showing);
+        window.downloads.hold("files", "2", BrowserController.SaveDownloadAs,
+                              "https://files.example", "https://files.example/a%23b.bin", "a#b.bin",
+                              "", "");
+        tryVerify(function () {
+            return targetDialog.visible;
+        });
+        compare(String(targetDialog.currentFile), expected("a%23b.bin"));
+        targetDialog.reject();
     }
 
     // The address of the page on show goes to the clipboard on its own: no
