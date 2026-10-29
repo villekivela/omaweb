@@ -11444,6 +11444,10 @@ TestCase {
             tryVerify(function () {
                 return openAsTab.visible;
             });
+            // A label of several keys is a row of caps, which takes its width
+            // in its polish before the next frame: until then the label is as
+            // wide as nothing, fits beside its button, and stands there.
+            waitForItemPolished(findChild(openAsTab, "keycaps"));
             const panel = findChild(glance, "glancePanel");
             const plate = findChild(glance, "glanceButtonsPlate");
             for (const name of ["closeGlanceButton", "openGlanceAsTabButton", "glanceBackButton",
@@ -11456,7 +11460,8 @@ TestCase {
                 const plateLeft = plate.mapToItem(window.contentItem, 0, 0).x;
                 if (name === "openGlanceAsTabButton") {
                     verify(left + label.width < plateLeft, name
-                           + "'s label is not on the panel side");
+                           + "'s label is not on the panel side: it is " + label.width
+                           + " wide at " + left + ", and the plate starts at " + plateLeft);
                     verify(left > panel.mapToItem(window.contentItem, 0, 0).x, name
                            + "'s label leaves the panel");
 
