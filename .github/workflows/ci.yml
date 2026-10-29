@@ -285,9 +285,11 @@ jobs:
 
   # What the browser costs at runtime, against the ceilings in
   # `performance/budget.json`, on a runner of its own: nothing else runs in
-  # this job while it measures. It builds the browser alone from the `ci`
-  # preset, from `arch-linux-clang`'s compiler cache, which is the same
-  # compiler and flags, so the binary it measures is the one that job tests.
+  # this job while it measures. It builds the browser alone from the `release`
+  # preset, the build the package ships, from `arch-linux-release`'s compiler
+  # cache. The `ci` preset is a Debug build, which read about 90 MiB less for
+  # one Space with one page (#889), so the ceilings that guard readers are
+  # measured on the build readers run.
   arch-linux-budget:
     needs: changes
     if: needs.changes.outputs.source == 'true'
@@ -305,7 +307,7 @@ jobs:
       CXX: clang++
     steps:
       - name: Install toolchain
-        # As `arch-linux-clang`'s, and what the measurement needs besides.
+        # As `arch-linux-release`'s, and what the measurement needs besides.
         # `cage`, `wtype` and `qt6-wayland` are a compositor for the browser to
         # map a window on, a key synthesiser for a compositor that has no
         # dispatcher of its own, and the Wayland platform plugin the browser
@@ -326,13 +328,13 @@ jobs:
         run: |
           scripts/trust_omaweb_repository.sh
           pacman -Syu --noconfirm omaweb-qtwebengine
-      # Read only: `arch-linux-clang` saves the cache this restores.
+      # Read only: `arch-linux-release` saves the cache this restores.
       - name: Restore the compiler cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/ccache
-          key: ccache-clang-ci-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: ccache-clang-ci-
+          key: ccache-clang-release-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ccache-clang-release-
       - name: Count this build's cache hits from zero and name the processor
         run: |
           export CCACHE_DIR="$GITHUB_WORKSPACE/.cache/ccache"
@@ -351,15 +353,15 @@ jobs:
       # (#795). Only this job's browser has it.
       - name: Configure
         run:
-          su builder -c 'cmake --preset ci -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH=/usr/lib/omaweb
+          su builder -c 'cmake --preset release -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH=/usr/lib/omaweb
           -DOMAWEB_KNOWN_EXTENSIONS=ON -DOMAWEB_KEY_EVENT_LOG=ON'
       - name: Check the build found the patched engine
-        run: scripts/check_omaweb_engine.sh build/ci
+        run: scripts/check_omaweb_engine.sh build/release
       # The browser and the catalogues it reads, and the seeder of the lived-in
       # profile, without the test binaries.
       - name: Build the browser
         run:
-          su builder -c 'cmake --build --preset ci --target omaweb-browser omaweb-translations
+          su builder -c 'cmake --build --preset release --target omaweb-browser omaweb-translations
           omaweb-lived-in-session'
       - name: Report the compiler cache
         if: ${{ !cancelled() }}
@@ -394,7 +396,7 @@ jobs:
           rm -f /tmp/budget.status
           printf 'cd %s\n' "$GITHUB_WORKSPACE" > /tmp/measure.sh
           cat >> /tmp/measure.sh <<'SCRIPT'
-          scripts/benchmark_runtime.py --browser build/ci/omaweb-browser --require-dns --require-lived-in
+          scripts/benchmark_runtime.py --browser build/release/omaweb-browser --require-dns --require-lived-in
           echo $? > /tmp/budget.status
           SCRIPT
           chmod 0755 /tmp/measure.sh

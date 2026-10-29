@@ -1460,6 +1460,12 @@ if(BUILD_TESTING)
             COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_benchmark_pageload.py"
         )
+        # The budget job builds and measures the release build a reader runs,
+        # and every note in the budget says which build it was recorded on.
+        add_test(NAME omaweb-budget-build
+            COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_budget_build.py"
+        )
         # The filter-list refresh writes the snapshots and the manifest the
         # vendored-tree check reads, so the two have to agree.
         add_test(NAME omaweb-sync-filter-lists
