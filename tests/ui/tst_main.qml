@@ -11422,8 +11422,10 @@ TestCase {
     // the key that moves the keyboard up a region (#839). There the Sidebar
     // cursor marks the button holding it, Tab and the arrows walk the buttons
     // past any that are disabled, Return and Space press one, and the key
-    // down a region or Escape hands the keyboard back to the page.
+    // down a region or Escape hands the keyboard back to the page. The cursor
+    // moves on without a binding loop.
     function test_altKReachesTheGlanceControlsAndAltJReturns() {
+        failOnWarning(/Binding loop/);
         window.requestActivate();
         const opener = openPage("https://opener.example");
         tryVerify(function () {
@@ -11447,6 +11449,16 @@ TestCase {
         verify(!glanced.activeFocus);
         verifyGlanceCursorOn(glance, "closeGlanceButton");
         keyClick(Qt.Key_Down);
+        verifyGlanceCursorOn(glance, "openGlanceAsTabButton");
+        // An extension's popup offers no Open as tab, and the cursor on it
+        // moves on.
+        try {
+            window.glanceIsExtension = true;
+            verifyGlanceCursorOn(glance, "glanceBackButton");
+        } finally {
+            window.glanceIsExtension = false;
+        }
+        keyClick(Qt.Key_Up);
         verifyGlanceCursorOn(glance, "openGlanceAsTabButton");
         keyClick(Qt.Key_Down);
         verifyGlanceCursorOn(glance, "glanceBackButton");
@@ -11603,6 +11615,10 @@ TestCase {
             tryVerify(function () {
                 return openAsTab.visible;
             });
+            // A label of several keys is a row of caps, which takes its width
+            // in its polish before the next frame: until then the label is as
+            // wide as nothing, fits beside its button, and stands there.
+            waitForItemPolished(findChild(openAsTab, "keycaps"));
             const panel = findChild(glance, "glancePanel");
             const plate = findChild(glance, "glanceButtonsPlate");
             for (const name of ["closeGlanceButton", "openGlanceAsTabButton", "glanceBackButton",
@@ -11615,7 +11631,8 @@ TestCase {
                 const plateLeft = plate.mapToItem(window.contentItem, 0, 0).x;
                 if (name === "openGlanceAsTabButton") {
                     verify(left + label.width < plateLeft, name
-                           + "'s label is not on the panel side");
+                           + "'s label is not on the panel side: it is " + label.width
+                           + " wide at " + left + ", and the plate starts at " + plateLeft);
                     verify(left > panel.mapToItem(window.contentItem, 0, 0).x, name
                            + "'s label leaves the panel");
 
