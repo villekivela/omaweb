@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <optional>
 #include <utility>
 
 using omaweb::BrowserController;
@@ -201,6 +202,7 @@ public:
     }
 
     void refresh(omaweb::BrowserStateSections) override { ++refreshCount; }
+    void landPendingChanges() override { }
 
     mutable int captureCount = 0;
     int refreshCount = 0;
@@ -280,6 +282,15 @@ QJsonValue setting(const QString &configRoot, const QString &key)
     return omaweb::SettingsFile(configRoot).value(key);
 }
 
+// The tab as the store holds it, read the way Sync reads it.
+std::optional<TabState> storedTab(
+    const omaweb::BrowserStateExchange &exchange, const QString &spaceId, const QString &tabId)
+{
+    const auto tabs = exchange.capture({}).tabsBySpace.value(spaceId);
+    const auto tab = std::ranges::find(tabs, tabId, &TabState::id);
+    return tab == tabs.cend() ? std::nullopt : std::optional {*tab};
+}
+
 QJsonObject readObject(const QString &path)
 {
     QFile file(path);
@@ -317,7 +328,7 @@ private slots:
     void authorizationPollBacksOffWithinItsCeiling();
     void localSyncStateRecognizesOnlyItsProjection();
     void keepsTheLastLaunchedReleaseOutOfSync();
-    void anAddressChangeAloneWaitsToSync();
+    void anAddressChangeAloneMarksSyncPending();
     void ownPushLeavesAPageThatMovedOnWhereItIs_data();
     void ownPushLeavesAPageThatMovedOnWhereItIs();
     void localSyncStateRefusesIneligibleBrowserState();
@@ -1646,7 +1657,7 @@ void SyncModuleTest::localSyncStateRecognizesOnlyItsProjection()
 // A page that changes only its address, as a jump within a video does, has
 // changed what Sync carries, though its write reaches the store a moment
 // after the tab changes.
-void SyncModuleTest::anAddressChangeAloneWaitsToSync()
+void SyncModuleTest::anAddressChangeAloneMarksSyncPending()
 {
     QTemporaryDir dataRoot;
     QTemporaryDir configRoot;
@@ -1659,15 +1670,14 @@ void SyncModuleTest::anAddressChangeAloneWaitsToSync()
     LocalSyncState localState(exchange, dataRoot.path(), configRoot.path());
     QSignalSpy changed(&localState, &LocalSyncState::meaningfulChange);
     const auto tabId = browser.activeTabId();
-    const auto stored = [&exchange, &browser, &tabId] {
-        const auto tabs = exchange.capture({}).tabsBySpace.value(browser.activeSpaceId());
-        const auto tab = std::ranges::find(tabs, tabId, &TabState::id);
-        return tab == tabs.cend() ? QUrl {} : tab->url;
+    const auto spaceId = browser.activeSpaceId();
+    const auto stored = [&exchange](const QString &spaceId, const QString &tabId) {
+        return storedTab(exchange, spaceId, tabId).value_or(TabState {}).url;
     };
 
     const auto video = QUrl(QStringLiteral("https://video.example/watch?v=second"));
     browser.reportTabPageState(tabId, video, QStringLiteral("Second"), {}, false, false);
-    QTRY_COMPARE(stored(), video);
+    QTRY_COMPARE(stored(spaceId, tabId), video);
     // Playing sets off a projection check that finds the video stored.
     browser.setTabAudible(tabId, true);
     QTRY_VERIFY(changed.count() > 0);
@@ -1675,25 +1685,19 @@ void SyncModuleTest::anAddressChangeAloneWaitsToSync()
 
     const auto moved = QUrl(QStringLiteral("https://video.example/watch?v=second&t=42"));
     browser.reportTabPageState(tabId, moved, QStringLiteral("Second"), {}, false, false);
-    QTRY_COMPARE(stored(), moved);
+    QTRY_COMPARE(stored(spaceId, tabId), moved);
     QTRY_COMPARE(changed.count(), 1);
 
     // A Tab window goes on browsing while its Space is away, and what its
     // page reports reaches that Space's store on a delay of its own.
     QVERIFY(browser.popOutTab(tabId));
-    const auto spaceId = browser.activeSpaceId();
     const auto work = browser.createSpace(QStringLiteral("Work"));
     QVERIFY(browser.switchSpace(work));
     QTRY_VERIFY(changed.count() > 1);
     changed.clear();
     const auto later = QUrl(QStringLiteral("https://video.example/watch?v=second&t=90"));
     browser.reportTabPageState(tabId, later, QStringLiteral("Second"), {}, false, false);
-    const auto storedAway = [&exchange, &spaceId, &tabId] {
-        const auto tabs = exchange.capture({}).tabsBySpace.value(spaceId);
-        const auto tab = std::ranges::find(tabs, tabId, &TabState::id);
-        return tab == tabs.cend() ? QUrl {} : tab->url;
-    };
-    QTRY_COMPARE(storedAway(), later);
+    QTRY_COMPARE(stored(spaceId, tabId), later);
     QTRY_COMPARE(changed.count(), 1);
 }
 
@@ -1735,10 +1739,9 @@ void SyncModuleTest::ownPushLeavesAPageThatMovedOnWhereItIs()
     auto *tabs = qobject_cast<TabListModel *>(browser.tabs());
     QVERIFY(tabs);
     const auto stored = [&exchange, &spaceId, &tabId] {
-        const auto tabs = exchange.capture({}).tabsBySpace.value(spaceId);
-        const auto tab = std::ranges::find(tabs, tabId, &TabState::id);
-        return tab == tabs.cend() ? TabState {} : *tab;
+        return storedTab(exchange, spaceId, tabId).value_or(TabState {});
     };
+    QSignalSpy changed(&localState, &LocalSyncState::meaningfulChange);
 
     // The video page has an address and a title, both stored, and it plays.
     // Playing is not Sync's to carry, but the projection check it sets off
@@ -1749,7 +1752,7 @@ void SyncModuleTest::ownPushLeavesAPageThatMovedOnWhereItIs()
     browser.reportTabPageState(tabId, video, QStringLiteral("Second"), {}, false, false);
     QTRY_COMPARE(stored().title, QStringLiteral("Second"));
     browser.setTabAudible(tabId, true);
-    QTest::qWait(10);
+    QTRY_VERIFY(changed.count() > 0);
 
     // Sync starts as the controller starts it: a checkpoint, then the
     // reconciliation that pushes the video's address.

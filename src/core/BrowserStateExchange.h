@@ -51,7 +51,7 @@ public:
     virtual void refresh(BrowserStateSections sections) = 0;
     // Stores what the browser holds but has not written yet, so the next
     // capture reads it.
-    virtual void landPendingChanges() { }
+    virtual void landPendingChanges() = 0;
 
 signals:
     void possiblyChanged();
