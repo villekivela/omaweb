@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Dialogs as Dialogs
 import QtQuick.Window
 import Omaweb
 import qs.Commons
@@ -755,42 +754,29 @@ Window {
             "engine": engine,
             "requestId": requestId
         };
-        if (selection.mode === "folder") {
-            folderDialog.open();
-            return;
-        }
-        fileDialog.fileMode = selection.mode === "open-multiple" ? Dialogs.FileDialog.OpenFiles : (
-                                                                       selection.mode === "save"
-                                                                       ? Dialogs.FileDialog.SaveFile :
-                                                                         Dialogs.FileDialog.OpenFile);
+        fileDialog.mode = selection.mode;
+        fileDialog.acceptedTypes = selection.mimeTypes || [];
         fileDialog.open();
     }
 
     function respondToFileSelection(files) {
         const pending = root.fileSelection;
         root.fileSelection = null;
+        fileDialog.close();
         if (pending)
             pending.engine.respondToFileSelection(pending.requestId, files);
     }
 
-    Dialogs.FileDialog {
+    FilePicker {
         id: fileDialog
         objectName: "tabWindowFileDialog"
-        title: qsTr("Choose file")
-        onAccepted: {
+        title: mode === "folder" ? qsTr("Choose folder") : qsTr("Choose file")
+        onAccepted: function (urls) {
             const files = [];
-            for (let index = 0; index < selectedFiles.length; ++index)
-                files.push(String(selectedFiles[index]));
+            for (let index = 0; index < urls.length; ++index)
+                files.push(String(urls[index]));
             root.respondToFileSelection(files);
         }
-        onRejected: root.respondToFileSelection([])
-    }
-
-    Dialogs.FolderDialog {
-        id: folderDialog
-        objectName: "tabWindowFolderDialog"
-        title: qsTr("Choose folder")
-        onAccepted: root.respondToFileSelection([String(selectedFolder)])
         onRejected: root.respondToFileSelection([])
     }
 

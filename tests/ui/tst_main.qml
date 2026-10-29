@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import QtQuick.Dialogs as Dialogs
 import Omaweb
 import Omaweb.Engine
 import "../../src/ui" as Omaweb
@@ -1983,6 +1984,35 @@ TestCase {
         engine.simulateFileSelection("open", ["text/plain"]);
         window.respondToFileSelection([]);
         verify(engine.fileSelectionCancelled);
+    }
+
+    // The suite runs on a desktop with no session bus, so no file chooser
+    // portal answers and a page's chooser is Qt's own dialog, in the mode the
+    // page asked for. Cancelling it cancels the page's request.
+    function test_pageFileSelectionFallsBackToQtsDialogWithoutAPortal() {
+        const engine = openPage("https://files.example/form");
+        const picker = findChild(window, "pageFileDialog");
+        const files = findChild(picker, "qtFileDialog");
+        const folders = findChild(picker, "qtFolderDialog");
+        verify(files !== null);
+        verify(folders !== null);
+
+        engine.simulateFileSelection("folder", []);
+        verify(picker.showing);
+        verify(folders.visible);
+        verify(!files.visible);
+        folders.reject();
+        verify(engine.fileSelectionCancelled);
+        verify(!picker.showing);
+
+        engine.simulateFileSelection("open-multiple", ["image/png", ".pdf"]);
+        compare(picker.acceptedTypes, ["image/png", ".pdf"]);
+        verify(files.visible);
+        compare(files.fileMode, Dialogs.FileDialog.OpenFiles);
+        engine.fileSelectionCancelled = false;
+        files.reject();
+        verify(engine.fileSelectionCancelled);
+        verify(!picker.showing);
     }
 
     // The address of the page on show goes to the clipboard on its own: no

@@ -24,6 +24,7 @@
 #include "SqliteSessionStore.h"
 #include "KitTheme.h"
 #include "MediaAnnouncer.h"
+#include "FileChooser.h"
 #include "PagePrinter.h"
 #include "PaymentCards.h"
 #include "ProbeClock.h"
@@ -585,6 +586,7 @@ public slots:
         omaweb::registerScenes();
         omaweb::registerExternalProtocolHandler();
         omaweb::registerPagePrinter();
+        omaweb::registerFileChooser();
         omaweb::registerSystemNotifier();
         omaweb::registerSoundingTabs();
         omaweb::registerMediaAnnouncer();

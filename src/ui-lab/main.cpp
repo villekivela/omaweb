@@ -29,6 +29,7 @@
 #include "KeyboardNavigation.h"
 #include "KitTheme.h"
 #include "MediaAnnouncer.h"
+#include "FileChooser.h"
 #include "PagePrinter.h"
 #include "PaymentCards.h"
 #include "ProcessResources.h"
@@ -671,6 +672,7 @@ int main(int argc, char *argv[])
     omaweb::registerScenes();
     omaweb::registerExternalProtocolHandler();
     omaweb::registerPagePrinter();
+    omaweb::registerFileChooser();
     omaweb::registerSystemMotion();
     omaweb::registerSystemNotifier();
     omaweb::registerSoundingTabs();

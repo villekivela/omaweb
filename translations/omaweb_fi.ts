@@ -821,6 +821,17 @@
     </message>
 </context>
 <context>
+    <name>FilePicker</name>
+    <message>
+        <source>All files (*)</source>
+        <translation>Kaikki tiedostot (*)</translation>
+    </message>
+    <message>
+        <source>Files the page takes</source>
+        <translation>Sivun hyväksymät tiedostot</translation>
+    </message>
+</context>
+<context>
     <name>FindBar</name>
     <message>
         <source>find in page</source>

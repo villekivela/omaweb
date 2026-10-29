@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Dialogs as Dialogs
 import QtQuick.Effects
 import Omaweb
 import qs.Commons
@@ -455,14 +454,14 @@ Rectangle {
     signal telemetryModuleToggled(string module, bool shown)
     signal telemetryTextChosen(string size)
 
-    Dialogs.FileDialog {
+    FilePicker {
         id: recoveryKeySaveDialog
         title: qsTr("Save Sync recovery key")
-        fileMode: Dialogs.FileDialog.SaveFile
+        mode: "save"
         nameFilters: [qsTr("Text files (*.txt)")]
-        onAccepted: {
+        onAccepted: function (urls) {
             if (root.sync)
-                root.sync.saveRecoveryKey(selectedFile);
+                root.sync.saveRecoveryKey(urls[0]);
         }
     }
 

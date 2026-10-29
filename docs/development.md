@@ -236,10 +236,13 @@ Path filtering would also take `style` with it, and that has to run on prose.
 
 `omaweb-platform` supplies the window-system services the browser cannot supply itself. On Linux
 they are session-bus services rather than window-server ones, which is the shape the whole layer
-takes here: `LinuxSystemNotifier.cpp` talks to `org.freedesktop.Notifications`, and
-`LinuxPagePrinter.cpp` to `org.freedesktop.portal.Print`. A desktop offering neither reports both
-capabilities off, which is the same answer the macOS build gives without a window server, so the
-contract the shell reads does not change between platforms.
+takes here: `LinuxSystemNotifier.cpp` talks to `org.freedesktop.Notifications`,
+`LinuxPagePrinter.cpp` to `org.freedesktop.portal.Print`, and `LinuxFileChooser.cpp` to
+`org.freedesktop.portal.FileChooser`
+([ADR 0070](adr/0070-choose-files-through-the-desktops-file-chooser-portal.md)). A desktop with no
+notification service or print portal reports those two capabilities off, which is the same answer
+the macOS build gives without a window server, so the contract the shell reads does not change
+between platforms. A desktop with no file chooser portal gets Qt's dialog instead.
 
 Printing goes through the portal rather than through Qt's own print dialog, which would cost the
 browser a QtWidgets dependency, and the portal is also the only route to a printer from inside a
@@ -274,10 +277,10 @@ of a placement. CMake's warning about the private module is turned off around th
 that raises it, because a warning printed on every configure that nobody can act on is how people
 learn to read past the ones that matter.
 
-`omaweb-notification-service` and `omaweb-print-portal` cover both exchanges against stub services
-on a private bus under `dbus-run-session`. They reach what a live desktop cannot be asked for in a
-test: the reader answering a notification, and the rendered document surviving the spooled copy
-being taken away.
+`omaweb-notification-service`, `omaweb-print-portal` and `omaweb-file-chooser-portal` cover these
+exchanges against stub services on a private bus under `dbus-run-session`. They reach what a live
+desktop cannot be asked for in a test: the reader answering a notification or a file chooser, and
+the rendered document surviving the spooled copy being taken away.
 
 Omaweb takes two connections on the AT-SPI bus and only one of them is its own. The populated one is
 Qt's bridge, carrying the frame, its named buttons, the page tabs and the rest of what the
@@ -286,8 +289,9 @@ has no children, because Omarchy sets `QT_QPA_PLATFORMTHEME=gtk3` and Qt's GTK p
 loads GTK itself, which registers an application through `libatk-bridge-2.0` whether or not GTK
 draws anything. Every Qt application on that desktop does it, quickshell included, so an assistive
 client listing what is running finds a pair for each of them. `NO_AT_BRIDGE` would take Omaweb's
-empty one away, but the file chooser that same plugin supplies is a GTK window a reader may need
-read to them, and a browser whose Open dialog has gone quiet is worse off than one listed twice.
+empty one away, but the file chooser that same plugin supplies, which Omaweb opens where no portal
+answers, is a GTK window a reader may need read to them, and a browser whose Open dialog has gone
+quiet is worse off than one listed twice.
 
 Two things that look like gaps are not. The frameless window is one: `Main.qml` asks for
 `Qt.FramelessWindowHint` off macOS, so a Main or Private window is already frameless under Hyprland.

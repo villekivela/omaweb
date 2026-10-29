@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
-import QtQuick.Dialogs as Dialogs
 import Omaweb
 import Omaweb.Engine
 import "DevicePixels.mjs" as DevicePixels
@@ -534,60 +533,61 @@ ApplicationWindow {
         keymap: keymap
     }
 
-    Dialogs.FileDialog {
+    FilePicker {
         id: openFileDialog
         objectName: "openFileDialog"
         title: qsTr("Open file")
-        fileMode: Dialogs.FileDialog.OpenFile
         nameFilters: [qsTr(
                 "Web pages, text, images, and PDF (*.html *.htm *.txt *.png *.jpg *.jpeg *.gif *.webp *.svg *.pdf)")]
-        onAccepted: window.openLocalFile(selectedFile)
+        onAccepted: function (urls) {
+            window.openLocalFile(urls[0]);
+        }
     }
 
-    Dialogs.FileDialog {
+    // A page's own chooser, for files, several files, a folder or a place to
+    // save, as the page asked.
+    FilePicker {
         id: pageFileDialog
         objectName: "pageFileDialog"
-        title: qsTr("Choose file")
-        fileMode: Dialogs.FileDialog.OpenFile
-        onAccepted: {
+        title: mode === "folder" ? qsTr("Choose folder") : qsTr("Choose file")
+        onAccepted: function (urls) {
             const files = [];
-            for (let index = 0; index < selectedFiles.length; ++index)
-                files.push(String(selectedFiles[index]));
+            for (let index = 0; index < urls.length; ++index)
+                files.push(String(urls[index]));
             window.respondToFileSelection(files);
         }
         onRejected: window.respondToFileSelection([])
     }
 
-    Dialogs.FolderDialog {
-        id: pageFolderDialog
-        objectName: "pageFolderDialog"
-        title: qsTr("Choose folder")
-        onAccepted: window.respondToFileSelection([String(selectedFolder)])
-        onRejected: window.respondToFileSelection([])
-    }
-
-    Dialogs.FileDialog {
+    FilePicker {
         id: downloadTargetDialog
         objectName: "downloadTargetDialog"
         title: qsTr("Save download as")
-        fileMode: Dialogs.FileDialog.SaveFile
-        onAccepted: window.downloads.answer(true, window.localPath(selectedFile), 0)
+        mode: "save"
+        onAccepted: function (urls) {
+            window.downloads.answer(true, window.localPath(urls[0]), 0);
+        }
         onRejected: window.downloads.answer(false, "", 0)
     }
 
-    Dialogs.FolderDialog {
+    FilePicker {
         id: downloadDirectoryDialog
         objectName: "downloadDirectoryDialog"
         title: qsTr("Download directory")
-        onAccepted: window.chooseDownloadDirectory(selectedFolder)
+        mode: "folder"
+        onAccepted: function (urls) {
+            window.chooseDownloadDirectory(urls[0]);
+        }
     }
 
-    Dialogs.FileDialog {
+    FilePicker {
         id: saveTargetDialog
         objectName: "saveTargetDialog"
         title: qsTr("Save as")
-        fileMode: Dialogs.FileDialog.SaveFile
-        onAccepted: window.completeTargetSave(selectedFile)
+        mode: "save"
+        onAccepted: function (urls) {
+            window.completeTargetSave(urls[0]);
+        }
         onRejected: window.forgetPendingSave()
     }
 
@@ -3021,14 +3021,8 @@ ApplicationWindow {
         window.pendingFileSelectionId = requestId;
         window.pendingFileSelectionTabId = window.windowBrowser.activeTabId;
         window.pendingFileSelection = selection;
-        if (selection.mode === "folder") {
-            pageFolderDialog.open();
-            return;
-        }
-        pageFileDialog.fileMode = selection.mode === "open-multiple" ? Dialogs.FileDialog.OpenFiles :
-                                                                       (selection.mode === "save"
-                                                                        ? Dialogs.FileDialog.SaveFile :
-                                                                          Dialogs.FileDialog.OpenFile);
+        pageFileDialog.mode = selection.mode;
+        pageFileDialog.acceptedTypes = selection.mimeTypes || [];
         pageFileDialog.open();
     }
 
@@ -3041,10 +3035,7 @@ ApplicationWindow {
         window.pendingFileSelection = ({});
         if (responder)
             responder.respondToFileSelection(requestId, files);
-        if (pageFileDialog.visible)
-            pageFileDialog.close();
-        if (pageFolderDialog.visible)
-            pageFolderDialog.close();
+        pageFileDialog.close();
     }
 
     function cancelTabModalRequests() {
@@ -3081,8 +3072,7 @@ ApplicationWindow {
         window.pendingSaveAction = "";
         window.pendingSaveTabId = "";
         window.pendingSaveGeneration = -1;
-        if (saveTargetDialog.visible)
-            saveTargetDialog.close();
+        saveTargetDialog.close();
     }
 
     function requestTargetSave(engine, action, url) {
@@ -3362,7 +3352,7 @@ ApplicationWindow {
                 downloadTargetDialog.currentFile = window.fileUrl(
                             window.windowBrowser.downloadDirectory + "/" + question.fileName);
                 downloadTargetDialog.open();
-            } else if (downloadTargetDialog.visible) {
+            } else {
                 downloadTargetDialog.close();
             }
         }
