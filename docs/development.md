@@ -209,9 +209,9 @@ The clang and GCC jobs each restore a ccache directory from the last run and sav
 built, under a key per compiler and preset, capped at 500 MB. A pull request starts from the cache
 of its own last run, or from `main`'s on its first. ccache checks each object against its compiler
 and sources, so a stale cache costs time and nothing else. A new toolchain misses, and a missing
-cache builds cold, slower but the same. `arch-linux-budget` reads `arch-linux-clang`'s cache and
-saves none, because it compiles the same objects. `arch-package` builds through `makepkg` without
-the launcher, as a reader's build does.
+cache builds cold, slower but the same. `arch-linux-budget` reads `arch-linux-release`'s cache and
+saves none, because it builds the same preset, bar the key log. `arch-package` builds through
+`makepkg` without the launcher, as a reader's build does.
 
 The Arch jobs cost between one and fifteen minutes each, and a change confined to `docs/`,
 `website/` or Markdown cannot break a compile, so a `changes` job decides whether they run at all.

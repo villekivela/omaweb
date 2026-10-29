@@ -34,18 +34,18 @@ def commands(job: str) -> str:
 
 
 class BudgetBuild(unittest.TestCase):
-    def test_jobConfiguresAndBuildsTheReleasePreset(self) -> None:
+    def test_the_job_configures_and_builds_the_release_preset(self) -> None:
         shell = commands(budget_job())
         self.assertRegex(shell, r"cmake --preset release\b")
         self.assertRegex(shell, r"cmake --build --preset release\b")
         self.assertNotRegex(shell, r"--preset ci\b")
 
-    def test_jobMeasuresTheReleaseBinary(self) -> None:
+    def test_the_job_measures_the_release_binary(self) -> None:
         shell = commands(budget_job())
         self.assertIn("--browser build/release/omaweb-browser", shell)
         self.assertNotIn("build/ci", shell)
 
-    def test_everyNoteNamesTheBuildType(self) -> None:
+    def test_every_note_names_the_build_type(self) -> None:
         measurements = json.loads(BUDGET.read_text(encoding="utf-8"))["measurements"]
         for name, measurement in measurements.items():
             with self.subTest(name):
