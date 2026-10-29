@@ -149,14 +149,14 @@ ON_SHOW_WINDOW = 6.0
 # instant either, so the reading it is measured from is taken after the Space has gone.
 AWAY_WINDOW = 10.0
 
-# The reading the away window is measured from waits for the engine's processes to stop moving,
-# because a Space switch leaves them busy for a moment: the Space now on show settling its page and
-# its tabs' stored favicons being looked up. Three readings in a row, each within the tolerance of
-# the one before, are still; one agreeing pair can be a pause in work that starts again. A page
-# still running while away is throttled to one timer tick a second, so the allocator page then
-# takes a megabyte a second, eight times the tolerance per interval, and never settles. The limit
-# ends the wait for such a page, and the away window then reads it as growth: ten mebibytes, twice
-# the ceiling, and still far from its 500 MiB cap when the window closes.
+# The reading the away window is measured from waits for the away page's processes to stop moving,
+# because Freezing is not instant: the page goes on for a moment after its Space is put away. Three
+# readings in a row, each within the tolerance of the one before, are still; one agreeing pair can
+# be a pause in work that starts again. A page still running while away is throttled to one timer
+# tick a second, so the allocator page then takes a megabyte a second, eight times the tolerance per
+# interval, and never settles. The limit ends the wait for such a page, and the away window then
+# reads it as growth: ten mebibytes, twice the ceiling, and still far from its 500 MiB cap when the
+# window closes.
 STEADY_INTERVAL = 2.0
 STEADY_READINGS = 3
 STEADY_TOLERANCE = 0.25
@@ -461,7 +461,22 @@ class Keyboard:
 
 
 def read_pss_kib(pid: int) -> int:
-    """One process's proportional set size, or nothing for a process that has gone.
+    """One process's proportional set size, by `read_rollup_kib`."""
+    return read_rollup_kib(pid, "Pss:")
+
+
+def read_held_kib(pid: int) -> int:
+    """What one process holds, resident or swapped out, by `read_rollup_kib`.
+
+    Unlike its proportional share, it moves only when the process itself touches or gives back a
+    page: another process mapping or leaving the engine's library does not move it, and neither
+    does the kernel swapping out a page the process has left idle.
+    """
+    return read_rollup_kib(pid, "Rss:") + read_rollup_kib(pid, "Swap:")
+
+
+def read_rollup_kib(pid: int, field: str) -> int:
+    """One field of a process's memory summary, or nothing for a process that has gone.
 
     The engine starts and ends processes while this reads them, and one that ended between the
     scan and the read holds nothing. One that is still there and cannot be read is different: it
@@ -470,7 +485,7 @@ def read_pss_kib(pid: int) -> int:
     try:
         with open(f"/proc/{pid}/smaps_rollup", encoding="utf-8") as handle:
             for line in handle:
-                if line.startswith("Pss:"):
+                if line.startswith(field):
                     return int(line.split()[1])
     except (OSError, IndexError, ValueError) as error:
         if os.path.exists(f"/proc/{pid}"):
@@ -668,16 +683,31 @@ def tree_split_mib(root: int) -> dict[str, float]:
     return dict(sorted(split.items()))
 
 
-def below_mib(root: int) -> float:
-    """Proportional set size of everything below a process, without the process, in mebibytes."""
+def processes_below(root: int) -> set[int]:
+    """Every process below one, without it."""
     tree = children_by_parent()
-    total = 0
+    found: set[int] = set()
     pending = list(tree.get(root, []))
     while pending:
         pid = pending.pop()
-        total += read_pss_kib(pid)
+        found.add(pid)
         pending += tree.get(pid, [])
-    return total / KIB_PER_MIB
+    return found
+
+
+def started_since(root: int, before: set[int]) -> set[int]:
+    """The processes below one that `before`, an earlier `processes_below` of it, did not hold."""
+    return processes_below(root) - before
+
+
+def held_mib(pids: Iterable[int]) -> float:
+    """What a set of processes holds, by `read_held_kib`, in mebibytes."""
+    return sum(read_held_kib(pid) for pid in pids) / KIB_PER_MIB
+
+
+def below_mib(root: int) -> float:
+    """Proportional set size of everything below a process, without the process, in mebibytes."""
+    return sum(read_pss_kib(pid) for pid in processes_below(root)) / KIB_PER_MIB
 
 
 class Browser:
@@ -856,15 +886,6 @@ class Browser:
 
     def memory_mib(self) -> float:
         return tree_mib(self.pid)
-
-    def engine_mib(self) -> float:
-        """What the engine's processes hold, the browser's own process left out.
-
-        A page runs in a renderer, so this is where a page still running shows. The browser process
-        is where the shell's own work lands, and on CI it takes a step of about 6 MiB at no moment
-        a measurement can wait out, which is more than the whole freezing budget.
-        """
-        return below_mib(self.window_pid)
 
     def stop(self) -> None:
         """Ends the whole process group.
@@ -1356,12 +1377,21 @@ def measure_freezing(executable: str) -> dict:
     what it looks for is the page still running, which is what a broken Freezing looks like from
     outside and what the reader pays for in a Space they are not reading.
 
-    So the page in the away Space allocates on a timer, and the engine's processes are read twice
-    while that Space is on show and twice more once it is away. The browser's own process is left
-    out: a page runs in a renderer, and the browser process takes steps of its own that have
-    nothing to do with any page. The first pair is the control: a
-    page that did not grow while it was being read proves nothing by not growing afterwards, and
-    this says so rather than reporting a flat line as a pass.
+    So the page in the away Space allocates on a timer, and the processes that page started are
+    read twice while that Space is on show and twice more once it is away. The first pair is the
+    control: a page that did not grow while it was being read proves nothing by not growing
+    afterwards, and this says so rather than reporting a flat line as a pass.
+
+    Only those processes are read. The browser's own process takes steps of its own that have
+    nothing to do with any page, on CI one of about 6 MiB at no moment a measurement can wait out
+    (#467). The page brought back on show runs V8's memory reducer about twelve seconds after the
+    switch and faults in up to a mebibyte of the engine's library (#885). And they are read by what
+    they hold, resident or swapped out, rather than by their proportional share, because a share
+    moves when another process maps or leaves the same library, which the frozen page has not done.
+
+    The set is the one the page started by the time it loaded. A page runs its script in its own
+    renderer, which is where the allocator's growth lands, and CI's runner starts no GPU or utility
+    process for a page's work to land in instead. A process the page starts later is not read.
     """
     workspace = Workspace()
     browser = workspace.browser(executable)
@@ -1371,21 +1401,24 @@ def measure_freezing(executable: str) -> dict:
         keyboard = Keyboard(browser.window_pid)
         time.sleep(LOAD_SETTLE)
         keyboard.focus()
+        shown = processes_below(browser.window_pid)
         open_space(keyboard, workspace, browser, "away", 2, workspace.allocator_url)
         browser.await_title(ALLOCATOR_TITLE)
-        running = browser.engine_mib()
+        away = started_since(browser.window_pid, shown)
+        running = held_mib(away)
         time.sleep(ON_SHOW_WINDOW)
-        grew = browser.engine_mib() - running
-        log(f"  the away Space's page grew {grew:.1f} MiB in {ON_SHOW_WINDOW:.0f} s on show")
+        grew = held_mib(away) - running
+        log(f"  the away Space's page grew {grew:.1f} MiB in {ON_SHOW_WINDOW:.0f} s on show, "
+            f"in {len(away)} process(es) it started")
         keyboard.press("Primary+1")
-        frozen = settled_reading(browser.engine_mib)
+        frozen = settled_reading(lambda: held_mib(away))
         since_switch = SETTLE + frozen.seconds
         moved = frozen.mebibytes - frozen.first
         state = "settled" if frozen.settled else "were still moving"
-        log(f"  the engine's processes {state} {since_switch:.1f} s after the switch, "
+        log(f"  its processes {state} {since_switch:.1f} s after the switch, "
             f"having moved {moved:+.1f} MiB while it was waited for")
         time.sleep(AWAY_WINDOW)
-        growth = browser.engine_mib() - frozen.mebibytes
+        growth = held_mib(away) - frozen.mebibytes
         log(f"  and {growth:.1f} MiB in {AWAY_WINDOW:.0f} s away")
         opened = workspace.space_count()
     finally:
