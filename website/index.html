@@ -514,22 +514,24 @@
            scripts/check_repository_instructions.py holds to the script and the key. -->
         <section class="install" id="install" aria-labelledby="install-title">
           <h2 class="display install__title" id="install-title">Get on the road.</h2>
-          <!-- The road ends on the Omnibar it started on, holding the answer: the one line, which
-               a press on it or on Copy copies. -->
-          <div class="omnibar install__bar">
-            <span class="omnibar__glow" aria-hidden="true"></span>
-            <div class="omnibar__field">
-              <svg class="omnibar__prompt" viewBox="20.6 97.8 38.2 18.8" aria-hidden="true">
-                <path
-                  transform="translate(1.3101755,0.8976725)"
-                  d="m 28.63857,97.088945 -9.187009,9.187005 9.187009,9.18763 h 3.69342 l 13.915739,-13.91637 4.72873,4.72874 -9.187009,9.18763 h 6.305601 l 9.18701,-9.18763 -9.187622,-9.187005 H 44.40102 l -13.91574,13.915735 -4.728742,-4.72873 9.18701,-9.187005 z"
-                />
-              </svg>
-              <code class="install__command">curl -fsSL https://omaweb.app/install | sh</code>
-              <button class="install__copy" type="button" data-copy hidden>Copy</button>
+          <div class="install__deck">
+            <!-- The road ends on the Omnibar it started on, holding the answer: the one line, which
+                 a press on it or on Copy copies. -->
+            <div class="omnibar install__bar">
+              <span class="omnibar__glow" aria-hidden="true"></span>
+              <div class="omnibar__field">
+                <svg class="omnibar__prompt" viewBox="20.6 97.8 38.2 18.8" aria-hidden="true">
+                  <path
+                    transform="translate(1.3101755,0.8976725)"
+                    d="m 28.63857,97.088945 -9.187009,9.187005 9.187009,9.18763 h 3.69342 l 13.915739,-13.91637 4.72873,4.72874 -9.187009,9.18763 h 6.305601 l 9.18701,-9.18763 -9.187622,-9.187005 H 44.40102 l -13.91574,13.915735 -4.728742,-4.72873 9.18701,-9.187005 z"
+                  />
+                </svg>
+                <code class="install__command">curl -fsSL https://omaweb.app/install | sh</code>
+                <button class="install__copy" type="button" data-copy hidden>Copy</button>
+              </div>
             </div>
+            <p class="install__lede">One line, once. It upgrades with the rest of your system.</p>
           </div>
-          <p class="install__lede">One line, once. It upgrades with the rest of your system.</p>
         </section>
       </div>
     </main>

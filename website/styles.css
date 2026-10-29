@@ -411,10 +411,12 @@ body:has(.drive) > .top {
   font-size: clamp(32px, min(4.6vw, 7svh), 64px);
 }
 
-/* The Omnibar resting on the horizon, and the way in a short step under it. `--horizon` is how far
-   below the Omnibar's top edge the horizon, and the sun's centre on it, lies. */
+/* The Omnibar on the road just under the horizon, the whole sun above it, and the way in a short
+   step under it. `--horizon` is how far below the Omnibar's top edge the horizon, and the sun's
+   centre on it, lies: above it, here. The install's Omnibar, at the end of the drive, rests in the
+   same place. */
 .start__deck {
-  --horizon: 50px;
+  --horizon: -20px;
   position: absolute;
   inset: calc(50svh - var(--horizon)) 0 auto;
   display: flex;
@@ -1533,18 +1535,33 @@ html.highway {
   display: block;
 }
 
-/* On the road the install's title stands in the sky above the sun, and its Omnibar rests on the
-   horizon, as the Start page's do. The road's light is set on the stop and falls on its Omnibar,
-   so the stop places the sun for the rim, as far below the Omnibar's top edge as on the Start
-   page. */
+/* On the road the install stands as the Start page does: its title in the sky above the sun at
+   the Start page's title's place, and its Omnibar and line in the Start page's deck. The road's
+   light is set on the stop and falls on its Omnibar, so the stop places the sun for the rim, as the
+   deck does on the Start page. */
 .highway .install.highway__stop {
-  --horizon: 50px;
-  width: min(980px, 86vw);
-  top: calc(50% - 7svh);
+  --horizon: -20px;
+  inset: 0;
+  width: auto;
+  height: 100svh;
+  transform: translateY(var(--stop-drop, 0px)) scale(var(--stop-scale, 1));
 }
 
 .highway .install .install__title {
-  margin-bottom: 22svh;
+  position: absolute;
+  inset: auto 0 calc(100% - 35svh + 48px);
+  margin: 0;
+}
+
+.highway .install__deck {
+  position: absolute;
+  inset: calc(50svh - var(--horizon)) 0 auto;
+}
+
+.install__deck {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 /* The film plays in the cards, a clip each, so the drive has no film of its own. */
