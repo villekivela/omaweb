@@ -627,6 +627,15 @@ TestCase {
         compare(remove.Accessible.name, "Delete Work");
         verify(remove.enabled);
         compare(findChild(page, "renameSpace-work").label, "Rename");
+
+        // It asks for the delete, which the window answers with its dialog,
+        // rather than deleting on the press.
+        const asked = [];
+        page.spaceActionRequested.connect(function (action, spaceId, spaceName) {
+            asked.push([action, spaceId, spaceName]);
+        });
+        settleAction(remove).clicked();
+        compare(asked, [["delete", "work", "Work"]]);
     }
 
     // The Spaces as the page draws them, top to bottom, so the order under
