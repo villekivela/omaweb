@@ -17664,8 +17664,9 @@ TestCase {
 
     // A window that comes up on a page stands the Start page in while the
     // page's view loads. Closed before the window has drawn a frame, it goes
-    // at once: a fade would draw its Scene and glass over the first frames for
-    // nobody, which held the window back by 50 ms on CI's runner (#883).
+    // at once: a fade would draw its Scene and glass in the first frames, over
+    // a page already coming, which held the window back by 50 ms on CI's
+    // runner (#883).
     function test_theStartPageClosedBeforeTheFirstFrameGoesAtOnce() {
         browser.openInput("about:blank", true);
         const fresh = windowComponent.createObject(null);
@@ -22454,9 +22455,11 @@ TestCase {
     }
 
     // The window these tests share asked the application's watch for the
-    // notes an upgrade owes the reader as it started, and only it has: the
-    // only other windows here are Private ones. What the watch opens, where,
-    // and only once, is checked in tst_releasewatch.
+    // notes an upgrade owes the reader as it started, and only it has so far.
+    // The fresh windows the Settings and Start page tests build ask too, and
+    // this runs before them only because the suite runs its tests in name
+    // order. What the watch opens, where, and only once, is checked in
+    // tst_releasewatch.
     function test_aStartingWindowAsksForTheUpgradeNotes() {
         compare(releaseWatch.asked, 1);
     }
