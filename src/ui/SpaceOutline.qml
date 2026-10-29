@@ -457,7 +457,6 @@ Rectangle {
     signal forwardRequested
     signal reloadRequested
     signal sidebarToggled
-    signal commandScopeRequested
     signal windowMoveRequested
     signal pageFocusRequested
 
@@ -939,18 +938,6 @@ Rectangle {
                     accent: root.colors.accent
                     onClicked: root.sidebarToggled()
                 }
-
-                ChromeButton {
-                    id: commandScopeButton
-                    objectName: "commandScopeButton"
-                    width: 28
-                    height: 26
-                    icon: "search"
-                    accessibleName: qsTr("Search commands")
-                    fontFamily: root.iconFontFamily
-                    accent: root.colors.accent
-                    onClicked: root.commandScopeRequested()
-                }
             }
 
             Row {
@@ -1004,13 +991,6 @@ Rectangle {
                 button: collapseButton
                 row: outlineControls
                 command: "toggle-sidebar"
-            }
-
-            NavigationKeyLabel {
-                objectName: "keyLabel-commandScopeButton"
-                button: commandScopeButton
-                row: outlineControls
-                command: "command-scope"
             }
 
             NavigationKeyLabel {

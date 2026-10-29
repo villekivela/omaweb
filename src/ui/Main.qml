@@ -3808,7 +3808,6 @@ ApplicationWindow {
                 onForwardRequested: engineLoader.goForward()
                 onReloadRequested: engineLoader.reloadPage()
                 onSidebarToggled: window.sidebarCollapsed = !window.sidebarCollapsed
-                onCommandScopeRequested: window.openCommandScope()
                 onWindowMoveRequested: window.startSystemMove()
                 onPageFocusRequested: window.focusPage()
 

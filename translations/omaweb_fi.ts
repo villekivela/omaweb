@@ -4548,10 +4548,6 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <translation>Piilota sivupalkki</translation>
     </message>
     <message>
-        <source>Search commands</source>
-        <translation>Hae komentoja</translation>
-    </message>
-    <message>
         <source>Back</source>
         <translation>Takaisin</translation>
     </message>

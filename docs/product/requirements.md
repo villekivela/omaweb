@@ -130,11 +130,11 @@ reports the gap and remains experimental rather than imitating behavior it canno
   current-address trigger, pinned tabs, ordinary tabs, and footer. Pinned tabs use icon-only buttons
   in full-width rows with capacity for three to five tabs. Incomplete rows divide their width among
   their tabs. Ordinary tabs use single-line rows. The navigation row puts Settings first, then the
-  sidebar and command-scope buttons, followed by back, forward, and reload. The footer is the Spaces
-  alone, centred while every Space fits. The Status island stands above it while one of its marks
-  applies, and the extension mark stands at the address trigger's right end while the Space hosts an
-  extension. Private windows replace the Spaces with a centred mask. New tabs remain available
-  through the Omnibar and keyboard commands rather than a sidebar button.
+  sidebar button, followed by back, forward, and reload. The footer is the Spaces alone, centred
+  while every Space fits. The Status island stands above it while one of its marks applies, and the
+  extension mark stands at the address trigger's right end while the Space hosts an extension.
+  Private windows replace the Spaces with a centred mask. New tabs remain available through the
+  Omnibar and keyboard commands rather than a sidebar button.
 - The sidebar is quiet. The address trigger is a line, not a field. It shows the page's host alone,
   without the scheme, `www.`, path, query or fragment, and keeps a port. A page with no host shows
   the last part of its path, a file's name or the name of one of Omaweb's own pages, and any other
