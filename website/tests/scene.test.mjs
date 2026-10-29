@@ -14,6 +14,7 @@ import {
   glassRoll,
   grade,
   gradeHue,
+  gradePicture,
   halation,
   sceneInput,
 } from "../scene.js";
@@ -252,6 +253,35 @@ test("grade: the bright parts take the hue, more of them lower in the frame", ()
     [1, 0.3, 0.3],
   );
   assert.deepEqual(grade([0.05, 0.05, 0.05], 0.95, crt, red), [0.05, 0.05, 0.05]);
+});
+
+// The glass grades its whole picture in place each frame, as `grade` does a colour: the same value
+// for every pixel, dark ones untouched, rows above the sunset's top left alone, and alpha kept.
+test("grade: a picture is graded in place, each pixel as grade grades its colour", () => {
+  const crt = sharedCrt("crt-road");
+  const hue = [198, 120, 221];
+  const width = 37;
+  const height = 23;
+  const picture = new Uint8ClampedArray(width * height * 4);
+  let seed = 7;
+  const random = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648) * 256;
+  for (let at = 0; at < picture.length; ++at) picture[at] = at % 4 === 3 ? 200 : random();
+  const expected = Uint8ClampedArray.from(picture);
+  for (let row = 0; row < height; ++row) {
+    const y = (row + 0.5) / height;
+    if (y <= crt.grade.top) continue;
+    for (let at = row * width * 4; at < (row + 1) * width * 4; at += 4) {
+      const graded = grade(
+        [expected[at] / 255, expected[at + 1] / 255, expected[at + 2] / 255],
+        y,
+        crt,
+        hue,
+      );
+      for (let channel = 0; channel < 3; ++channel) expected[at + channel] = graded[channel] * 255;
+    }
+  }
+  gradePicture(picture, width, height, crt, hue);
+  assert.deepEqual(picture, expected);
 });
 
 // A Scene whose `crt` gives no grade keeps its colours, as the browser's glass draws it.
