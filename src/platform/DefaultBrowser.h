@@ -1,6 +1,8 @@
 #pragma once
 
+#include <QFutureWatcher>
 #include <QObject>
+#include <QPointer>
 
 namespace omaweb {
 
@@ -19,7 +21,7 @@ class DefaultBrowser final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool available READ available CONSTANT)
     // Not constant: the reader can change this from outside the browser, and
-    // the answer here follows whenever it is asked for again.
+    // the answer here follows when `refresh` asks again.
     Q_PROPERTY(bool isDefault READ isDefault NOTIFY changed)
 
 public:
@@ -33,11 +35,20 @@ public:
     // setting stands where it was.
     Q_INVOKABLE bool makeDefault();
     // Re-reads the desktop's setting, for a reader who changed it elsewhere
-    // while the browser was open.
+    // while the browser was open. The tools take tens of milliseconds, so the
+    // answer is read off the interface's thread and `changed` follows it.
     Q_INVOKABLE void refresh();
 
 signals:
     void changed();
+
+private:
+    void setDefault(bool isDefault);
+
+    bool m_isDefault = false;
+    // The read in flight. A newer one, or setting the default, deletes it, so
+    // an older answer never lands after a newer one.
+    QPointer<QFutureWatcher<bool>> m_reading;
 };
 
 // Makes `DefaultBrowser` available to QML as `import Omaweb`. Call once per

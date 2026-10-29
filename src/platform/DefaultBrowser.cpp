@@ -17,7 +17,7 @@ DefaultBrowser::DefaultBrowser(QObject *parent)
 
 bool DefaultBrowser::available() const { return false; }
 
-bool DefaultBrowser::isDefault() const { return false; }
+bool DefaultBrowser::isDefault() const { return m_isDefault; }
 
 bool DefaultBrowser::makeDefault() { return false; }
 

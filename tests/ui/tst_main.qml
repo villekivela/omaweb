@@ -21958,6 +21958,23 @@ TestCase {
         compare(window.settingsOpen, false);
     }
 
+    // The reader can make another browser the default while Omaweb is open,
+    // so About asks the desktop again each time Settings opens.
+    function test_settingsAsksForTheDefaultBrowserEachTimeItOpens() {
+        window.requestSettings();
+        tryVerify(function () {
+            return findChild(window.contentItem, "settingsSurface") !== null;
+        });
+        window.settingsOpen = false;
+        const asked = DefaultBrowser.refreshes;
+        window.settingsOpen = true;
+        compare(DefaultBrowser.refreshes, asked + 1);
+        window.settingsOpen = false;
+        window.settingsOpen = true;
+        compare(DefaultBrowser.refreshes, asked + 2);
+        window.settingsOpen = false;
+    }
+
     function test_theFooterMarksAReleaseTheReaderHasNotSeen() {
         const outline = findChild(window.contentItem, "sidebar");
         const mark = findChild(outline, "releaseMark");

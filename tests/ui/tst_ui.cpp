@@ -158,20 +158,30 @@ public:
 
 // The desktop's default-browser setting as a desktop that offers no way to ask
 // for it answers. The real one runs `xdg-settings` on the host, which would
-// make the settings page under test draw whatever this machine says.
+// make the settings page under test draw whatever this machine says. It counts
+// how often the page asks again.
 class DefaultBrowserProbe final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool available READ available CONSTANT)
     Q_PROPERTY(bool isDefault READ isDefault NOTIFY changed)
+    Q_PROPERTY(int refreshes READ refreshes NOTIFY changed)
 
 public:
     bool available() const { return false; }
     bool isDefault() const { return false; }
+    int refreshes() const { return m_refreshes; }
     Q_INVOKABLE bool makeDefault() { return false; }
-    Q_INVOKABLE void refresh() { }
+    Q_INVOKABLE void refresh()
+    {
+        ++m_refreshes;
+        emit changed();
+    }
 
 signals:
     void changed();
+
+private:
+    int m_refreshes = 0;
 };
 
 // The desktop's reduced-motion preference, which a test sets for itself rather
