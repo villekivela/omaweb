@@ -821,6 +821,17 @@
     </message>
 </context>
 <context>
+    <name>FilePicker</name>
+    <message>
+        <source>All files (*)</source>
+        <translation>Kaikki tiedostot (*)</translation>
+    </message>
+    <message>
+        <source>Files the page takes</source>
+        <translation>Sivun hyväksymät tiedostot</translation>
+    </message>
+</context>
+<context>
     <name>FindBar</name>
     <message>
         <source>find in page</source>
@@ -4546,10 +4557,6 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Hide sidebar</source>
         <translation>Piilota sivupalkki</translation>
-    </message>
-    <message>
-        <source>Search commands</source>
-        <translation>Hae komentoja</translation>
     </message>
     <message>
         <source>Back</source>

@@ -809,6 +809,8 @@ add_library(omaweb-platform STATIC
     src/platform/DesktopTextScaling.h
     src/platform/ExternalProtocolHandler.cpp
     src/platform/ExternalProtocolHandler.h
+    src/platform/FileChooser.cpp
+    src/platform/FileChooser.h
     src/platform/InputMethod.cpp
     src/platform/InputMethod.h
     src/platform/MediaAnnouncer.cpp
@@ -863,6 +865,7 @@ if(APPLE)
         src/platform/RunningBrowser.cpp
         src/platform/MacDesktopTextScaling.cpp
         src/platform/MacExternalProtocolHandler.mm
+        src/platform/MacFileChooser.cpp
         src/platform/MacPagePrinter.mm
         src/platform/MacSystemMotion.mm
         src/platform/MacSystemNotifier.mm
@@ -880,6 +883,7 @@ else()
     target_sources(omaweb-platform PRIVATE
         src/platform/LinuxDefaultBrowser.cpp
         src/platform/LinuxDesktopTextScaling.cpp
+        src/platform/LinuxFileChooser.cpp
         src/platform/LinuxPagePrinter.cpp
         src/platform/LinuxPortalSettings.cpp
         src/platform/LinuxPortalSettings.h
@@ -956,6 +960,7 @@ set(omaweb_ui_files
     src/ui/CommandDialog.qml
     src/ui/DiagnosticBanner.qml
     src/ui/DialogPanel.qml
+    src/ui/FilePicker.qml
     src/ui/PageBackdrop.qml
     src/ui/PageLoadingIndicator.qml
     src/ui/PageNotice.qml
@@ -2146,6 +2151,27 @@ if(BUILD_TESTING)
         # Qt reaching for the desktop portal itself would start the real one on
         # the private bus, racing the stub for the name it needs to own.
         set_tests_properties(omaweb-print-portal PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_NO_XDG_DESKTOP_PORTAL=1"
+        )
+
+        # Files and folders are chosen in the desktop's own dialog through the
+        # file chooser portal, so the test stands one up on a private bus and
+        # answers in the reader's place. The bus activates nothing: once the
+        # stub is gone, a standard one would start the real portal, and the
+        # real portal opens a real dialog.
+        qt_add_executable(omaweb-file-chooser-portal-tests tests/platform/tst_filechooserportal.cpp)
+        target_link_libraries(omaweb-file-chooser-portal-tests PRIVATE
+            omaweb-platform
+            Qt6::DBus
+            Qt6::Test
+        )
+        omaweb_strict_target(omaweb-file-chooser-portal-tests)
+        add_test(NAME omaweb-file-chooser-portal
+            COMMAND dbus-run-session
+                "--config-file=${CMAKE_CURRENT_SOURCE_DIR}/tests/platform/fixtures/bare-session-bus.conf"
+                -- $<TARGET_FILE:omaweb-file-chooser-portal-tests>
+        )
+        set_tests_properties(omaweb-file-chooser-portal PROPERTIES
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_NO_XDG_DESKTOP_PORTAL=1"
         )
 

@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import QtQuick.Dialogs as Dialogs
 import Omaweb
 import Omaweb.Engine
 import "../../src/ui" as Omaweb
@@ -1983,6 +1984,107 @@ TestCase {
         engine.simulateFileSelection("open", ["text/plain"]);
         window.respondToFileSelection([]);
         verify(engine.fileSelectionCancelled);
+    }
+
+    // The suite runs on a desktop with no session bus, so no file chooser
+    // portal answers and a page's chooser is Qt's own dialog, in the mode the
+    // page asked for. Cancelling it cancels the page's request.
+    function test_pageFileSelectionFallsBackToQtsDialogWithoutAPortal() {
+        const engine = openPage("https://files.example/form");
+        const picker = findChild(window, "pageFileDialog");
+        const files = findChild(picker, "qtFileDialog");
+        const folders = findChild(picker, "qtFolderDialog");
+        verify(files !== null);
+        verify(folders !== null);
+
+        engine.simulateFileSelection("folder", []);
+        verify(picker.showing);
+        verify(folders.visible);
+        verify(!files.visible);
+        folders.reject();
+        verify(engine.fileSelectionCancelled);
+        verify(!picker.showing);
+
+        engine.simulateFileSelection("open-multiple", ["image/png", ".pdf"]);
+        compare(picker.acceptedTypes, ["image/png", ".pdf"]);
+        verify(files.visible);
+        compare(files.fileMode, Dialogs.FileDialog.OpenFiles);
+        engine.fileSelectionCancelled = false;
+        files.reject();
+        verify(engine.fileSelectionCancelled);
+        verify(!picker.showing);
+    }
+
+    // A save opens in the downloads location under the name it was offered:
+    // the page's own suggestion, the linked file's name, or the download's.
+    // The suite has no portal, so this is the name Qt's dialog opens with; the
+    // portal is given the same address as `current_name` and `current_folder`.
+    function test_savesOpenWithTheSuggestedName() {
+        const engine = openPage("https://files.example/form");
+        const folder = String(window.windowBrowser.downloadDirectory);
+        const expected = function (name) {
+            return "file://" + folder + "/" + name;
+        };
+
+        const page = findChild(window, "pageFileDialog");
+        engine.simulateFileSelection("save", [], "report.csv");
+        const pageDialog = findChild(page, "qtFileDialog");
+        verify(pageDialog.visible);
+        compare(pageDialog.fileMode, Dialogs.FileDialog.SaveFile);
+        compare(String(pageDialog.currentFile), expected("report.csv"));
+        pageDialog.reject();
+        verify(engine.fileSelectionCancelled);
+        // A name is a name: a page cannot start the save in another folder.
+        engine.simulateFileSelection("save", [], "../elsewhere/report.csv");
+        compare(String(pageDialog.currentFile), expected("report.csv"));
+        pageDialog.reject();
+        // A name stays a name in the address: what would read as a fragment,
+        // a query or an escape is escaped, and the dialog opens on it whole.
+        const names = [["a#b.txt", "a%23b.txt"], ["q?.pdf", "q%3F.pdf"], ["100%.txt", "100%25.txt"],
+                       ["100%41.txt", "100%2541.txt"]];
+        for (let index = 0; index < names.length; ++index) {
+            engine.simulateFileSelection("save", [], names[index][0]);
+            compare(String(pageDialog.currentFile), expected(names[index][1]), names[index][0]);
+            pageDialog.reject();
+        }
+        // A suggestion that names no file starts the save with no name.
+        const nothing = ["..", ".", "", "folder/"];
+        for (let index = 0; index < nothing.length; ++index) {
+            engine.simulateFileSelection("save", [], nothing[index]);
+            compare(String(pageDialog.currentFile), "", "\"" + nothing[index] + "\"");
+            pageDialog.reject();
+        }
+
+        const saveAs = findChild(window, "saveTargetDialog");
+        window.requestTargetSave(engine, "save-link", "https://files.example/archive.zip?v=2");
+        const saveAsDialog = findChild(saveAs, "qtFileDialog");
+        verify(saveAsDialog.visible);
+        compare(String(saveAsDialog.currentFile), expected("archive.zip"));
+        saveAsDialog.reject();
+        // A link's name is offered as it spells, not as it is escaped.
+        window.requestTargetSave(engine, "save-link", "https://files.example/annual%20report.pdf");
+        compare(String(saveAsDialog.currentFile), expected("annual report.pdf"));
+        saveAsDialog.reject();
+
+        const target = findChild(window, "downloadTargetDialog");
+        window.downloads.hold("files", "1", BrowserController.SaveDownloadAs,
+                              "https://files.example", "https://files.example/data.bin", "data.bin",
+                              "", "");
+        const targetDialog = findChild(target, "qtFileDialog");
+        tryVerify(function () {
+            return targetDialog.visible;
+        });
+        compare(String(targetDialog.currentFile), expected("data.bin"));
+        targetDialog.reject();
+        verify(!target.showing);
+        window.downloads.hold("files", "2", BrowserController.SaveDownloadAs,
+                              "https://files.example", "https://files.example/a%23b.bin", "a#b.bin",
+                              "", "");
+        tryVerify(function () {
+            return targetDialog.visible;
+        });
+        compare(String(targetDialog.currentFile), expected("a%23b.bin"));
+        targetDialog.reject();
     }
 
     // The address of the page on show goes to the clipboard on its own: no
@@ -5305,8 +5407,7 @@ TestCase {
     // The navigation controls on show anywhere in the window. An item's
     // visible is false under a hidden ancestor, so these are the ones drawn.
     function navigationControlsOnShow() {
-        const names = ["backButton", "forwardButton", "reloadButton", "collapseButton",
-                       "commandScopeButton"];
+        const names = ["backButton", "forwardButton", "reloadButton", "collapseButton"];
         const shown = [];
         const visit = function (item) {
             for (let at = 0; at < item.children.length; ++at) {
@@ -6163,9 +6264,7 @@ TestCase {
 
         const controls = [["backButton", "back"], ["forwardButton", "forward"], ["reloadButton",
                                                                                  "reload"],
-                          ["collapseButton", "toggle-sidebar"], ["commandScopeButton",
-                                                                 "command-scope"], ["addressButton",
-                                                                                    "open-address"]];
+                          ["collapseButton", "toggle-sidebar"], ["addressButton", "open-address"]];
         const label = findChild(window.contentItem, "keyLabel-backButton");
         verify(label !== null);
         verify(!label.visible);
@@ -6287,8 +6386,8 @@ TestCase {
             window.commands.run("record-problem", -1);
         // A page with no history leaves back and forward disabled, drawn at 35%.
         verify(!findChild(window.contentItem, "backButton").enabled);
-        const names = ["collapseButton", "commandScopeButton", "backButton", "forwardButton",
-                       "reloadButton", "addressButton", "space-" + browser.activeSpaceId, "tab-"
+        const names = ["collapseButton", "backButton", "forwardButton", "reloadButton",
+                       "addressButton", "space-" + browser.activeSpaceId, "tab-"
                        + browser.activeTabId];
         keyPress(Qt.Key_Control);
         tryVerify(function () {
@@ -7084,8 +7183,8 @@ TestCase {
     // a theme that names a quiet colour close to its fills cannot dim them.
     function test_chromeIconsRestInTheThemesText() {
         verify(!Qt.colorEqual(window.colors.text, window.colors.mutedText));
-        const names = ["collapseButton", "commandScopeButton", "backButton", "forwardButton",
-                       "reloadButton", "settingsButton", "extensionMark"];
+        const names = ["collapseButton", "backButton", "forwardButton", "reloadButton",
+                       "settingsButton"];
         for (const name of names) {
             const button = findChild(window.contentItem, name);
             verify(button !== null, name);
@@ -7096,6 +7195,70 @@ TestCase {
         compare(forward.opacity, 0.35);
     }
 
+    // Command scope is a key and an Omnibar mode, not a button beside the
+    // sidebar's: clicking the address already reaches it (#862).
+    function test_theTopRowHasNoSearchButton() {
+        verify(findChild(window.contentItem, "commandScopeButton") === null);
+        verify(findChild(window.contentItem, "keyLabel-commandScopeButton") === null);
+        verify(findChild(window.contentItem, "collapseButton") !== null);
+        verify(bindingFor("command-scope") !== "");
+    }
+
+    // The extension mark rests as quiet as Site information beside it, and
+    // brightens under the cursor and when an extension asks to be seen (#862).
+    function test_theExtensionMarkRestsQuietAndBrightens() {
+        openPage("https://shelf.example/quiet");
+        const outline = findChild(window.contentItem, "sidebar");
+        const mark = findChild(outline, "extensionMark");
+        const site = findChild(outline, "securityIndicator");
+        verify(!Qt.colorEqual(window.colors.text, window.colors.mutedText));
+        outline.hostedExtensions = [
+                    {
+                        "key": "omaweb-test-notes",
+                        "name": "Notes",
+                        "id": "omaweb-test-notes",
+                        "popupUrl": "chrome-extension://omaweb-test-notes/popup.html"
+                    }
+                ];
+        tryCompare(mark, "visible", true);
+        mouseMove(window.contentItem, 1, 1);
+        verify(Qt.colorEqual(site.color, window.colors.mutedText));
+        verify(Qt.colorEqual(mark.foreground, site.color), "rests in Site information's colour");
+        compare(mark.iconSize, site.font.pixelSize);
+
+        mouseMove(mark, mark.width / 2, mark.height / 2);
+        tryVerify(function () {
+            return Qt.colorEqual(mark.foreground, window.colors.text);
+        });
+        mouseMove(window.contentItem, 1, 1);
+        tryVerify(function () {
+            return Qt.colorEqual(mark.foreground, window.colors.mutedText);
+        });
+
+        // An open popup is an extension asking to be seen, whether it was
+        // opened from the mark or from the keyboard.
+        window.extensionMenuOpen = true;
+        tryVerify(function () {
+            return Qt.colorEqual(mark.foreground, window.colors.text);
+        });
+        window.extensionMenuOpen = false;
+        tryVerify(function () {
+            return Qt.colorEqual(mark.foreground, window.colors.mutedText);
+        });
+        window.glanceIsExtension = true;
+        tryVerify(function () {
+            return Qt.colorEqual(mark.foreground, window.colors.text);
+        });
+        window.glanceIsExtension = false;
+        tryVerify(function () {
+            return Qt.colorEqual(mark.foreground, window.colors.mutedText);
+        });
+
+        outline.hostedExtensions = Qt.binding(function () {
+            return window.hostedExtensions;
+        });
+    }
+
     function test_primaryChromeIsAccessibleFromKeyboard() {
         window.requestActivate();
         tryVerify(function () {
@@ -7104,7 +7267,6 @@ TestCase {
         const addressButton = findChild(window.contentItem, "addressButton");
         const collapseButton = findChild(window.contentItem, "collapseButton");
         const reloadButton = findChild(window.contentItem, "reloadButton");
-        const commandScopeButton = findChild(window.contentItem, "commandScopeButton");
         const newSpaceButton = findChild(window.contentItem, "newSpaceButton");
         const settingsButton = findChild(window.contentItem, "settingsButton");
         const materialSymbolsFont = findChild(window, "materialSymbolsFont");
@@ -7112,7 +7274,6 @@ TestCase {
         compare(settingsButton.accessibleName, "Browsing settings and downloads");
         compare(addressButton.accessibleName, "Search or enter address");
         compare(collapseButton.accessibleName, "Hide sidebar");
-        compare(commandScopeButton.accessibleName, "Search commands");
         compare(newSpaceButton.label, "New Space");
         verify(iconFontSource.toString().endsWith("/material-symbols-rounded.ttf"));
         verify(materialSymbolsFont !== null);

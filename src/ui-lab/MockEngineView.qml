@@ -761,11 +761,11 @@ Rectangle {
                                         "detail": scheme + " · " + origin + " · " + address
                                     });
     }
-    function simulateFileSelection(mode, mimeTypes) {
+    function simulateFileSelection(mode, mimeTypes, suggestedName) {
         root.fileSelectionRequested(String(++root.nextBrowserPromptId), {
                                         "mode": String(mode),
                                         "mimeTypes": mimeTypes || [],
-                                        "suggestedName": ""
+                                        "suggestedName": suggestedName || ""
                                     });
     }
     function respondToFileSelection(requestId, files) {
