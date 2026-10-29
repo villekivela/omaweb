@@ -21995,6 +21995,51 @@ TestCase {
         compare(window.settingsOpen, false);
     }
 
+    // The reader can make another browser the default while Omaweb is open,
+    // so About asks the desktop again each time Settings opens.
+    function test_settingsAsksForTheDefaultBrowserEachTimeItOpens() {
+        window.requestSettings();
+        tryVerify(function () {
+            return findChild(window.contentItem, "settingsSurface") !== null;
+        });
+        window.settingsOpen = false;
+        const asked = DefaultBrowser.refreshes;
+        window.settingsOpen = true;
+        compare(DefaultBrowser.refreshes, asked + 1);
+        window.settingsOpen = false;
+        window.settingsOpen = true;
+        compare(DefaultBrowser.refreshes, asked + 2);
+        window.settingsOpen = false;
+    }
+
+    // Until the desktop has answered, About says nothing about the default
+    // browser, rather than offering to take it and then taking the offer back.
+    function test_aboutWaitsForTheDefaultBrowsersAnswer() {
+        window.requestSettings();
+        const settings = findChild(window.contentItem, "settingsSurface");
+        settings.section = settings.sections.indexOf("about");
+        const state = findChild(settings, "defaultBrowserState");
+        const button = findChild(settings, "makeDefaultBrowserButton");
+        const shown = function () {
+            return [state.visible, button.visible];
+        };
+        DefaultBrowser.available = true;
+        DefaultBrowser.known = false;
+        DefaultBrowser.isDefault = false;
+        const unknown = shown();
+        DefaultBrowser.known = true;
+        const another = shown();
+        DefaultBrowser.isDefault = true;
+        const omaweb = shown();
+        DefaultBrowser.available = false;
+        DefaultBrowser.known = false;
+        DefaultBrowser.isDefault = false;
+        window.settingsOpen = false;
+        compare(unknown, [false, false]);
+        compare(another, [true, true]);
+        compare(omaweb, [true, false]);
+    }
+
     function test_theFooterMarksAReleaseTheReaderHasNotSeen() {
         const outline = findChild(window.contentItem, "sidebar");
         const mark = findChild(outline, "releaseMark");

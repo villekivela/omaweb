@@ -69,10 +69,23 @@ StartupWMClass=omaweb
 """
 
 
+# On Omarchy `xdg-settings` names Omarchy's router, `omarchy-browser.desktop`,
+# which opens the browser Omarchy records behind it. This command names that
+# one, and Settings asks it too.
+OMARCHY_DEFAULT_BROWSER = "omarchy-cmd-default-browser"
+
+
+def on_omarchy() -> bool:
+    return shutil.which(OMARCHY_DEFAULT_BROWSER) is not None
+
+
 def default_browser() -> str:
-    result = subprocess.run(
-        ["xdg-settings", "get", "default-web-browser"], capture_output=True, text=True, check=False
+    command = (
+        [OMARCHY_DEFAULT_BROWSER]
+        if on_omarchy()
+        else ["xdg-settings", "get", "default-web-browser"]
     )
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
     return result.stdout.strip()
 
 
@@ -97,12 +110,21 @@ def session_holds_browser() -> bool:
 
 def set_default_browser(entry: str) -> tuple[str, bool]:
     environment = dict(os.environ)
-    # Dropped only when the session does not have it, which is the environment
-    # the reader's own browser is started in. Left in place when the session
-    # does, because then the refusal is one a reader would meet too.
-    shell_only = "BROWSER" in environment and not session_holds_browser()
-    if shell_only:
-        del environment["BROWSER"]
+    shell_only = False
+    if on_omarchy():
+        # What `omarchy-default-browser` does, and Settings with it: with the
+        # desktop named, `xdg-settings` reads back Hyprland's list, which
+        # still names the router, and fails.
+        environment.pop("BROWSER", None)
+        environment["XDG_CURRENT_DESKTOP"] = ""
+    else:
+        # Dropped only when the session does not have it, which is the
+        # environment the reader's own browser is started in. Left in place
+        # when the session does, because then the refusal is one a reader
+        # would meet too.
+        shell_only = "BROWSER" in environment and not session_holds_browser()
+        if shell_only:
+            del environment["BROWSER"]
     result = subprocess.run(
         ["xdg-settings", "set", "default-web-browser", entry],
         capture_output=True,
@@ -170,7 +192,8 @@ def main() -> int:
         print("skipped: the desktop reports no default browser, so there is none to put back")
         return 0
     print(f"the default browser is {original}, and it goes back to it: ")
-    print(f"    xdg-settings set default-web-browser {original}")
+    prefix = "env -u BROWSER XDG_CURRENT_DESKTOP= " if on_omarchy() else ""
+    print(f"    {prefix}xdg-settings set default-web-browser {original}")
     print(f"    rm -f {ENTRY}")
 
     browser_path = os.path.abspath(arguments.browser)
@@ -202,12 +225,13 @@ def main() -> int:
                 "for this check; a browser the reader starts does not inherit it"
             )
         registered = default_browser()
-        # `xdg-settings` refuses outright while `BROWSER` is set, and Omarchy
-        # exports it. Naming it here because the tool's own message says what
-        # it will not do without saying what a reader would have to change, and
-        # Settings offers this through the same tool.
+        # `xdg-settings` refuses outright while `BROWSER` is set, which a
+        # session can do. Naming it here because the tool's own message says
+        # what it will not do without saying what a reader would have to
+        # change, and Settings offers this through the same tool. On Omarchy
+        # both drop it, as Omarchy's own command does.
         because = ""
-        if registered != ENTRY_ID and session_holds_browser():
+        if registered != ENTRY_ID and not on_omarchy() and session_holds_browser():
             because = "; BROWSER is set in the session, which xdg-settings refuses to override"
         report.check(
             registered == ENTRY_ID,

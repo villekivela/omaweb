@@ -2077,6 +2077,16 @@ if(BUILD_TESTING)
     )
 
     if(UNIX AND NOT APPLE)
+        # The default browser is read and set by running the desktop's own
+        # tools, so the test puts stubs of them first on `PATH`.
+        qt_add_executable(omaweb-default-browser-tests tests/platform/tst_defaultbrowser.cpp)
+        target_link_libraries(omaweb-default-browser-tests PRIVATE
+            omaweb-platform
+            Qt6::Test
+        )
+        omaweb_strict_target(omaweb-default-browser-tests)
+        add_test(NAME omaweb-default-browser COMMAND omaweb-default-browser-tests)
+
         # The Linux notification seam talks to a session-bus service, so the
         # test supplies one of its own and drives the answers a reader would
         # give. `dbus-run-session` puts it on a private bus, which keeps the

@@ -586,6 +586,12 @@ knows what they were using before. `xdg-settings` is what the offer goes through
 a browser editing a shared file would have to understand everything else in it. A desktop without
 that tool is offered nothing rather than offered something that fails.
 
+On Omarchy, `xdg-settings` names Omarchy's router, `omarchy-browser.desktop`, which opens the
+browser `omarchy-cmd-default-browser` names, so Settings asks that command instead. It sets the
+default as `omarchy-default-browser` does, with `BROWSER` unset and `XDG_CURRENT_DESKTOP` empty,
+because that command takes only the browsers on its own list. Settings asks again each time it
+opens, off the interface's thread, and says nothing about the default until the first answer.
+
 ### The Arch package
 
 `packaging/PKGBUILD` builds `omaweb-git` from the repository. There is no release tarball to build

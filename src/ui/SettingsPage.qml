@@ -4311,6 +4311,16 @@ Rectangle {
                     // Being the default browser is the desktop's setting, so it
                     // is offered here and never taken on a first run. A desktop
                     // with no way to ask does not get an offer that would fail.
+                    // The reader can change it outside the browser, so it is
+                    // asked again each time Settings opens.
+                    Connections {
+                        target: root
+                        function onOpenChanged() {
+                            if (root.open)
+                                DefaultBrowser.refresh();
+                        }
+                    }
+
                     SectionLabel {
                         visible: DefaultBrowser.available
                         colors: root.colors
@@ -4319,7 +4329,7 @@ Rectangle {
 
                     Text {
                         objectName: "defaultBrowserState"
-                        visible: DefaultBrowser.available
+                        visible: DefaultBrowser.available && DefaultBrowser.known
                         width: pane.width
                         text: DefaultBrowser.isDefault ? qsTr(
                                                              "Omaweb opens links from other applications.") :
@@ -4332,7 +4342,8 @@ Rectangle {
 
                     ActionButton {
                         objectName: "makeDefaultBrowserButton"
-                        visible: DefaultBrowser.available && !DefaultBrowser.isDefault
+                        visible: DefaultBrowser.available && DefaultBrowser.known &&
+                                 !DefaultBrowser.isDefault
                         colors: root.colors
                         label: qsTr("Make Omaweb the default")
                         accessibleName: qsTr("Make Omaweb the default browser")
