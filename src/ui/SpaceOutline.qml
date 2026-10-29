@@ -1598,7 +1598,7 @@ Rectangle {
                     foreground: active ? root.colors.text : root.colors.mutedText
                     accent: root.colors.accent
                     background: "transparent"
-                    // Hover is the square's own, below: the kit's filled and
+                    // Hover is the mark's own, below: the kit's filled and
                     // bordered box is for the keyboard focus alone.
                     color: _showFocusRing ? Style.focusFillFor(foreground, accent) : "transparent"
                     borderSpec: _showFocusRing ? _focusBorderSpec : Border.none()
