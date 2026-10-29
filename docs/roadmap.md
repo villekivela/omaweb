@@ -73,9 +73,7 @@ and performance. Sync stops reloading an open page with this machine's own state
 and its key to become a tab works ([#863](https://github.com/villekivela/omaweb/issues/863)). The
 runtime budget is taken again on the 6.11.3 engine
 ([#859](https://github.com/villekivela/omaweb/issues/859)), and so is the comparison with Chromium
-([#860](https://github.com/villekivela/omaweb/issues/860)). The x86_64 engine links at ThinLTO's
-`--lto-O2`, as Chrome does, which takes Speedometer from 0.73 of Chromium 140 to 0.82
-([#886](https://github.com/villekivela/omaweb/issues/886)). The address row gets quieter: the
+([#860](https://github.com/villekivela/omaweb/issues/860)). The address row gets quieter: the
 extension mark is muted and the search button goes
 ([#862](https://github.com/villekivela/omaweb/issues/862)), and then the Space buttons get a quieter
 hover and the keep-active dot goes ([#869](https://github.com/villekivela/omaweb/issues/869)).
@@ -91,9 +89,9 @@ longer fades over it ([#883](https://github.com/villekivela/omaweb/issues/883)).
 chrome added since September and is kept ([#884](https://github.com/villekivela/omaweb/issues/884)).
 A frozen away page that keeps growing is traced
 ([#885](https://github.com/villekivela/omaweb/issues/885)). The budget is measured on the release
-build readers run ([#889](https://github.com/villekivela/omaweb/issues/889)), and the engine closes
-its Speedometer gap to Chromium through its build flags
-([#886](https://github.com/villekivela/omaweb/issues/886)).
+build readers run ([#889](https://github.com/villekivela/omaweb/issues/889)), and the x86_64 engine
+links at ThinLTO's `--lto-O2`, as Chrome does, which takes Speedometer from 0.73 of Chromium 140 to
+0.82 ([#886](https://github.com/villekivela/omaweb/issues/886)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
