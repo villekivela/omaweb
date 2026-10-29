@@ -29,6 +29,7 @@
 #include "PaymentCards.h"
 #include "ProbeClock.h"
 #include "ProcessResources.h"
+#include "QtPageGlide.h"
 #include "TelemetrySampler.h"
 #include "RuntimeSecurity.h"
 #include "SavedDownload.h"
@@ -584,6 +585,9 @@ public slots:
         QCoreApplication::setApplicationVersion(QStringLiteral(OMAWEB_VERSION));
         omaweb::quickshell::installShim(*engine);
         omaweb::installStoredFavicons(*engine);
+        if (!m_glide) {
+            m_glide = std::make_unique<omaweb::QtPageGlide>();
+        }
         engine->addImageProvider(QStringLiteral("omawebtesticon"), new ColourIcons);
         omaweb::registerBrowserController();
         omaweb::registerDownloads();
@@ -843,6 +847,9 @@ private:
     SyncLauncherProbe m_syncLauncher;
     CursorProbe m_cursorProbe;
     WheelProbe m_wheelProbe;
+    // The browser's own glide, which carries a touchpad scroll in the chrome on past the lift
+    // as it does a page's. It watches the application's events, so it is made once there is one.
+    std::unique_ptr<omaweb::QtPageGlide> m_glide;
     DesktopProbe m_desktopProbe;
     WindowFocusProbe m_windowFocusProbe;
     ReleaseWatchProbe m_releaseWatch;

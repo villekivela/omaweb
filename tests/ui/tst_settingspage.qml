@@ -239,8 +239,20 @@ TestCase {
             return false;
         }
 
+        // The Link rules settings.json holds, which the page reads back
+        // through the same preference the core answers.
+        property string linkRulesJson: "[]"
+
         function preference(key, fallback) {
-            return fallback;
+            return key === "link-rules" ? linkRulesJson : fallback;
+        }
+
+        function linkPatternParses(pattern) {
+            return true;
+        }
+
+        function readersSpaceNames() {
+            return ["Personal", "Work", "Reading"];
         }
 
         property var preferenceCalls: []
@@ -483,6 +495,147 @@ TestCase {
         settleAction(control);
         const inWindow = control.mapToItem(testCase, 0, control.height);
         verify(inWindow.y <= testCase.height, "the control is still below the window");
+    }
+
+    // Every item under `item` that is visible and for which `matches` holds.
+    function visibleItems(item, matches, found) {
+        for (let index = 0; index < item.children.length; ++index) {
+            const child = item.children[index];
+            if (!child.visible)
+                continue;
+            if (matches(child))
+                found.push(child);
+            testCase.visibleItems(child, matches, found);
+        }
+        return found;
+    }
+
+    function isToggle(item) {
+        return item.title !== undefined && item.note !== undefined && item.checked !== undefined
+                && item.accessibleName !== undefined;
+    }
+
+    // Two bordered controls that share a column are cards, so the pane's gap
+    // sits between them. A toggle draws its own border, which makes the touch
+    // visible as one thick rule where two meet.
+    function test_everyStackOfToggleCardsIsSpacedByThePane() {
+        const page = makePage();
+        page.globalPrivacyControl = Qt.createQmlObject(
+                    'import QtQml; QtObject { property bool enabled: false }', page);
+        page.httpsOnly = Qt.createQmlObject('import QtQml; QtObject { property bool enabled: true }',
+                                            page);
+        page.knownExtensions = [
+                    {
+                        key: "one",
+                        name: "One",
+                        publisher: "A",
+                        licence: "MIT",
+                        fetching: false,
+                        installed: true,
+                        enabled: false,
+                        summary: "First."
+                    },
+                    {
+                        key: "two",
+                        name: "Two",
+                        publisher: "B",
+                        licence: "MIT",
+                        fetching: false,
+                        installed: true,
+                        enabled: false,
+                        summary: "Second."
+                    }
+                ];
+        page.knownExtensionsAvailable = true;
+        const pane = findChild(page, "settingsPane");
+        verify(pane !== null);
+
+        let stacks = 0;
+        for (let section = 0; section < page.sections.length; ++section) {
+            page.section = section;
+            const toggles = testCase.visibleItems(page, testCase.isToggle, []);
+            toggles.sort(function (left, right) {
+                return left.mapToItem(page, 0, 0).y - right.mapToItem(page, 0, 0).y;
+            });
+            for (let index = 1; index < toggles.length; ++index) {
+                const above = toggles[index - 1];
+                const below = toggles[index];
+                if (above.parent !== below.parent)
+                    continue;
+                ++stacks;
+                const name = page.sections[section] + ": " + above.objectName + " / "
+                      + below.objectName;
+                tryVerify(function () {
+                    return testCase.gapBetween(page, above, below) >= pane.spacing;
+                }, 1000, name + " touch");
+            }
+        }
+        // The privacy pair and the extensions pair, so an empty walk fails.
+        verify(stacks >= 2, "found " + stacks + " stacks");
+    }
+
+    // A text field and a dropdown set side by side are one row of controls, so
+    // they are as tall as each other.
+    function test_aFieldBesideADropdownIsAsTallAsIt() {
+        const page = makePage();
+        browserStub.linkRulesJson = JSON.stringify([
+                                                       {
+                                                           pattern: "*.acme.com",
+                                                           space: "Work"
+                                                       }
+                                                   ]);
+        page.browser = browserStub;
+        page.readLinkRules();
+        page.section = page.sections.indexOf("spaces");
+
+        const field = findChild(page, "linkRulePattern-0");
+        const dropdown = findChild(page, "linkRuleSpace-0");
+        verify(field !== null && dropdown !== null);
+        tryVerify(function () {
+            return field.height > 0 && dropdown.height > 0;
+        });
+        compare(dropdown.height, field.height);
+
+        // And wherever else a row sets the two together.
+        const rows = testCase.visibleItems(page, function (item) {
+            return item.children.some(function (child) {
+                return child.placeholderText !== undefined;
+            }) && item.children.some(function (child) {
+                return child.rowHeight !== undefined;
+            });
+        }, []);
+        verify(rows.length > 0, "the Link rule row was not found as a field beside a dropdown");
+        for (const row of rows) {
+            const heights = row.children.filter(function (child) {
+                return child.visible && (child.placeholderText !== undefined || child.rowHeight
+                                         !== undefined);
+            }).map(function (child) {
+                return child.height;
+            });
+            for (const height of heights)
+                compare(height, heights[0]);
+        }
+    }
+
+    // The Spaces list removes with the X the Link rules list uses, and the X
+    // still names the Space it removes.
+    function test_aSpaceIsRemovedWithTheXTheLinkRulesUse() {
+        const page = makeSpacesPage();
+        const remove = findChild(page, "deleteSpace-work");
+        verify(remove !== null);
+        compare(remove.icon, "close");
+        compare(remove.Accessible.name, "Delete Work");
+        verify(remove.enabled);
+        compare(findChild(page, "renameSpace-work").label, "Rename");
+
+        // It asks for the delete, which the window answers with its dialog,
+        // rather than deleting on the press.
+        const asked = [];
+        page.spaceActionRequested.connect(function (action, spaceId, spaceName) {
+            asked.push([action, spaceId, spaceName]);
+        });
+        settleAction(remove).clicked();
+        compare(asked, [["delete", "work", "Work"]]);
     }
 
     // The Spaces as the page draws them, top to bottom, so the order under
@@ -1044,8 +1197,126 @@ TestCase {
 
         keyClick(Qt.Key_Space);
         compare(page.sections[page.section], "privacy");
+        verify(!addresses.activeFocusOnTab);
+    }
+
+    function railName(page, index) {
+        const name = findChild(page, "settingsSection" + index);
+        verify(name !== null);
+        return name;
+    }
+
+    // The rail is a list the arrows walk, and each step shows the section it
+    // lands on, from its top.
+    function test_upAndDownSelectTheNeighbouringSections() {
+        const page = makePage();
+        const scroll = findChild(page, "settingsScroll");
+        verify(scroll !== null);
+        railName(page, 0).forceActiveFocus();
+
+        keyClick(Qt.Key_Down);
+        compare(page.section, 1);
+        verify(railName(page, 1).activeFocus);
+
+        keyClick(Qt.Key_Up);
+        compare(page.section, 0);
+        verify(railName(page, 0).activeFocus);
+
+        // A section scrolled down, and the next one tall enough to keep that
+        // offset if nothing took it back to its top. The page is made short so
+        // that two sections side by side overflow it.
+        page.height = 300;
+        const view = scroll.contentItem;
+        let tall = -1;
+        for (let index = 0; index + 1 < page.sections.length && tall < 0; ++index) {
+            page.section = index + 1;
+            wait(0);
+            const nextRoom = view.contentHeight - view.height;
+            page.section = index;
+            wait(0);
+            if (nextRoom > 100 && view.contentHeight - view.height > 100)
+                tall = index;
+        }
+        verify(tall >= 0, "no two tall sections side by side");
+        railName(page, tall).forceActiveFocus();
+        view.contentY = 100;
+        keyClick(Qt.Key_Down);
+        compare(page.section, tall + 1);
+        compare(view.contentY, 0);
+        page.section = 0;
+        railName(page, 0).forceActiveFocus();
+
+        // The ends hold: the rail is a list, not a ring.
+        keyClick(Qt.Key_Up);
+        compare(page.section, 0);
+        verify(railName(page, 0).activeFocus);
+    }
+
+    function test_homeAndEndGoToTheFirstAndLastSections() {
+        const page = makePage();
+        const last = page.sections.length - 1;
+        railName(page, 1).forceActiveFocus();
+
+        keyClick(Qt.Key_End);
+        compare(page.section, last);
+        verify(railName(page, last).activeFocus);
+
+        keyClick(Qt.Key_Down);
+        compare(page.section, last);
+
+        keyClick(Qt.Key_Home);
+        compare(page.section, 0);
+        verify(railName(page, 0).activeFocus);
+    }
+
+    // A name the keyboard is on draws the kit's focus box behind it, and only
+    // while the focus is there: the current section is told by its accent.
+    function test_theFocusedRailNameShowsTheFocusBox() {
+        const page = makePage();
+        const first = railName(page, 0);
+        const second = railName(page, 1);
+        const firstBox = findChild(first, "railFocus");
+        const secondBox = findChild(second, "railFocus");
+        verify(firstBox !== null);
+        verify(secondBox !== null);
+        compare(firstBox.visible, false);
+
+        first.forceActiveFocus();
+        compare(firstBox.visible, true);
+        verify(firstBox.width >= first.width);
+        verify(firstBox.height >= first.height);
+
+        keyClick(Qt.Key_Down);
+        compare(firstBox.visible, false);
+        compare(secondBox.visible, true);
+
+        page.forceActiveFocus();
+        compare(secondBox.visible, false);
+        verify(second.font.bold);
+    }
+
+    // The rail is one stop in the Tab ring, so Tab goes from it into the
+    // section it shows rather than along the other names, and Shift+Tab comes
+    // back to the name it left.
+    function test_tabEntersTheSectionAndShiftTabReturnsToTheRail() {
+        const page = makePage();
+        const pane = findChild(page, "settingsPane");
+        verify(pane !== null);
+        const privacy = page.sections.indexOf("privacy");
+        railName(page, privacy).forceActiveFocus();
+        keyClick(Qt.Key_Return);
+
         keyClick(Qt.Key_Tab);
-        verify(addresses.activeFocus);
+        const entered = page.Window.activeFocusItem;
+        verify(entered !== null);
+        let inPane = false;
+        for (let item = entered; item !== null; item = item.parent)
+            inPane = inPane || item === pane;
+        verify(inPane, "Tab left the rail for " + entered);
+        compare(page.section, privacy);
+
+        keyClick(Qt.Key_Tab, Qt.ShiftModifier);
+        verify(railName(page, privacy).activeFocus);
     }
 
     function test_aRepeatedLetterWrapsAndAnUnknownLetterDoesNothing() {

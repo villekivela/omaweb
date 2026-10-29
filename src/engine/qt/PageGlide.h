@@ -9,7 +9,7 @@ namespace omaweb {
 
 // How fast the fingers were scrolling when they lifted, from the movement they made in the
 // `window` ms before it. Units are whatever the deltas are in; the page glide adds Qt's angle
-// deltas, which are what QtWebEngine scrolls a page by.
+// deltas, which are what QtWebEngine scrolls a page by, and a chrome view's glide its pixels.
 //
 // The window is GTK 4's: `SCROLL_CAPTURE_THRESHOLD_MS` in `gtkeventcontrollerscroll.c`. GTK
 // measures it back from the last movement. This measures it back from the lift, so fingers that
@@ -44,18 +44,22 @@ public:
     static constexpr qreal friction = 4;
     // Two angle units are a page pixel at Qt's three lines a wheel step.
     static constexpr qreal rest = 2;
+    // A pixel, for a glide measured in pixels: a view in the chrome moves by whole ones.
+    static constexpr qreal pixelRest = 1;
 
-    explicit GlideCurve(QPointF velocity = {});
+    explicit GlideCurve(QPointF velocity = {}, qreal rest = GlideCurve::rest);
 
-    // False when the glide would travel no more than `rest`.
+    // False when the glide would travel no more than its rest.
     bool glides() const;
     // How long the glide runs, in seconds.
     qreal duration() const;
     // How far it has gone `seconds` after the lift, on each axis.
     QPointF travelled(qreal seconds) const;
+    QPointF velocity() const;
 
 private:
     QPointF m_velocity;
+    qreal m_rest;
 };
 
 } // namespace omaweb
