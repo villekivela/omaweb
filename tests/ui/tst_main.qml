@@ -11262,7 +11262,7 @@ TestCase {
     // cursor marks the button holding it, Tab and the arrows walk the buttons
     // past any that are disabled, Return and Space press one, and the key
     // down a region or Escape hands the keyboard back to the page. The cursor
-    // moves on without a binding loop, and closing the Glance leaves it be.
+    // moves on without a binding loop.
     function test_altKReachesTheGlanceControlsAndAltJReturns() {
         failOnWarning(/Binding loop/);
         window.requestActivate();
@@ -11288,6 +11288,16 @@ TestCase {
         verify(!glanced.activeFocus);
         verifyGlanceCursorOn(glance, "closeGlanceButton");
         keyClick(Qt.Key_Down);
+        verifyGlanceCursorOn(glance, "openGlanceAsTabButton");
+        // An extension's popup offers no Open as tab, and the cursor on it
+        // moves on.
+        try {
+            window.glanceIsExtension = true;
+            verifyGlanceCursorOn(glance, "glanceBackButton");
+        } finally {
+            window.glanceIsExtension = false;
+        }
+        keyClick(Qt.Key_Up);
         verifyGlanceCursorOn(glance, "openGlanceAsTabButton");
         keyClick(Qt.Key_Down);
         verifyGlanceCursorOn(glance, "glanceBackButton");

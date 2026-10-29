@@ -367,11 +367,12 @@ FocusScope {
             return button !== undefined && button.visible && button.enabled;
         }
 
-        // Back at the first page, back is disabled under the cursor: the
-        // cursor moves on to a button the keyboard can still press. Asked by
-        // the button that went, rather than bound to what is under the
-        // cursor: every button reads as hidden while the Glance is, and a
-        // binding would walk the cursor on each closing and loop as it did.
+        // Back at the first page, back is disabled under the cursor, and an
+        // extension's popup offers no Open as tab: the cursor moves on to a
+        // button the keyboard can still press. The button that went asks,
+        // rather than a binding on what is under the cursor: every button
+        // reads as hidden while the Glance is, so a binding would walk the
+        // cursor on every closing and opening.
         function passOver(button) {
             if (controls.order[controls.cursor] === button)
                 controls.cursor = controls.step(controls.cursor, 1, true);
@@ -550,13 +551,14 @@ FocusScope {
     }
 
     component GlanceButton: ChromeButton {
+        id: glanceButton
         width: 30
         height: 30
         // The column walks its cursor over the buttons, so none is a stop the
         // kit marks with its own focus ring.
         focusable: false
         onEnabledChanged: if (!enabled)
-                              controls.passOver(this)
+                              controls.passOver(glanceButton)
         // The window's own text, as the panel's ground is the window's own
         // overlay: a Private window draws both in its own palette.
         foreground: root.colors.text
