@@ -19,14 +19,15 @@
     "defaults": {
       "role": "tabs",
       "titleWidth": 200,
-      "maxWidthPercent": 40
+      "maxWidthPercent": 40,
+      "addressWidth": 360
     },
     "schema": [
       {
         "key": "role",
         "type": "enum",
         "label": "Role",
-        "options": ["tabs", "navigation"],
+        "options": ["tabs", "address", "navigation"],
         "defaultValue": "tabs"
       },
       {

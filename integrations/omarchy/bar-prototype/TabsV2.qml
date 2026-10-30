@@ -7,9 +7,10 @@ import qs.Commons as Commons
 import qs.Ui
 
 // PROTOTYPE, throwaway: omaweb's tabs in the Omarchy bar, fed by
-// fake-omaweb.py over a Unix socket. Placed twice: role "tabs" shows the
-// Space, pins and tabs; role "navigation" shows back, forward, reload and
-// the address. It takes no room while nothing answers on the socket.
+// fake-omaweb.py over a Unix socket. Role "tabs" shows back, forward and
+// reload, then the Spaces, pins and tabs; role "address" shows the page at a
+// fixed width, to place in the center. It takes no room while nothing
+// answers on the socket.
 //
 // Three variants, switched with `v` in the fake browser:
 //   capsule   the Space, its pins and tabs in one capsule; other Spaces outside
@@ -22,6 +23,8 @@ BarWidget {
     readonly property string role: setting("role", "tabs")
     readonly property string appId: setting("appId", "dev.omaweb.prototype")
     readonly property int titleWidth: Number(setting("titleWidth", 200))
+    readonly property int addressWidth: Number(setting("addressWidth", 360))
+    readonly property bool showNavigation: setting("navigation", true) !== false
     readonly property int shortTitleWidth: 80
     readonly property real maxShare: Number(setting("maxWidthPercent", 40)) / 100
     readonly property string socketPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp")
@@ -111,7 +114,7 @@ BarWidget {
     readonly property real fixedLength: {
         if (!live || role !== "tabs")
             return 0;
-        var total = along(spacesGroup) + along(beforeRow) + along(spaceChip) + along(pinsGroup) + along(afterRow) + along(
+        var total = along(navGroup) + along(spacesGroup) + along(beforeRow) + along(spaceChip) + along(pinsGroup) + along(afterRow) + along(
                     statusMark) + gap * 4;
         if (!vertical && !flat)
             total += Math.min(titleWidth, titleMetrics.advanceWidth) + 12;
@@ -231,6 +234,64 @@ BarWidget {
         }
 
         // ----- role: tabs
+
+        // ----- back, forward and reload: first in the tabs widget, or alone
+
+        Item {
+            id: navGroup
+            visible: root.role === "navigation" || (root.role === "tabs" && root.showNavigation)
+            implicitWidth: root.vertical ? root.barSize - 4 : navRow.implicitWidth + Style.space(6)
+            implicitHeight: root.vertical ? navRow.implicitHeight + Style.space(6) : root.barSize - 6
+            Rectangle {
+                anchors.fill: parent
+                radius: 6
+                visible: !root.flat
+                color: Qt.alpha(root.fg, 0.07)
+            }
+            Grid {
+                id: navRow
+                anchors.centerIn: parent
+                columns: root.vertical ? 1 : 100
+                verticalItemAlignment: Grid.AlignVCenter
+                horizontalItemAlignment: Grid.AlignHCenter
+                BarText {
+                    text: "󰁍"
+                    dim: !(root.live && root.browser.nav.canBack)
+                    tooltip: "Back"
+                    onClicked: root.send({
+                                             do: "back"
+                                         })
+                }
+                BarText {
+                    text: "󰁔"
+                    dim: !(root.live && root.browser.nav.canForward)
+                    tooltip: "Forward"
+                    onClicked: root.send({
+                                             do: "forward"
+                                         })
+                }
+                BarText {
+                    text: "󰑐"
+                    tooltip: "Reload"
+                    onClicked: root.send({
+                                             do: "reload"
+                                         })
+                }
+                BarText {
+                    visible: root.role === "navigation"
+                    text: root.flat && !root.vertical && root.live ? "󰌾  " + root.browser.nav.host : "󰍉"
+                    tooltip: root.live ? (root.flat ? root.activeTitle : "Omnibar: " + root.browser.nav.host) :
+                                         "Omnibar"
+                    onClicked: root.send({
+                                             do: "omnibar"
+                                         })
+                }
+            }
+        }
+
+        Divider {
+            visible: root.role === "tabs" && root.showNavigation
+        }
 
         // Capsule and labelled: every Space first, in a group of its own.
         Item {
@@ -408,57 +469,73 @@ BarWidget {
             onClicked: root.openPopup("status", statusMark)
         }
 
-        // ----- role: navigation, in a capsule of its own
-
+        // ----- role: address, the page at a fixed width so nothing around it moves
         Item {
-            visible: root.role === "navigation"
-            implicitWidth: root.vertical ? root.barSize - 4 : navRow.implicitWidth + Style.space(6)
-            implicitHeight: root.vertical ? navRow.implicitHeight + Style.space(6) : root.barSize - 6
+            id: address
+            visible: root.role === "address"
+            implicitWidth: root.vertical ? root.barSize - 4 : root.addressWidth
+            implicitHeight: root.vertical ? 22 : root.barSize - 8
+
             Rectangle {
                 anchors.fill: parent
-                radius: 6
-                visible: !root.flat
-                color: Qt.alpha(root.fg, 0.07)
+                radius: 4
+                color: Qt.alpha(root.fg, addressMouse.containsMouse ? 0.1 : 0)
             }
-            Grid {
-                id: navRow
+            Row {
+                visible: !root.vertical
                 anchors.centerIn: parent
-                columns: root.vertical ? 1 : 100
-                verticalItemAlignment: Grid.AlignVCenter
-                horizontalItemAlignment: Grid.AlignHCenter
-                BarText {
-                    text: "󰁍"
-                    dim: !(root.live && root.browser.nav.canBack)
-                    tooltip: "Back"
-                    onClicked: root.send({
-                                             do: "back"
-                                         })
+                width: Math.min(implicitWidth, parent.width - 12)
+                spacing: Style.space(6)
+                Text {
+                    id: lock
+                    text: "󰌾"
+                    color: root.fg
+                    opacity: 0.6
+                    font.family: root.font
+                    font.pixelSize: Style.font.body
                 }
-                BarText {
-                    text: "󰁔"
-                    dim: !(root.live && root.browser.nav.canForward)
-                    tooltip: "Forward"
-                    onClicked: root.send({
-                                             do: "forward"
-                                         })
+                Text {
+                    id: hostText
+                    text: root.live ? root.browser.nav.host : ""
+                    color: root.fg
+                    font.family: root.font
+                    font.pixelSize: Style.font.body
                 }
-                BarText {
-                    text: "󰑐"
-                    tooltip: "Reload"
-                    onClicked: root.send({
-                                             do: "reload"
-                                         })
+                Text {
+                    width: Math.min(implicitWidth, parent.width - lock.implicitWidth - hostText.implicitWidth
+                                    - Style.space(12))
+                    text: root.activeTitle
+                    textFormat: Text.PlainText
+                    elide: Text.ElideRight
+                    color: root.fg
+                    opacity: 0.5
+                    font.family: root.font
+                    font.pixelSize: Style.font.body
                 }
-                BarText {
-                    text: root.flat && !root.vertical && root.live ? "󰌾  " + root.browser.nav.host : "󰍉"
-                    tooltip: root.live ? (root.flat ? root.activeTitle : "Omnibar: " + root.browser.nav.host) :
-                                         "Omnibar"
-                    onClicked: root.send({
-                                             do: "omnibar"
-                                         })
-                }
+            }
+            Text {
+                visible: root.vertical
+                anchors.centerIn: parent
+                text: "󰌾"
+                color: root.fg
+                font.family: root.font
+                font.pixelSize: Style.font.body
+            }
+            MouseArea {
+                id: addressMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.send({
+                                         do: "omnibar"
+                                     })
+                onEntered: if (root.bar)
+                               root.bar.showTooltip(address, root.activeTitle)
+                onExited: if (root.bar)
+                              root.bar.hideTooltip(address)
             }
         }
+
     }
 
     // ----- pieces
