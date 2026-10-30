@@ -1,37 +1,37 @@
 {
   "omnibar": {
-    "length": 8.678
+    "length": 8.71
   },
   "keyboard": {
-    "length": 4.13
+    "length": 4.128
   },
   "spaces": {
-    "length": 6.78
+    "length": 6.769
   },
   "pros": {
-    "length": 4.531
+    "length": 4.526
   },
   "blocking": {
-    "length": 10.345
+    "length": 10.356
   },
   "theme": {
-    "length": 10.745,
+    "length": 15.533,
     "themes": [
       [
         0.0,
         "ethereal-nebula-silver"
       ],
       [
-        3.383,
-        "lumon"
+        4.219,
+        "retro-82"
       ],
       [
-        6.583,
+        9.686,
         "ethereal-nebula-silver"
       ]
     ]
   },
   "agents": {
-    "length": 10.565
+    "length": 10.701
   }
 }
