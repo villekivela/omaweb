@@ -770,8 +770,11 @@ if (drive) {
         look(dimming(clock()), sunNow + (rising(clock()) - sunNow) * 0.3);
       }
       if (index !== null) {
-        hush(0);
-        look(0, 1);
+        // The drop ends the hush and the dim at once; the first tick, into the intro, does not.
+        if (index > 0) {
+          hush(0);
+          look(0, 1);
+        }
         leave();
         glide(index, undefined, before === 0 && index === 1);
         undo = performs.get(stops[index])?.(stops[index]) ?? (() => {});

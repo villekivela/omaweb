@@ -369,8 +369,9 @@ export function createCrtRoad(p) {
       const g = geometry(input.width * p.pitch, input.height * p.pitch, width, p.horizon.at);
       const c = colours(input, p.night);
       const s = input.state;
-      // The still layer is drawn again as the sun climbs, in fiftieths of its height.
-      const climb = Math.round(input.rise * 50);
+      // The still layer is drawn again as the sun climbs, in two-hundredths of its height, so the
+      // climb is smooth rather than stepped.
+      const climb = Math.round(input.rise * 200);
       if (!s.still || s.climb !== climb) {
         s.climb = climb;
         s.still ??= document.createElement("canvas");
@@ -378,7 +379,7 @@ export function createCrtRoad(p) {
         s.still.height = input.height;
         const layer = s.still.getContext("2d");
         layer.scale(1 / p.pitch, 1 / p.pitch);
-        still(layer, g, c, Number(input.options.bands), climb / 50);
+        still(layer, g, c, Number(input.options.bands), climb / 200);
       }
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.drawImage(s.still, 0, 0);
