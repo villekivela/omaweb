@@ -2330,6 +2330,9 @@ def framed(entry: dict, stage: Stage, drawn: Pointer, pointer_input: str | None,
 # Frames of one change are less than a half second apart, and the next change is further off.
 ONSET_SHIFT = 0.1
 ONSET_APART = 0.5
+# The page's change starts this far ahead of the sweep's first frame, which is what reads as in step
+# with it once the page has drawn its own (found by eye against the film, #903).
+ONSET_LEAD = 0.05
 
 
 def chroma_shifts(raw: Path, start: float, end: float,
@@ -2360,9 +2363,10 @@ def theme_onsets(themes: list, shifts: list[tuple[float, float]], length: float)
     """`themes` with each change after the first moved to when the recording first shows it.
 
     The recorder marks a change when it saw it, which on the desktop is some 2.7 s after the
-    recording shows it, so each change takes the start of its own run of frames in `shifts`, in
-    order. On the desktop the window repaints at once and the desktop's sweep follows, and the
-    page's reveal is the sweep's, so `shifts` come from the wallpaper above the window. A beat whose recording shows another number of changes keeps the times it was marked
+    recording shows it, so each change takes the start of its own run of frames in `shifts`, less
+    `ONSET_LEAD`, in order. On the desktop the window repaints at once and the desktop's sweep
+    follows, and the page's reveal is the sweep's, so `shifts` come from the wallpaper above the
+    window. A beat whose recording shows another number of changes keeps the times it was marked
     with. The first theme is the beat's own, from its start.
     """
     runs: list[float] = []
@@ -2375,7 +2379,8 @@ def theme_onsets(themes: list, shifts: list[tuple[float, float]], length: float)
         previous = at
     if len(runs) != len(themes) - 1:
         return themes
-    return [themes[0]] + [[round(at, 3), name] for at, (_, name) in zip(runs, themes[1:])]
+    return [themes[0]] + [[round(at - ONSET_LEAD, 3), name]
+                          for at, (_, name) in zip(runs, themes[1:])]
 
 
 def cut_clips(out: Path, marks: list[dict], stage: Stage, drawn: Pointer) -> None:
