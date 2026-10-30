@@ -70,8 +70,9 @@ export function wornAt(time, themes) {
 // The reveal of a theme the film changes, as Omarchy's desktop draws it
 // (/usr/share/omarchy/shell/plugins/background/Background.qml): the new theme opens from a slanted
 // line through the middle of the viewport and widens to both edges. The band's edges lean by
-// `SLANT`, x moving that many px per px down, over `REVEAL_MS`, eased in and out as a cubic.
-export const SLANT = -0.18;
+// `SLANT`, x moving that many px per px down, over `REVEAL_MS`, eased in and out as a cubic (the
+// standard `cubic-bezier` of ease-in-out cubic, which QML's `InOutCubic` is a close match for).
+const SLANT = -0.18;
 export const REVEAL_MS = 420;
 export const REVEAL_EASING = "cubic-bezier(0.65, 0, 0.35, 1)";
 

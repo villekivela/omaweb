@@ -498,12 +498,21 @@ if (drive) {
     // The theme the film changes to opens with the desktop's diagonal reveal, a View Transition
     // whose new view grows from a slanted line through the viewport's middle. With reduced motion,
     // or no View Transitions, it changes at once, as does a theme the reader picks.
+    // The theme a reveal is on its way to: the page takes it a frame after the transition starts,
+    // and until then `follow` would see the old theme and start the reveal again.
+    let revealing = "";
     const wear = (worn, reveal = false) => {
+      if (revealing === worn) return;
+      revealing = "";
       if (!reveal || still.matches || !document.startViewTransition) return dress(worn);
+      revealing = worn;
       const transition = document.startViewTransition(() => dress(worn));
+      transition.finished.finally(() => {
+        if (revealing === worn) revealing = "";
+      });
       transition.ready
         .then(() => {
-          const { clientWidth: width, clientHeight: height } = root;
+          const { innerWidth: width, innerHeight: height } = window;
           root.animate(
             { clipPath: [revealClip(0, width, height), revealClip(1, width, height)] },
             {

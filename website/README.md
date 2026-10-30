@@ -218,9 +218,8 @@ wears each from its frame on, its picker naming it, and the reader's theme again
 longer read. A change the clip makes opens with the desktop's diagonal reveal, a View Transition
 whose new view's `clip-path` grows from a slanted centre line to the viewport's edges (`revealClip`
 in `highway.js`); with reduced motion, or no View Transitions, it is at once, as is a theme the
-reader picks. The clip's times are those at which the recording's own change begins to show. Lumon,
-which the desktop film changes to, is among the page's themes for that, with no swatch. Every card
-and the install catch the road's light as the Omnibar does.
+reader picks. Lumon, which the desktop film changes to, is among the page's themes for that, with no
+swatch. Every card and the install catch the road's light as the Omnibar does.
 
 ## The release pages
 
