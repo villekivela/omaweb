@@ -478,14 +478,18 @@ if (drive) {
         render();
       })
       .catch(() => {});
+    // Whether the page has a rule for a theme: its ground on a probe that inherits none, so that
+    // the theme the page already wears, which the probe would inherit, still counts as styled.
+    const bare = document.createElement("i");
+    bare.hidden = true;
+    bare.style.setProperty("--bg", "initial");
     const probe = document.createElement("i");
-    probe.hidden = true;
-    drive.append(probe);
-    const ground = (worn) => {
+    bare.append(probe);
+    drive.append(bare);
+    const styled = (worn) => {
       probe.dataset.theme = worn;
-      return getComputedStyle(probe).getPropertyValue("--bg").trim();
+      return getComputedStyle(probe).getPropertyValue("--bg").trim() !== "";
     };
-    const styled = (worn) => ground(worn) !== ground("");
     const named = picker.querySelector(".themes__name");
     const dress = (worn) => {
       root.dataset.theme = worn;
