@@ -1784,7 +1784,7 @@ html.highway {
   left: 50%;
   width: max-content;
   max-width: 90vw;
-  margin: 0 0 28px;
+  margin: 0 0 44px;
   padding: 0;
   border: 0;
   font-size: clamp(30px, min(4.2vw, 6.4svh), 58px);
