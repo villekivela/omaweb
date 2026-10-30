@@ -273,11 +273,33 @@ if (drive) {
   let theme = document.documentElement.dataset.theme;
   const picker = drive.querySelector(".themes");
   const swatches = [...picker.querySelectorAll("[data-theme-choice]")];
+  // A change of theme opens with the desktop's diagonal reveal, a View Transition whose new view
+  // grows from a slanted line through the viewport's middle: the film's, and the reader's own. With
+  // reduced motion, or no View Transitions, `update` runs at once. Resolves when it is over.
+  const still = matchMedia("(prefers-reduced-motion: reduce)");
+  const withReveal = async (update) => {
+    if (still.matches || !document.startViewTransition) return update();
+    const transition = document.startViewTransition(update);
+    transition.ready
+      .then(() => {
+        const { innerWidth: width, innerHeight: height } = window;
+        document.documentElement.animate(
+          { clipPath: [revealClip(0, width, height), revealClip(1, width, height)] },
+          {
+            duration: REVEAL_MS,
+            easing: REVEAL_EASING,
+            fill: "forwards",
+            pseudoElement: "::view-transition-new(root)",
+          },
+        );
+      })
+      .catch(() => {});
+    await transition.finished.catch(() => {});
+  };
   // The pick lasts the visit, so the release pages open in it, and a new visit opens in the
   // markup's theme again; theme.js applies it.
-  const paint = (next, remember = true) => {
+  const paint = (next, remember = true, reveal = false) => {
     theme = next;
-    document.documentElement.dataset.theme = theme;
     if (remember) {
       try {
         sessionStorage.setItem("omaweb-theme", theme);
@@ -285,17 +307,23 @@ if (drive) {
         // Storage can be blocked; the pick then lasts as long as the page.
       }
     }
-    for (const swatch of swatches) {
-      const on = swatch.dataset.themeChoice === theme;
-      swatch.setAttribute("aria-pressed", String(on));
-      if (on) picker.querySelector(".themes__name").textContent = swatch.dataset.name;
-    }
-    for (const image of captures) {
-      image.src = `assets/shots/${theme}/${image.dataset.shot}.webp`;
-    }
+    const dress = () => {
+      document.documentElement.dataset.theme = theme;
+      for (const swatch of swatches) {
+        const on = swatch.dataset.themeChoice === theme;
+        swatch.setAttribute("aria-pressed", String(on));
+        if (on) picker.querySelector(".themes__name").textContent = swatch.dataset.name;
+      }
+      for (const image of captures) {
+        image.src = `assets/shots/${theme}/${image.dataset.shot}.webp`;
+      }
+      // The reveal waits for the new captures, so it does not open on empty frames.
+      return Promise.all(captures.map((image) => image.decode().catch(() => {})));
+    };
+    return reveal ? withReveal(dress) : dress();
   };
   for (const swatch of swatches) {
-    swatch.addEventListener("click", () => paint(swatch.dataset.themeChoice));
+    swatch.addEventListener("click", () => paint(swatch.dataset.themeChoice, true, true));
   }
   picker.hidden = false;
   paint(theme, false);
@@ -389,7 +417,8 @@ if (drive) {
     } else if (event.key.toLowerCase() === "t") {
       const at = swatches.findIndex((swatch) => swatch.dataset.themeChoice === theme);
       const by = event.shiftKey ? -1 : 1;
-      paint(swatches[(at + by + swatches.length) % swatches.length].dataset.themeChoice);
+      const next = swatches[(at + by + swatches.length) % swatches.length];
+      paint(next.dataset.themeChoice, true, true);
     }
   });
 
@@ -498,36 +527,17 @@ if (drive) {
         swatch?.dataset.name ??
         worn.replace(/(^|-)([a-z])/g, (_, gap, letter) => (gap ? " " : "") + letter.toUpperCase());
     };
-    const still = matchMedia("(prefers-reduced-motion: reduce)");
-    // The theme the film changes to opens with the desktop's diagonal reveal, a View Transition
-    // whose new view grows from a slanted line through the viewport's middle. With reduced motion,
-    // or no View Transitions, it changes at once, as does a theme the reader picks.
     // The theme a reveal is on its way to: the page takes it a frame after the transition starts,
     // and until then `follow` would see the old theme and start the reveal again.
     let revealing = "";
     const wear = (worn, reveal = false) => {
       if (revealing === worn) return;
       revealing = "";
-      if (!reveal || still.matches || !document.startViewTransition) return dress(worn);
+      if (!reveal) return dress(worn);
       revealing = worn;
-      const transition = document.startViewTransition(() => dress(worn));
-      transition.finished.finally(() => {
+      withReveal(() => dress(worn)).finally(() => {
         if (revealing === worn) revealing = "";
       });
-      transition.ready
-        .then(() => {
-          const { innerWidth: width, innerHeight: height } = window;
-          root.animate(
-            { clipPath: [revealClip(0, width, height), revealClip(1, width, height)] },
-            {
-              duration: REVEAL_MS,
-              easing: REVEAL_EASING,
-              fill: "forwards",
-              pseudoElement: "::view-transition-new(root)",
-            },
-          );
-        })
-        .catch(() => {});
     };
     let following = 0;
     let rolled = -1;
