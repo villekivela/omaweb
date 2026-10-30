@@ -363,32 +363,43 @@ def hover_point(beat: str, held: dict) -> tuple[float, float]:
             (held["y"] + held["height"] / 2) / held["windowHeight"])
 
 
-def expect_repainted(beat: str, before: tuple[int, int, int], after: tuple[int, int, int],
-                     old: tuple[int, int, int], new: tuple[int, int, int]) -> None:
-    """A sample of the chrome was nearer the old theme's colour and is now nearer the new one's.
+# How far the chrome's colour has to move, in 8-bit RGB, for a theme change to count as shown. The
+# selected tab row moved some 22 from Ethereal Nebula Silver to Lumon, with about 1 of noise.
+REPAINT_SHIFT = 8
 
-    Nearer rather than equal: the window is drawn at its theme's opacity over the compositor's
-    ground, so what reaches the frame is a blend of the colour the theme names.
+
+def shift(one: tuple[int, int, int], other: tuple[int, int, int]) -> float:
+    """How far apart two samples of the chrome are, in 8-bit RGB."""
+    return sum((x - y) ** 2 for x, y in zip(one, other)) ** 0.5
+
+
+def expect_repainted(beat: str, before: tuple[int, int, int],
+                     after: tuple[int, int, int]) -> None:
+    """A sample of the chrome moved when the theme was changed.
+
+    Moved rather than matched: the window is drawn at its theme's opacity over the compositor's
+    ground, and the selected tab row mixes the theme's accent into its background, so what reaches
+    the frame is no colour the theme names.
     """
-
-    def distance(a: tuple[int, int, int], b: tuple[int, int, int]) -> int:
-        return sum((x - y) ** 2 for x, y in zip(a, b))
-
-    if distance(before, old) >= distance(before, new):
-        raise BeatMissed(beat, f"the chrome was {before} before the change, not the old theme")
-    if distance(after, new) >= distance(after, old):
-        raise BeatMissed(beat, f"the chrome is {after} after the change, not the new theme")
+    if shift(before, after) < REPAINT_SHIFT:
+        raise BeatMissed(beat, f"the chrome stayed at {after} from {before} through the change")
 
 
-# Where the Theme beat samples the chrome, as a fraction of the frame: in the sidebar, which is the
-# theme's darkest background.
-CHROME_SAMPLE = (0.01, 0.5)
+# Where the Theme beat samples the chrome, as fractions of the frame: left, top, width and height of
+# a box in the sidebar's selected tab row, whose highlight is mixed from the theme's accent, so a
+# theme whose background is near the desktop's, as Retro 82's navy is Ethereal's, still shows.
+CHROME_SAMPLE = (0.03, 0.16, 0.15, 0.02)
 
 
 def chrome_sample(frame: bytes) -> tuple[int, int, int]:
-    """The chrome's colour in a frame, at the same place whatever size the frame was taken at."""
+    """The chrome's colour in a frame: the mean of the box `CHROME_SAMPLE` names, wherever the
+    frame was taken at any size."""
     width, height = (int(field) for field in frame.split(maxsplit=3)[1:3])
-    return pixel(frame, int(width * CHROME_SAMPLE[0]), int(height * CHROME_SAMPLE[1]))
+    left, top, wide, high = (round(fraction * side) for fraction, side in
+                             zip(CHROME_SAMPLE, (width, height, width, height)))
+    pixels = [pixel(frame, x, y) for y in range(top, top + high, 2)
+              for x in range(left, left + wide, 2)]
+    return tuple(round(sum(channel) / len(pixels)) for channel in zip(*pixels))
 
 
 def pixel(frame: bytes, x: int, y: int) -> tuple[int, int, int]:
@@ -978,13 +989,6 @@ def reported(server: FixtureServer, host: str, path: str, since: int = 0):
                     if report["host"] == host and report["path"] == path]
 
 
-def nearer(sample: tuple[int, int, int], one: tuple[int, int, int],
-           other: tuple[int, int, int]) -> bool:
-    """Whether a sample of the chrome is nearer the colour `one` than `other`."""
-    return (sum((x - y) ** 2 for x, y in zip(sample, one))
-            < sum((x - y) ** 2 for x, y in zip(sample, other)))
-
-
 # How long a theme has to show in the chrome once it is put on, and how often the beat looks.
 REPAINT_WITHIN = 3.0
 REPAINT_LOOK = 0.05
@@ -1006,19 +1010,17 @@ def play_theme(beat: Beat, recorder: Recorder, worn: list[Theme], wear, mark) ->
     # Long enough to read the caption over the old theme, so the change it names comes after it,
     # on the same frame.
     time.sleep(THEME_HOLD)
-    for old, new in zip(worn, worn[1:]):
-        old_colour = theme_colour(old.colours, "dark_background")
-        new_colour = theme_colour(new.colours, "dark_background")
+    for new in worn[1:]:
         put_on = recorder.now()
         wear(new)
         while True:
             # The moment a frame is asked for is the moment it shows.
             at = recorder.now()
             now = chrome_sample(frame(recorder.geometry))
-            if nearer(now, new_colour, old_colour) or at - put_on >= REPAINT_WITHIN:
+            if shift(now, was) >= REPAINT_SHIFT or at - put_on >= REPAINT_WITHIN:
                 break
             time.sleep(REPAINT_LOOK)
-        expect_repainted(beat.name, was, now, old_colour, new_colour)
+        expect_repainted(beat.name, was, now)
         themes.append([round(at - start, 3), new.name])
         time.sleep(max(0.0, REPAINT_WITHIN - (recorder.now() - put_on)))
         was = now

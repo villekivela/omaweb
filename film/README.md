@@ -86,8 +86,10 @@ film's browser finds Omarchy's `~/.local/state/omarchy/current` through its own 
 as the reader's Omaweb does. The Theme beat switches the desktop's theme, as a reader does, with
 `omarchy-theme-set retro-82`, then switches it back to the theme the run started with, so the beat
 shows the real switch, wallpaper and blur included, and most of the film is in the reader's theme.
-Notifications are already held, so the switch raises none on camera. The beat checks the chrome
-against each theme's `colors.toml`.
+Notifications are already held, so the switch raises none on camera. The beat checks that the
+chrome's colour moved with each switch, in the sidebar's selected tab row, whose highlight is mixed
+from the theme's accent: a theme whose background is near the desktop's, as Retro 82's navy is
+Ethereal's, still shows there.
 
 ```sh
 scripts/record_film.py desktop --change-to gruvbox

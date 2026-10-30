@@ -378,17 +378,11 @@ class BeatChecks(unittest.TestCase):
                           ("adsprout.test",))
 
     def test_a_theme_change_moves_the_chrome_to_the_new_theme(self):
-        retro, tokyo = (3, 18, 34), (19, 20, 28)
-        film.expect_repainted("Theme", (4, 18, 33), (19, 21, 29), retro, tokyo)
+        # The selected tab row, tinted by Ethereal's violet and then Retro 82's orange.
+        film.expect_repainted("Theme", (64, 67, 88), (120, 82, 70))
 
     def test_chrome_that_kept_its_colour_misses_the_theme_beat(self):
-        retro, tokyo = (3, 18, 34), (19, 20, 28)
-        self.assertMissed("Theme", film.expect_repainted, (4, 18, 33), (4, 18, 33), retro, tokyo)
-
-    def test_chrome_that_was_never_in_the_first_theme_misses_the_theme_beat(self):
-        retro, tokyo = (3, 18, 34), (19, 20, 28)
-        self.assertMissed("Theme", film.expect_repainted, (200, 200, 200), (19, 21, 29),
-                          retro, tokyo)
+        self.assertMissed("Theme", film.expect_repainted, (64, 67, 88), (66, 68, 90))
 
     def test_link_hints_are_a_page_that_reported_its_hints_on_show(self):
         reports = [{"host": "quillstack.test", "path": "/docs/tracing/", "hints": 0},
@@ -1454,16 +1448,24 @@ class DesktopRecording(unittest.TestCase):
         self.assertEqual(film.frame_command(self.FRAME),
                          ["grim", "-g", "480,283 1600x900", "-t", "ppm", "-"])
 
-    def test_the_chrome_is_sampled_at_the_same_place_in_a_frame_of_any_size(self):
-        def ppm(width, height, at):
+    def test_the_chrome_is_sampled_across_the_selected_tab_row_in_a_frame_of_any_size(self):
+        def ppm(width, height):
+            """A frame black but for the selected tab row's box, half of it one colour and half
+            another."""
             pixels = bytearray(width * height * 3)
-            start = (at[1] * width + at[0]) * 3
-            pixels[start:start + 3] = bytes((10, 20, 30))
+            left, top, wide, high = (round(f * side) for f, side in
+                                     zip(film.CHROME_SAMPLE, (width, height, width, height)))
+            for y in range(top, top + high):
+                for x in range(left, left + wide):
+                    colour = (10, 20, 30) if x < left + wide // 2 else (30, 40, 50)
+                    pixels[(y * width + x) * 3:(y * width + x) * 3 + 3] = bytes(colour)
             return f"P6 {width} {height} 255\n".encode() + bytes(pixels)
 
-        # A hundredth of the way in and half way down: 24, 675 of the cage's 2400 by 1350.
-        self.assertEqual(film.chrome_sample(ppm(2400, 1350, (24, 675))), (10, 20, 30))
-        self.assertEqual(film.chrome_sample(ppm(1600, 900, (16, 450))), (10, 20, 30))
+        for width, height in ((2400, 1350), (1600, 900)):
+            with self.subTest(size=(width, height)):
+                sampled = film.chrome_sample(ppm(width, height))
+                for got, mean in zip(sampled, (20, 30, 40)):
+                    self.assertAlmostEqual(got, mean, delta=1)
 
     def test_a_recording_at_the_films_size_is_cut_as_it_is(self):
         self.assertEqual(film.staging(film.OUTPUT_MODE),
