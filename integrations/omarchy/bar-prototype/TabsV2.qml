@@ -576,16 +576,17 @@ BarWidget {
                 font.bold: true
             }
         }
-        // Agent stripe under the icon.
+        // Agent mark: a dot at the top left, opposite the sound mark.
         Rectangle {
             visible: icon.tab && icon.tab.agent
-            anchors.top: parent.bottom
-            anchors.topMargin: 2
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: parent.width
-            height: 2
-            radius: 1
+            x: -3
+            y: -3
+            width: 6
+            height: 6
+            radius: 3
             color: Commons.Color.accent
+            border.width: 1
+            border.color: Commons.Color.background
         }
         // Sound or popped-out mark at the top right.
         Text {
@@ -626,9 +627,8 @@ BarWidget {
         // Flat: the active tab is underlined in its Space's colour.
         Rectangle {
             visible: root.flat && cell.isActive
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: -1
+            x: root.vertical ? site.x - 5 : site.x
+            y: root.vertical ? site.y : site.y + site.height + 3
             width: root.vertical ? 2 : root.iconLength
             height: root.vertical ? root.iconLength : 2
             radius: 1
