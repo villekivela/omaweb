@@ -93,6 +93,13 @@ export function cues(count) {
   );
 }
 
+// Where a press or a drag at `x` along the journey box's line, `{ left, width }`, puts the reader
+// on a road of `count` stops: in stops, held to the first and the last.
+export function journeyAt(x, { left, width }, count) {
+  if (!width) return 0;
+  return Math.min(1, Math.max(0, (x - left) / width)) * (count - 1);
+}
+
 // The stop the song has reached at `time`: the last whose cue has come.
 export function stopAt(time, times) {
   let index = 0;

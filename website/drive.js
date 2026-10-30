@@ -16,6 +16,7 @@ import {
   dimming,
   glare,
   introBar,
+  journeyAt,
   keyAnswer,
   IDLE_DIM,
   LAUNCH,
@@ -667,6 +668,8 @@ if (drive) {
     };
 
     let reading = 0;
+    // The journey box follows the scroll: set once the box is made, below.
+    let follow = () => {};
     const render = () => {
       const at = progress();
       stops.forEach((stop, index) => {
@@ -684,6 +687,7 @@ if (drive) {
         if (place.reading) reading = index;
       });
       roll(reading);
+      follow(at, reading);
     };
     let frame = 0;
     addEventListener(
@@ -757,30 +761,84 @@ if (drive) {
     let timerStart = 0;
     const clock = () => (timed ? (performance.now() - timerStart) / 1000 : radio.currentTime);
 
-    const chip = document.createElement("div");
-    chip.className = "cruise";
-    chip.hidden = true;
-    chip.innerHTML = `<span class="cruise__name"></span
-      ><button class="cruise__resume" type="button">Resume cruise</button
-      ><button class="cruise__stop" type="button">Stop <span class="cruise__key">Esc</span></button
-      ><span class="cruise__song" aria-hidden="true"><i></i></span>`;
-    document.body.append(chip);
-    const where = chip.querySelector(".cruise__name");
-    const song = chip.querySelector(".cruise__song");
-    const resumeButton = chip.querySelector(".cruise__resume");
-    const nameOf = (index) =>
-      index === 0 ? "Start" : stops[index].querySelector("h2").textContent.replace(/\.$/, "");
-    const show = () => {
-      chip.hidden = cruise.state === "off";
-      resumeButton.hidden = cruise.state !== "held";
-      where.textContent =
-        cruise.state === "held"
-          ? "You have the wheel"
-          : cruise.state === "parked"
-            ? "End of the road"
-            : nameOf(Math.max(0, cruise.current));
-      song.style.setProperty("--song", Math.min(1, clock() / times[times.length - 1]).toFixed(3));
+    // The journey box, at the foot of the drive the whole way: the words of the stop being read,
+    // as a film's subtitles, cruise control's play, resume and stop, and a line of the stops that
+    // is the page's scrollbar. A press on a stop's mark drives there; a press or a drag along the
+    // line goes there at once.
+    const box = document.createElement("div");
+    box.className = "journey";
+    box.innerHTML = `<div class="journey__words" aria-live="polite"
+        ><strong class="journey__title"></strong> <span class="journey__text"></span></div
+      ><div class="journey__controls"
+        ><button class="journey__play" type="button">Drive</button
+        ><button class="journey__resume" type="button">Resume cruise</button
+        ><button class="journey__stop" type="button"
+          >Stop <span class="journey__key">Esc</span></button
+      ></div
+      ><div class="journey__line"><span class="journey__fill" aria-hidden="true"></span></div>`;
+    document.body.append(box);
+    const title = box.querySelector(".journey__title");
+    const text = box.querySelector(".journey__text");
+    const playButton = box.querySelector(".journey__play");
+    const resumeButton = box.querySelector(".journey__resume");
+    const stopButton = box.querySelector(".journey__stop");
+    const line = box.querySelector(".journey__line");
+    // Each stop's words: the Start page's way in, each card's title and text, the install's.
+    const words = stops.map((stop, index) => {
+      if (index === 0)
+        return ["Start", "Press Drive to go through Omaweb with the radio on, or scroll."];
+      const heading = stop.querySelector("h2");
+      const body = stop.querySelector(":scope > p, .install__lede");
+      return [heading.textContent.replace(/\.$/, ""), body?.innerHTML.trim() ?? ""];
+    });
+    stops.forEach((stop, index) => {
+      const mark = document.createElement("button");
+      mark.type = "button";
+      mark.className = "journey__mark";
+      mark.style.setProperty("--at", String(index / (stops.length - 1)));
+      mark.setAttribute("aria-label", words[index][0]);
+      mark.addEventListener("click", (event) => {
+        event.stopPropagation();
+        hold();
+        glide(index, 1600);
+      });
+      line.append(mark);
+    });
+    let said = -1;
+    follow = (at, index) => {
+      box.style.setProperty("--journey", String(Math.min(1, Math.max(0, at / (stops.length - 1)))));
+      if (index === said) return;
+      said = index;
+      [title.textContent, text.innerHTML] = words[index];
+      line.querySelectorAll(".journey__mark").forEach((mark, place) => {
+        mark.toggleAttribute("data-passed", place <= index);
+      });
     };
+    follow(progress(), reading);
+    // A press or a drag along the line puts the reader there at once.
+    const scrub = (event) => {
+      const place = journeyAt(event.clientX, line.getBoundingClientRect(), stops.length);
+      scrollTo({ top: base + place * length, behavior: "instant" });
+    };
+    line.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || event.target.closest(".journey__mark")) return;
+      line.setPointerCapture(event.pointerId);
+      hold();
+      root.style.scrollSnapType = "none";
+      scrub(event);
+    });
+    line.addEventListener("pointermove", (event) => {
+      if (line.hasPointerCapture(event.pointerId)) scrub(event);
+    });
+    line.addEventListener("pointerup", () => {
+      root.style.scrollSnapType = "";
+    });
+    const show = () => {
+      playButton.hidden = cruise.state !== "off";
+      resumeButton.hidden = cruise.state !== "held";
+      stopButton.hidden = cruise.state === "off";
+    };
+    show();
 
     // What a stop does as cruise control reaches it: Keyboard first lights its keys. It gives back
     // how to undo it.
@@ -940,13 +998,14 @@ if (drive) {
     ignition.hidden = false;
     ignition.addEventListener("click", ignite);
     resumeButton.addEventListener("click", resume);
-    chip.querySelector(".cruise__stop").addEventListener("click", stopAll);
+    stopButton.addEventListener("click", stopAll);
+    playButton.addEventListener("click", ignite);
 
-    // The reader's own hand, before the page's keys act on it. The ignition, the chip, the radio
-    // and the Omnibar's rows are cruise control's own controls or drive to a stop themselves.
+    // The reader's own hand, before the page's keys act on it. The ignition, the journey box, the
+    // radio and the Omnibar's rows are cruise control's own controls or drive to a stop themselves.
     const own = (target) =>
       target instanceof Element &&
-      target.closest(".omnibar__ignite, .cruise, .radio-toggle, .omnibar__rows");
+      target.closest(".omnibar__ignite, .journey, .radio-toggle, .omnibar__rows");
     for (const type of ["wheel", "touchstart", "pointerdown"]) {
       addEventListener(type, (event) => event.isTrusted && !own(event.target) && hold(), {
         capture: true,

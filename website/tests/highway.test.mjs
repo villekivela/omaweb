@@ -14,6 +14,7 @@ import {
   dimming,
   glare,
   introBar,
+  journeyAt,
   keyAnswer,
   launch,
   nearestStop,
@@ -292,4 +293,16 @@ test("streaking: none before the drop, full at it, gone a second after", () => {
   assert.ok(Math.abs(streaking(drop + 0.5) - 0.25) < 1e-9);
   assert.equal(streaking(drop + 1), 0);
   assert.equal(streaking(drop + 9), 0);
+});
+
+// The journey box's line is the page's scrollbar: a press or a drag at `x` along it is a place on
+// the road, in stops, the first at its left end and the install at its right.
+test("journeyAt: a place along the line is a place on the road, held to its ends", () => {
+  const line = { left: 100, width: 900 };
+  assert.equal(journeyAt(100, line, 10), 0);
+  assert.equal(journeyAt(1000, line, 10), 9);
+  assert.equal(journeyAt(550, line, 10), 4.5);
+  assert.equal(journeyAt(20, line, 10), 0);
+  assert.equal(journeyAt(4000, line, 10), 9);
+  assert.equal(journeyAt(500, { left: 0, width: 0 }, 10), 0);
 });
