@@ -292,10 +292,12 @@ export function createCrtRoad(p) {
     }
 
     // A shooting star in some of its slots, for under a second.
+    // A first one can be asked for early, at `firstAt` seconds, before the slots' own.
     const star = p.shootingStar;
-    const slot = Math.floor(input.time / star.every);
-    const into = input.time - slot * star.every;
-    if (!input.reducedMotion && into < star.lasts && hash(slot) > star.chance) {
+    const early = input.time >= star.firstAt && input.time < star.firstAt + star.lasts;
+    const slot = early ? -1 : Math.floor(input.time / star.every);
+    const into = early ? input.time - star.firstAt : input.time - slot * star.every;
+    if (!input.reducedMotion && into < star.lasts && (early || hash(slot) > star.chance)) {
       const length = g.w * star.length;
       const run = into / star.lasts;
       const x = (star.across[0] + star.across[1] * hash(slot + 1)) * g.w + length * run;

@@ -28,6 +28,12 @@ export function rising(time) {
   return SUN_FROM + (1 - SUN_FROM) * toward * toward * (3 - 2 * toward);
 }
 
+// The intro's bar at `time`, 0 to 7, and 8 from the drop on: the page steps its headlights and its
+// headline by it.
+export function introBar(time) {
+  return Math.min(INTRO_BARS, Math.max(0, Math.floor(time / BAR)));
+}
+
 // How the sun flares around the drop, as brightness over the page's own: through the last bar it
 // builds, slowly and then faster, to `FLARE`; at the drop it bursts to `FLARE + BURST` and fades
 // over `BURST_FADE` seconds rather than going out at once.

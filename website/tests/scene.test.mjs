@@ -407,3 +407,30 @@ test("input: the sun's rise is whole unless the page says otherwise, and held to
   assert.equal(sceneInput(road, { ...moving, rise: -2 }).rise, 0);
   assert.equal(sceneInput(road, { ...moving, rise: 0.4, reducedMotion: true }).rise, 1);
 });
+
+// A shooting star can be asked for early, `firstAt` seconds in, so the resting sky shows one soon
+// rather than after its first slot; the slots go on as before.
+test("road: a first shooting star comes at firstAt, for as long as one lasts", () => {
+  const parameters = JSON.parse(
+    readFileSync(new URL("../../share/scenes/crt-road.json", import.meta.url), "utf8"),
+  );
+  const star = { ...parameters.shootingStar, every: 1000, chance: 1, firstAt: 2.5 };
+  const scene = createCrtRoad({ ...parameters, shootingStar: star });
+  globalThis.document = { createElement: () => ({ getContext: blank }) };
+  const strokes = (time) => {
+    let count = 0;
+    const counting = new Proxy(blank(), {
+      get: (target, name) => (name === "stroke" ? () => ++count : target[name]),
+      set: () => true,
+    });
+    scene.draw(counting, {
+      ...sceneInput(scene, { palette: retro82, width: 40, height: 40, time }),
+      state: {},
+    });
+    return count;
+  };
+  assert.equal(strokes(1), 0);
+  assert.equal(strokes(2.6), 1);
+  assert.equal(strokes(2.5 + star.lasts + 0.1), 0);
+  delete globalThis.document;
+});

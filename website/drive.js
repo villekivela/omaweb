@@ -15,6 +15,7 @@ import {
   cues,
   dimming,
   glare,
+  introBar,
   keyAnswer,
   IDLE_DIM,
   LAUNCH,
@@ -34,8 +35,11 @@ import { STILL_MEDIA, SceneHost } from "./scene.js";
 const crtRoad = await fetch(new URL("crt-road.json", import.meta.url))
   .then((response) => (response.ok ? response.json() : Promise.reject(response.status)))
   // The shared file's shooting stars are rare for a road read in passing; the hero's, which stands
-  // still till the journey starts, shows more of them (the browser's own road keeps the file's).
-  .then((scene) => createCrtRoad({ ...scene, shootingStar: { ...scene.shootingStar, every: 9 } }))
+  // still till the journey starts, shows more of them, the first soon after the page opens (the
+  // browser's own road keeps the file's).
+  .then((scene) =>
+    createCrtRoad({ ...scene, shootingStar: { ...scene.shootingStar, every: 9, firstAt: 2.5 } }),
+  )
   .catch(() => null);
 
 // The radio's beat, 0 to 1, read for each frame of the road: how far the song's bass rises over
@@ -489,6 +493,7 @@ if (drive) {
     // cruise control starts.
     let breathing = 0;
     const rest = () => {
+      root.toggleAttribute("data-resting", true);
       const began = performance.now();
       const step = (now) => {
         cruising = breath((now - began) / 1000);
@@ -498,6 +503,7 @@ if (drive) {
       breathing = requestAnimationFrame(step);
     };
     const stir = () => {
+      root.removeAttribute("data-resting");
       if (!breathing) return;
       cancelAnimationFrame(breathing);
       breathing = 0;
@@ -802,11 +808,13 @@ if (drive) {
         navigate();
         hush(quiet(clock()));
         look(dimming(clock()), sunNow + (rising(clock()) - sunNow) * 0.3);
+        mark(introBar(clock()));
       }
       if (index !== null) {
         // The drop ends the hush and the dim at once; the first tick, into the intro, does not.
         if (index > 0) {
           hush(0);
+          mark(null, before === 0 && index === 1);
           if (before === 0 && index === 1) burst();
           else look(0, 1);
         }
@@ -840,6 +848,21 @@ if (drive) {
       cancelAnimationFrame(bursting);
       bursting = 0;
       look(0, 1);
+      mark(null);
+    };
+    // The intro's bar on the page, for its headlights and headline to step by, the chrome stepping
+    // back for the last two; null ends the intro, and the drop flashes the headline.
+    let dropping = 0;
+    const mark = (bar, drop = false) => {
+      root.toggleAttribute("data-intro", bar !== null);
+      root.toggleAttribute("data-late", bar !== null && bar >= 6);
+      if (bar !== null) root.style.setProperty("--bar", String(bar));
+      else root.style.removeProperty("--bar");
+      if (drop) {
+        clearTimeout(dropping);
+        root.toggleAttribute("data-drop", true);
+        dropping = setTimeout(() => root.removeAttribute("data-drop"), 1200);
+      }
     };
     // The drop: the sun's flare bursts and fades with the song, the sun at full height.
     const burst = () => {

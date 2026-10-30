@@ -13,6 +13,7 @@ import {
   cues,
   dimming,
   glare,
+  introBar,
   keyAnswer,
   launch,
   nearestStop,
@@ -267,4 +268,16 @@ test("glare: builds through the last bar, bursts at the drop and fades", () => {
   assert.equal(glare(drop + 5), 0);
   // The page's dim is the glare's opposite once the rest's dim has lifted.
   assert.ok(Math.abs(dimming(drop - 0.5 * BAR) + 0.05) < 1e-9);
+});
+
+// The intro counts its bars, 0 to 7, for the page to step its headlights and headline by, and 8
+// from the drop on.
+test("introBar: the intro's bar, from 0 to the drop's 8", () => {
+  assert.equal(introBar(0), 0);
+  assert.equal(introBar(BAR - 0.01), 0);
+  assert.equal(introBar(BAR), 1);
+  assert.equal(introBar(7.5 * BAR), 7);
+  assert.equal(introBar(8 * BAR), 8);
+  assert.equal(introBar(20 * BAR), 8);
+  assert.equal(introBar(-1), 0);
 });
