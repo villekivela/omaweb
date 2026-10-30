@@ -104,7 +104,8 @@ export function createCrtRoad(p) {
     s.last = input.time;
     s.speed += (1 + m.navigatingSpeed * input.navigating - s.speed) * Math.min(1, step * m.ease);
     s.lit += (input.navigating - s.lit) * Math.min(1, step * m.lightEase);
-    s.travel += step * m.speed * m.pace * s.speed;
+    // A parked road keeps its place; the clock, and the sky with it, goes on.
+    if (!input.parked) s.travel += step * m.speed * m.pace * s.speed;
     return s;
   }
 

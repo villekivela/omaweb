@@ -41,6 +41,8 @@ export function sceneInput(scene, environment) {
     pitch,
     time: environment.time || 0,
     navigating: still ? 0 : Math.max(0, Math.min(1, environment.navigating || 0)),
+    // The road stands still, as the hero's does until the journey starts; the sky carries on.
+    parked: Boolean(environment.parked),
     beat: still ? 0 : Math.max(0, Math.min(1, environment.beat || 0)),
     reducedMotion: still,
     palette,
@@ -154,6 +156,7 @@ export class SceneHost {
     this.beat = beat;
     this.time = 0;
     this.navigating = 0;
+    this.parked = false;
     this.state = {};
     this.frame = 0;
     this.last = -Infinity;
@@ -202,6 +205,7 @@ export class SceneHost {
       ...this.measured,
       time: this.time,
       navigating: this.navigating,
+      parked: this.parked,
       beat: this.beat(),
       reducedMotion: this.reduced.matches,
       phone: this.phone.matches,
@@ -227,6 +231,12 @@ export class SceneHost {
     this.glass?.layout(input);
     this.draw();
     this.update();
+  }
+
+  // Whether the road stands still while the rest of the Scene moves: the page parks it on the
+  // Start page until the journey starts.
+  setParked(value) {
+    this.parked = value;
   }
 
   // How hard the reader is navigating, 0 to 1: the page sets it from the scroll's speed.

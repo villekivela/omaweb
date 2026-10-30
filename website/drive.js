@@ -23,7 +23,9 @@ import { STILL_MEDIA, SceneHost } from "./scene.js";
 // page that cannot fetch them keeps the gradient the road would have stood on.
 const crtRoad = await fetch(new URL("crt-road.json", import.meta.url))
   .then((response) => (response.ok ? response.json() : Promise.reject(response.status)))
-  .then(createCrtRoad)
+  // The shared file's shooting stars are rare for a road read in passing; the hero's, which stands
+  // still till the journey starts, shows more of them (the browser's own road keeps the file's).
+  .then((scene) => createCrtRoad({ ...scene, shootingStar: { ...scene.shootingStar, every: 9 } }))
   .catch(() => null);
 
 // The radio's beat, 0 to 1, read for each frame of the road: how far the song's bass rises over
@@ -67,7 +69,14 @@ if (drive) {
   // The Omnibar stands in front of the sun and catches its light at its rim.
   const host = crtRoad
     ? new SceneHost(canvas, crtRoad, { beat: listenToRadio(), lit: omnibar })
-    : { setNavigating() {}, lightUp() {} };
+    : { setNavigating() {}, setParked() {}, lightUp() {} };
+  // On the Start page the road stands still, and the sky with its shooting stars goes on, until the
+  // journey starts: the reader scrolls, or plays the radio or the ignition. Then it runs for good.
+  const setOff = () => host.setParked(false);
+  host.setParked(scrollY === 0);
+  addEventListener("scroll", setOff, { once: true, passive: true });
+  document.querySelector(".radio")?.addEventListener("play", setOff, { once: true });
+  drive.querySelector(".omnibar__ignite")?.addEventListener("click", setOff, { once: true });
 
   // Past the Start page the road sinks under a scrim of the theme's ground so the cards read
   // against it, and the scroll's speed is how hard the reader is navigating: the road speeds up

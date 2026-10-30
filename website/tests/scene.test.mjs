@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { createCrtRoad } from "../crt-road.js";
+
 import {
   STILL_MEDIA,
   SceneLight,
@@ -348,4 +350,44 @@ test("light: the lit element gets what changed, and nothing while it is off scre
   assert.deepEqual(written, []);
   light.setOnScreen(true);
   assert.deepEqual(written, [["--scene-glow", "0.80"]]);
+});
+
+// A context that accepts any drawing call, to run the road's frames without a canvas.
+const blank = () => {
+  const draws = new Proxy(function () {}, {
+    get: (_, name) => (name === "addColorStop" ? () => {} : draws),
+    set: () => true,
+    apply: () => draws,
+  });
+  return draws;
+};
+
+test("input: a parked road reaches the Scene as parked, and a held-still one never is", () => {
+  const environment = { palette: retro82, width: 10, height: 10 };
+  assert.equal(sceneInput(road, environment).parked, false);
+  assert.equal(sceneInput(road, { ...environment, parked: true }).parked, true);
+});
+
+// The hero's road stands still until the journey starts, while the sky carries on: a parked road
+// does not travel, whatever the clock says, and it sets off from where it stood.
+test("road: parked, it does not travel, and it sets off from where it stood", () => {
+  const parameters = JSON.parse(
+    readFileSync(new URL("../../share/scenes/crt-road.json", import.meta.url), "utf8"),
+  );
+  const scene = createCrtRoad(parameters);
+  const state = {};
+  const input = (time, parked) => ({
+    ...sceneInput(scene, { palette: retro82, width: 40, height: 40, time, parked }),
+    state,
+  });
+  // The road keeps a still picture of itself on a canvas of its own.
+  globalThis.document = { createElement: () => ({ getContext: blank }) };
+  scene.draw(blank(), input(0, true));
+  scene.draw(blank(), input(0.1, true));
+  scene.draw(blank(), input(0.2, true));
+  assert.equal(state.travel, 0);
+  scene.draw(blank(), input(0.3, false));
+  scene.draw(blank(), input(0.4, false));
+  assert.ok(state.travel > 0);
+  delete globalThis.document;
 });
