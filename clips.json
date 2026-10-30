@@ -1,0 +1,37 @@
+{
+  "omnibar": {
+    "length": 8.678
+  },
+  "keyboard": {
+    "length": 4.13
+  },
+  "spaces": {
+    "length": 6.78
+  },
+  "pros": {
+    "length": 4.531
+  },
+  "blocking": {
+    "length": 10.345
+  },
+  "theme": {
+    "length": 10.745,
+    "themes": [
+      [
+        0.0,
+        "ethereal-nebula-silver"
+      ],
+      [
+        6.5,
+        "lumon"
+      ],
+      [
+        9.45,
+        "ethereal-nebula-silver"
+      ]
+    ]
+  },
+  "agents": {
+    "length": 10.565
+  }
+}
