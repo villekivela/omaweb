@@ -20,9 +20,17 @@
       "role": "tabs",
       "titleWidth": 200,
       "maxWidthPercent": 40,
-      "addressWidth": 360
+      "addressWidth": 360,
+      "spaceNames": "full"
     },
     "schema": [
+      {
+        "key": "spaceNames",
+        "type": "enum",
+        "label": "Space names",
+        "options": ["full", "letter"],
+        "defaultValue": "full"
+      },
       {
         "key": "role",
         "type": "enum",

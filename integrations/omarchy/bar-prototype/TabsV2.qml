@@ -35,17 +35,18 @@ BarWidget {
     property var browser: null
     readonly property bool live: socket.connected && browser !== null
     readonly property string variant: live && browser.variant ? browser.variant : setting("variant",
-                                                                                           "capsule")
+                                                                                          "capsule")
     readonly property var toplevel: ToplevelManager.activeToplevel
     readonly property bool focused: toplevel !== null && toplevel.appId === appId
-    readonly property int activeIndex: live ? browser.spaces.findIndex(s => s.id === browser.activeSpace) :
+    readonly property int activeIndex: live ? browser.spaces.findIndex(s => s.id
+                                                                            === browser.activeSpace) :
                                               -1
     readonly property var space: activeIndex >= 0 ? browser.spaces[activeIndex] : null
     readonly property var othersBefore: live && variant === "spaces" ? browser.spaces.slice(0,
-                                                                                             activeIndex) :
+                                                                                            activeIndex) :
                                                                        []
-    readonly property var othersAfter: live && variant === "spaces" ? browser.spaces.slice(activeIndex
-                                                                                            + 1) : []
+    readonly property var othersAfter: live && variant === "spaces" ? browser.spaces.slice(
+                                                                          activeIndex + 1) : []
     readonly property var activeId: space ? space.active : null
     readonly property var downloads: live ? browser.status.downloads : []
 
@@ -111,13 +112,13 @@ BarWidget {
     }
     readonly property real maxLength: barLength * maxShare
     readonly property real iconLength: 16
-    readonly property real tabExtra: variant === "labelled" && !vertical ? shortTitleWidth + Style.space(
-                                                                               6) : 0
+    readonly property real tabExtra: variant === "labelled" && !vertical ? shortTitleWidth
+                                                                           + Style.space(6) : 0
     readonly property real fixedLength: {
         if (!live || role !== "tabs")
             return 0;
-        var total = along(navGroup) + along(spacesGroup) + along(beforeRow) + along(spaceChip) + along(pinsGroup) + along(afterRow) + along(
-                    statusMark) + gap * 4;
+        var total = along(navGroup) + along(spacesGroup) + along(beforeRow) + along(spaceChip)
+                + along(pinsGroup) + along(afterRow) + along(statusMark) + gap * 4;
         if (!vertical && !flat)
             total += Math.min(titleWidth, titleMetrics.advanceWidth) + 12;
         return total + iconLength + 8;
@@ -144,11 +145,11 @@ BarWidget {
         var fit = Math.max(0, Math.floor((room - 30) / (iconLength + tabExtra + 4)));
         var at = Math.max(0, tabs.findIndex(t => t.id === activeId));
         var ranked = tabs.map((t, i) => ({
-                                             t: t,
-                                             i: i
-                                         })).filter(x => x.t.id !== activeId).sort((a, b) => Math.abs(
-                                                                                       a.i - at) - Math.abs(
-                                                                                       b.i - at)).slice(0, fit);
+            t: t,
+            i: i
+        })).filter(x => x.t.id !== activeId).sort((a, b) => Math.abs(a.i - at) - Math.abs(b.i
+                                                                                          - at)).slice(
+                0, fit);
         var keep = {};
         ranked.forEach(x => keep[x.t.id] = true);
         var shown = tabs.filter(t => t.id === activeId || keep[t.id]);
@@ -243,7 +244,9 @@ BarWidget {
             id: navGroup
             visible: root.role === "navigation" || (root.role === "tabs" && root.showNavigation)
             implicitWidth: root.vertical ? root.barSize - 4 : navRow.implicitWidth + Style.space(6)
-            implicitHeight: root.vertical ? navRow.implicitHeight + Style.space(6) : root.barSize - 6
+            implicitHeight: root.vertical ? navRow.implicitHeight + Style.space(6) : root.barSize
+                                            - 6
+
             Rectangle {
                 anchors.fill: parent
                 radius: 6
@@ -281,9 +284,11 @@ BarWidget {
                 }
                 BarText {
                     visible: root.role === "navigation"
-                    text: root.flat && !root.vertical && root.live ? "󰌾  " + root.browser.nav.host : "󰍉"
-                    tooltip: root.live ? (root.flat ? root.activeTitle : "Omnibar: " + root.browser.nav.host) :
-                                         "Omnibar"
+                    text: root.flat && !root.vertical && root.live ? "󰌾  " + root.browser.nav.host :
+                                                                     "󰍉"
+
+                    tooltip: root.live ? (root.flat ? root.activeTitle : "Omnibar: "
+                                                      + root.browser.nav.host) : "Omnibar"
                     onClicked: root.send({
                                              do: "omnibar"
                                          })
@@ -351,15 +356,16 @@ BarWidget {
             id: capsule
             visible: root.role === "tabs"
             implicitWidth: root.vertical ? root.barSize - 4 : capsuleRow.implicitWidth + Style.space(
-                                                                  root.variant === "spaces" ? 10 : 2)
-            implicitHeight: root.vertical ? capsuleRow.implicitHeight + Style.space(10) : root.barSize - 6
+                                               root.variant === "spaces" ? 10 : 2)
+            implicitHeight: root.vertical ? capsuleRow.implicitHeight + Style.space(10) :
+                                            root.barSize - 6
 
             Rectangle {
                 anchors.fill: parent
                 radius: 6
                 visible: root.variant === "spaces"
-                color: root.variant === "spaces" && root.space ? Qt.alpha(root.space.colour, 0.16) : Qt.alpha(
-                                                                     root.fg, 0.07)
+                color: root.variant === "spaces" && root.space ? Qt.alpha(root.space.colour, 0.16) :
+                                                                 Qt.alpha(root.fg, 0.07)
                 border.width: root.variant === "spaces" ? 1 : 0
                 border.color: root.space ? Qt.alpha(root.space.colour, 0.5) : "transparent"
             }
@@ -421,8 +427,8 @@ BarWidget {
                 }
 
                 Divider {
-                    visible: root.flat && !!root.space && root.space.pins.length > 0 && root.space.tabs.length
-                             > 0
+                    visible: root.flat && !!root.space && root.space.pins.length > 0
+                             && root.space.tabs.length > 0
                 }
 
                 Repeater {
@@ -504,8 +510,8 @@ BarWidget {
                     font.pixelSize: Style.font.body
                 }
                 Text {
-                    width: Math.min(implicitWidth, parent.width - lock.implicitWidth - hostText.implicitWidth
-                                    - Style.space(12))
+                    width: Math.min(implicitWidth, parent.width - lock.implicitWidth
+                                    - hostText.implicitWidth - Style.space(12))
                     text: root.activeTitle
                     textFormat: Text.PlainText
                     elide: Text.ElideRight
@@ -537,7 +543,6 @@ BarWidget {
                               root.bar.hideTooltip(address)
             }
         }
-
     }
 
     // ----- pieces
@@ -593,8 +598,8 @@ BarWidget {
         // Sound or popped-out mark at the top right.
         Text {
             visible: icon.tab && (icon.tab.audio !== "" || icon.tab.poppedOut)
-            text: !icon.tab ? "" : icon.tab.audio === "playing" ? "󰕾" : icon.tab.audio === "muted" ? "󰖁" :
-                                                                                                     "󰁜"
+            text: !icon.tab ? "" : icon.tab.audio === "playing" ? "󰕾" : icon.tab.audio === "muted"
+                                                                  ? "󰖁" : "󰁜"
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.rightMargin: -6
@@ -611,20 +616,23 @@ BarWidget {
         property real pad: 3
         property bool pinned: false
         readonly property bool isActive: tab && root.activeId === tab.id
-        readonly property bool showTitle: !root.vertical && !root.flat && (isActive || (root.variant
-                                                                                         === "labelled"
-                                                                                         && !pinned))
+        readonly property bool showTitle: !root.vertical && !root.flat && (isActive || (
+                                                                               root.variant
+                                                                               === "labelled" &&
+                                                                               !pinned))
         readonly property real titleCap: isActive ? root.titleWidth : root.shortTitleWidth
 
-        implicitWidth: root.vertical ? root.barSize - 8 : site.implicitWidth + pad * 2 + (showTitle ? title.width
-                                                                                                     + Style.space(6)
-                                                                                                     + 4 : 0)
+        implicitWidth: root.vertical ? root.barSize - 8 : site.implicitWidth + pad * 2 + (showTitle
+                                                                                          ? title.width
+                                                                                            + Style.space(
+                                                                                                6) + 4 : 0)
         implicitHeight: root.vertical ? site.implicitHeight + pad * 2 + 4 : root.barSize - 12
 
         Rectangle {
             anchors.fill: parent
             radius: 4
-            color: Qt.alpha(root.fg, cell.isActive && !root.flat ? 0.2 : cellMouse.containsMouse ? 0.08 : 0)
+            color: Qt.alpha(root.fg, cell.isActive && !root.flat ? 0.2 : cellMouse.containsMouse
+                                                                   ? 0.08 : 0)
         }
         // Flat: the active tab is underlined in its Space's colour.
         Rectangle {
@@ -678,8 +686,10 @@ BarWidget {
                               });
             }
             onEntered: if (root.bar)
-                           root.bar.showTooltip(cell, (cell.pinned ? "Pinned: " : "") + cell.tab.title + (
-                                                    cell.tab.agentAct ? "\nAgent: " + cell.tab.agentAct : ""))
+                           root.bar.showTooltip(cell, (cell.pinned ? "Pinned: " : "")
+                                                + cell.tab.title + (cell.tab.agentAct ? "\nAgent: "
+                                                                                        + cell.tab.agentAct :
+                                                                                        ""))
             onExited: if (root.bar)
                           root.bar.hideTooltip(cell)
         }
@@ -733,8 +743,9 @@ BarWidget {
         Rectangle {
             anchors.fill: parent
             radius: 4
-            color: sw.current ? Qt.alpha(sw.space.colour, 0.28) : Qt.alpha(root.fg, swMouse.containsMouse ? 0.1 :
-                                                                                                         0)
+            color: sw.current ? Qt.alpha(sw.space.colour, 0.28) : Qt.alpha(root.fg,
+                                                                           swMouse.containsMouse
+                                                                           ? 0.1 : 0)
         }
         Row {
             id: swRow
@@ -772,13 +783,14 @@ BarWidget {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: sw.current ? root.openPopup("spaces", sw) : root.send({
-                                                                                  do: "space",
-                                                                                  space: sw.space.id
-                                                                              })
+                                                                                 do: "space",
+                                                                                 space: sw.space.id
+                                                                             })
             onEntered: if (root.bar)
-                           root.bar.showTooltip(sw, sw.current ? sw.space.name + ": all Spaces and tabs" :
-                                                                 "Switch to "
-                                                                + sw.space.name + " (" + sw.space.count + " tabs)")
+                           root.bar.showTooltip(sw, sw.current ? sw.space.name
+                                                                 + ": all Spaces and tabs" :
+                                                                 "Switch to " + sw.space.name
+                                                                 + " (" + sw.space.count + " tabs)")
             onExited: if (root.bar)
                           root.bar.hideTooltip(sw)
         }
@@ -838,8 +850,8 @@ BarWidget {
                                      space: other.space.id
                                  })
             onEntered: if (root.bar)
-                           root.bar.showTooltip(other, "Switch to " + other.space.name + " (" + other.space.count
-                                                + " tabs)")
+                           root.bar.showTooltip(other, "Switch to " + other.space.name + " ("
+                                                + other.space.count + " tabs)")
             onExited: if (root.bar)
                           root.bar.hideTooltip(other)
         }
@@ -958,7 +970,8 @@ BarWidget {
         bar: root.bar
         owner: root
         open: root.popup !== ""
-        contentWidth: card.fittedContentWidth(root.popup === "menu" ? Style.space(200) : Style.space(360))
+        contentWidth: card.fittedContentWidth(root.popup === "menu" ? Style.space(200) : Style.space(
+                                                                          360))
         contentHeight: card.fittedContentHeight(body.item ? body.item.implicitHeight : 0)
 
         Flickable {
@@ -970,11 +983,9 @@ BarWidget {
             Loader {
                 id: body
                 width: parent.width
-                sourceComponent: root.popup === "menu" ? menuBody : root.popup === "spaces" ? spacesBody :
-                                                                                              root.popup
-                                                                                              === "status" ?
-                                                                                                  statusBody :
-                                                                                                  null
+                sourceComponent: root.popup === "menu" ? menuBody : root.popup === "spaces"
+                                                         ? spacesBody : root.popup === "status"
+                                                           ? statusBody : null
             }
         }
     }
@@ -984,7 +995,8 @@ BarWidget {
         Column {
             width: parent ? parent.width : 200
             readonly property var tab: root.menuTab
-            readonly property bool pinned: !!(tab && root.space && root.space.pins.some(p => p.id === tab.id))
+            readonly property bool pinned: !!(tab && root.space && root.space.pins.some(p => p.id
+                                                                                             === tab.id))
             PopupRow {
                 glyph: "󰐃"
                 label: parent.pinned ? "Unpin" : "Pin"
@@ -1063,11 +1075,11 @@ BarWidget {
                             indent: true
                             tab: modelData
                             label: modelData.title
-                            detail: modelData.agent ? "Agent: " + modelData.agentAct : modelData.poppedOut ?
-                                                                                           "In a Tab window" :
-                                                                                           modelData.audio ? "Sound "
-                                                                                                             + modelData.audio :
-                                                                                                             ""
+                            detail: modelData.agent ? "Agent: " + modelData.agentAct :
+                                                      modelData.poppedOut ? "In a Tab window" :
+                                                                            modelData.audio
+                                                                            ? "Sound "
+                                                                              + modelData.audio : ""
                             current: modelData.id === spaceBlock.modelData.active
                             onPicked: {
                                 root.send({
