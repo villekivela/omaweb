@@ -239,8 +239,9 @@ reader's theme again when the card is no longer read. A change of theme, the cli
 from a swatch, opens with the desktop's diagonal reveal, a View Transition whose new view's
 `clip-path` grows from a slanted centre line to the viewport's edges (`revealClip` in `highway.js`);
 with reduced motion, or no View Transitions, it is at once. Leaving the card puts the reader's theme
-back at once. Lumon, which the desktop film changes to, is among the page's themes for that, with no
-swatch. Every card and the install catch the road's light as the Omnibar does.
+back at once. The desktop film changes to Retro 82, a swatch; Lumon, which earlier films changed to,
+stays among the page's themes, with no swatch, until the published film is a newer one. Every card
+and the install catch the road's light as the Omnibar does.
 
 ## The release pages
 

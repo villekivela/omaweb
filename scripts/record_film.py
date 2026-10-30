@@ -610,8 +610,8 @@ DESKTOP_CURRENT = Path.home() / ".local" / "state" / "omarchy" / "current"
 # repaint check to tell them apart through the window's translucency.
 THEMES_APART = 12
 # The installed Omarchy theme the desktop's Theme beat changes to where none is named: the
-# maintainer's choice, a grey-blue with its own wallpaper, well apart from their dark navy.
-DEFAULT_CHANGE = "lumon"
+# maintainer's choice, Retro 82's warm orange, against the cool blue of their desktop's theme.
+DEFAULT_CHANGE = "retro-82"
 
 # The frame the recording is taken at, and the film's own. The window is drawn at one and a half
 # device pixels to the logical one, so the browser lays out at 1600 by 900 and a zoom-in has
@@ -790,7 +790,7 @@ def installed_themes(directories: tuple[Path, ...] = OMARCHY_THEMES) -> dict[str
 
 def change_theme(desktop: dict[str, str], name: str = DEFAULT_CHANGE,
                  directories: tuple[Path, ...] = OMARCHY_THEMES) -> Theme:
-    """The installed Omarchy theme the Theme beat switches the desktop to, Lumon unless another
+    """The installed Omarchy theme the Theme beat switches the desktop to, Retro 82 unless another
     is named. One too near the desktop's for the repaint check to tell the change stops the run
     before it changes anything, and names one that is far enough."""
     installed = installed_themes(directories)

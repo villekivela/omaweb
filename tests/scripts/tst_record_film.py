@@ -1128,11 +1128,11 @@ class FakeDesktop:
 
     def options(self, **overrides):
         """What a `Desktop` is made with against this stand-in: its commands, and an Omarchy of
-        its own whose desktop wears Ethereal Nebula Silver and which has Lumon installed."""
+        its own whose desktop wears Ethereal Nebula Silver and which has Retro 82 installed."""
         if not hasattr(self, "_omarchy"):
             self._omarchy = tempfile.TemporaryDirectory()
             root = Path(self._omarchy.name)
-            for theme, colour in (("current/theme", "#050718"), ("themes/lumon", "#101b21")):
+            for theme, colour in (("current/theme", "#050718"), ("themes/retro-82", "#101b21")):
                 (root / theme).mkdir(parents=True)
                 (root / theme / "colors.toml").write_text(
                     f'mode = "dark"\ndark_background = "{colour}"\n', encoding="utf-8")
@@ -1612,13 +1612,13 @@ class DesktopRun(unittest.TestCase):
             shlex.join(command).replace("0x5566bb", "<film window>")
             for command in PLACE] + [
             shlex.join(film.recorder_command(self.out / "raw.mkv", "DP-1")),
-            "omarchy-theme-set lumon", "omarchy-theme-set ethereal-nebula-silver"] + [
+            "omarchy-theme-set retro-82", "omarchy-theme-set ethereal-nebula-silver"] + [
             shlex.join(command) for command in GIVE_BACK]
         self.assertEqual(printed, expected)
         film.compose.assert_not_called()
 
     def test_the_command_line_names_the_theme_the_beat_changes_to(self):
-        for arguments, named in (([], "lumon"), (["--change-to", "gruvbox"], "gruvbox")):
+        for arguments, named in (([], "retro-82"), (["--change-to", "gruvbox"], "gruvbox")):
             with mock.patch.object(film, "Desktop", return_value=self.desktop) as made, \
                     mock.patch.object(film, "record_on_desktop"), \
                     mock.patch.object(sys, "argv", ["record_film.py", "desktop", *arguments]):
@@ -1749,10 +1749,10 @@ class DesktopTheme(unittest.TestCase):
         changes = [theme.name for theme in film.theme_changes(mine, named)]
         self.assertEqual(changes, ["ethereal-nebula-silver", "gruvbox", "ethereal-nebula-silver"])
 
-    def test_without_a_theme_named_the_beat_changes_to_lumon(self):
+    def test_without_a_theme_named_the_beat_changes_to_retro_82(self):
         directories = self.installed(**{"retro-82": (1, "#031222"), "lumon": (1, "#101b21")})
         change = film.change_theme({"dark_background": "#3b2a40"}, directories=directories)
-        self.assertEqual((change.name, change.colours["dark_background"]), ("lumon", "#101b21"))
+        self.assertEqual((change.name, change.colours["dark_background"]), ("retro-82", "#031222"))
 
     def test_a_theme_named_is_read_from_the_readers_themes_before_the_systems(self):
         directories = self.installed(gruvbox=(1, "#1d2021"))
@@ -1766,19 +1766,19 @@ class DesktopTheme(unittest.TestCase):
         with self.assertRaisesRegex(film.BeatMissed, "no Omarchy theme called sepia"):
             film.change_theme({"dark_background": "#050718"}, "sepia", self.installed())
 
-    def test_a_theme_too_near_the_desktops_is_refused_with_lumon_suggested(self):
-        # Navy is nearer the desktop's than Lumon and far enough too, so Lumon is named as the
-        # default rather than as the nearest.
+    def test_a_theme_too_near_the_desktops_is_refused_with_retro_82_suggested(self):
+        # Lumon is nearer the desktop's than Retro 82 and far enough too, so Retro 82 is named as
+        # the default rather than as the nearest.
         directories = self.installed(**{"retro-82": (1, "#031222"), "lumon": (1, "#101b21"),
-                                        "navy": (1, "#0d1a2e")})
-        with self.assertRaisesRegex(film.BeatMissed, "too near.*--change-to lumon"):
-            film.change_theme({"dark_background": "#041325"}, "retro-82", directories)
+                                        "plum": (1, "#3a2a41")})
+        with self.assertRaisesRegex(film.BeatMissed, "too near.*--change-to retro-82"):
+            film.change_theme({"dark_background": "#3b2a40"}, "plum", directories)
 
-    def test_lumon_too_near_the_desktops_suggests_the_nearest_theme_far_enough(self):
-        directories = self.installed(**{"teal": (1, "#121d24"), "slate": (1, "#2a2f3a"),
-                                        "white": (1, "#ffffff"), "lumon": (1, "#101b21")})
+    def test_retro_82_too_near_the_desktops_suggests_the_nearest_theme_far_enough(self):
+        directories = self.installed(**{"teal": (1, "#051424"), "slate": (1, "#2a2f3a"),
+                                        "white": (1, "#ffffff"), "retro-82": (1, "#031222")})
         with self.assertRaisesRegex(film.BeatMissed, "too near.*--change-to slate"):
-            film.change_theme({"dark_background": "#101b22"}, directories=directories)
+            film.change_theme({"dark_background": "#031223"}, directories=directories)
 
     def test_a_refused_theme_stops_the_run_before_it_changes_anything(self):
         fake = FakeDesktop()
@@ -2200,7 +2200,7 @@ class DesktopLedger(unittest.TestCase):
     BACK_TO_NEBULA = ["omarchy-theme-set", "ethereal-nebula-silver"]
 
     def switched(self, fake, stop=None):
-        """A run that switches the desktop to Lumon for its Theme beat, then ends by `stop`."""
+        """A run that switches the desktop to Retro 82 for its Theme beat, then ends by `stop`."""
         desktop = self.desktop(fake)
         desktop.survey()
         with desktop.taken():
@@ -2214,7 +2214,7 @@ class DesktopLedger(unittest.TestCase):
         fake = FakeDesktop()
         self.switched(fake)
         self.assertEqual(self.noted["theme"], "ethereal-nebula-silver")
-        self.assertEqual(fake.acted[len(TAKE)], ["omarchy-theme-set", "lumon"])
+        self.assertEqual(fake.acted[len(TAKE)], ["omarchy-theme-set", "retro-82"])
 
     def test_a_run_that_ends_on_the_theme_it_switched_to_puts_the_desktops_back_first(self):
         fake = FakeDesktop()
@@ -2239,7 +2239,7 @@ class DesktopLedger(unittest.TestCase):
 
     def test_the_next_run_puts_back_the_theme_a_killed_run_switched_from(self):
         fake = FakeDesktop()
-        (fake.options()["current"] / "theme.name").write_text("lumon\n")
+        (fake.options()["current"] / "theme.name").write_text("retro-82\n")
         self.left(theme="ethereal-nebula-silver")
         with mock.patch("sys.stdout", new_callable=io.StringIO):
             self.desktop(fake).recover()
