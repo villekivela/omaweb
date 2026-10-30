@@ -312,6 +312,7 @@ private slots:
     void listsEveryOtherSpacesTabsFromTheSession();
     void listsEverySpaceWithItsPinsAndTabsForTheBar();
     void listsAChangeToATabOnShowForTheBar();
+    void listsATabStillLoadingForTheBar();
     void switchesSpaceAndSelectsTheTabAsOneAction();
     void listsNoOtherSpacesTabsInAPrivateWindow();
 };
@@ -5492,6 +5493,30 @@ void BrowserControllerTest::listsAChangeToATabOnShowForTheBar()
                  .value(QStringLiteral("sound"))
                  .toString(),
         QStringLiteral("muted"));
+}
+
+// The bar draws a page still loading on its tab, as the sidebar does.
+void BrowserControllerTest::listsATabStillLoadingForTheBar()
+{
+    SessionFixture fixture(threeSpacesWithTabs());
+    QVERIFY_SESSION_READY(fixture);
+    const auto controller = fixture.createController();
+    const auto news = [&controller] {
+        return controller->barSpaces()
+            .first()
+            .toMap()
+            .value(QStringLiteral("tabs"))
+            .toList()
+            .first()
+            .toMap();
+    };
+
+    controller->reportTabPageState(QStringLiteral("news"),
+        QUrl(QStringLiteral("https://news.example/today")), QStringLiteral("Today"), QUrl(), true,
+        false);
+    QCOMPARE(news().value(QStringLiteral("loading")).toBool(), true);
+    controller->setTabLoading(QStringLiteral("news"), false);
+    QCOMPARE(news().value(QStringLiteral("loading")).toBool(), false);
 }
 
 // The Omnibar reaches a page open in another Space through what the session

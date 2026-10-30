@@ -1432,6 +1432,10 @@ ApplicationWindow {
         case "duplicate":
             browser.duplicateTab(args.tab);
             break;
+        case "mute":
+        case "unmute":
+            browser.setTabMuted(args.tab, action === "mute");
+            break;
         case "popout":
             if (browser.tabPoppedOut(args.tab))
                 window.putBackTab(args.tab);

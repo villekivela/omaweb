@@ -297,7 +297,7 @@ public:
     // Every Space for the Omarchy bar (#906), in order: its `id`, `name`,
     // `colour`, the `active` tab it shows, and its `pins` and `tabs`, each
     // with its `id`, `title`, `url`, `iconUrl`, `sound` ("playing", "muted"
-    // or none) and whether it is `poppedOut`. The Space on show answers from
+    // or none) and whether it is `poppedOut` or `loading`. The Space on show answers from
     // its live tabs and the others from the session, read once after each
     // change of Space.
     Q_INVOKABLE QVariantList barSpaces();

@@ -88,6 +88,26 @@ TestCase {
         compare(issue.title, "Title of issue");
         compare(issue.icon, "image://favicon/https://github.com/a/b/issues/1");
         compare(issue.agent, false);
+        compare(issue.loading, false);
+    }
+
+    function test_aTabStillLoadingSaysSo() {
+        const state = BarState.build(inputs({
+                                                spaces: [
+                                                    {
+                                                        id: "work",
+                                                        name: "Work",
+                                                        colour: "blue",
+                                                        active: "issue",
+                                                        pins: [],
+                                                        tabs: [tab("issue", "https://github.com/", {
+                                                                       loading: true
+                                                                   })]
+                                                    }
+                                                ]
+                                            }));
+
+        compare(state.spaces[0].tabs[0].loading, true);
     }
 
     function test_anAgentTabIsMarkedWithItsLastAct() {

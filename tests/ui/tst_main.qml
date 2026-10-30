@@ -5218,6 +5218,24 @@ TestCase {
         verify(browser.activeTabId !== second);
     }
 
+    // The sound mark on a favicon mutes the tab, and unmutes it again.
+    function test_theBarMutesATab() {
+        openPage("https://bar-sound.example/");
+        const tab = browser.activeTabId;
+        const sound = () => browser.barSpaces().find(space => space.id
+                                                              === browser.activeSpaceId).tabs.find(
+                                listed => listed.id === tab).sound;
+
+        omarchyBar.actionRequested("mute", {
+                                       "tab": tab
+                                   });
+        compare(sound(), "muted");
+        omarchyBar.actionRequested("unmute", {
+                                       "tab": tab
+                                   });
+        compare(sound(), "");
+    }
+
     // The choice is the reader's settings file's, and it is what the browser
     // reads to open the bar socket and place the widget.
     function test_choosingTheBarInSettingsKeepsTheChoice() {

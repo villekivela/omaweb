@@ -122,12 +122,11 @@ BarWidget {
             return 1600;
         return vertical ? w.height : w.width;
     }
-    readonly property real fixedLength: !live || role !== "tabs" ? 0 : along(navGroup) + along(
-                                                                       spacesRow) + along(pinsRow)
-                                                                   + along(statusMark) + along(
-                                                                       recordingMark) + along(
+    readonly property real fixedLength: !live || role !== "tabs" ? 0 : along(spacesRow) + along(
+                                                                       pinsRow) + along(statusMark)
+                                                                   + along(recordingMark) + along(
                                                                        releaseMark) + gap * 4
-                                                                   + grid.spacing * 6
+                                                                   + grid.spacing * 5
     readonly property var tabLayout: {
         if (!live || role !== "tabs" || !space)
             return {
@@ -204,41 +203,6 @@ BarWidget {
         }
 
         // ----- role: tabs
-
-        Grid {
-            id: navGroup
-            visible: root.role === "tabs"
-            columns: root.vertical ? 1 : 100
-            verticalItemAlignment: Grid.AlignVCenter
-            horizontalItemAlignment: Grid.AlignHCenter
-            BarText {
-                text: "󰁍"
-                dim: !(root.live && root.browser.location.canBack)
-                tooltip: qsTr("Back")
-                onClicked: root.send({
-                                         "do": "back"
-                                     })
-            }
-            BarText {
-                text: "󰁔"
-                dim: !(root.live && root.browser.location.canForward)
-                tooltip: qsTr("Forward")
-                onClicked: root.send({
-                                         "do": "forward"
-                                     })
-            }
-            BarText {
-                text: "󰑐"
-                tooltip: qsTr("Reload")
-                onClicked: root.send({
-                                         "do": "reload"
-                                     })
-            }
-        }
-
-        Divider {
-            visible: root.role === "tabs"
-        }
 
         Grid {
             id: spacesRow
@@ -331,7 +295,39 @@ BarWidget {
             onClicked: root.openPopup("status", releaseMark)
         }
 
-        // ----- role: location, at a fixed width so a tab switch moves nothing
+        // ----- role: location, at a fixed width so a tab switch moves nothing,
+        // after the page's own back, forward and reload
+
+        Grid {
+            id: navGroup
+            visible: root.role === "location"
+            columns: root.vertical ? 1 : 100
+            verticalItemAlignment: Grid.AlignVCenter
+            horizontalItemAlignment: Grid.AlignHCenter
+            BarText {
+                text: "󰁍"
+                dim: !(root.live && root.browser.location.canBack)
+                tooltip: qsTr("Back")
+                onClicked: root.send({
+                                         "do": "back"
+                                     })
+            }
+            BarText {
+                text: "󰁔"
+                dim: !(root.live && root.browser.location.canForward)
+                tooltip: qsTr("Forward")
+                onClicked: root.send({
+                                         "do": "forward"
+                                     })
+            }
+            BarText {
+                text: "󰑐"
+                tooltip: qsTr("Reload")
+                onClicked: root.send({
+                                         "do": "reload"
+                                     })
+            }
+        }
 
         Item {
             id: location
@@ -344,9 +340,12 @@ BarWidget {
                 radius: 4
                 color: Qt.alpha(root.fg, locationMouse.containsMouse ? 0.1 : 0)
             }
+            // From the left, so the lock sits by back, forward and reload.
             Row {
                 visible: !root.vertical
-                anchors.centerIn: parent
+                anchors.left: parent.left
+                anchors.leftMargin: 6
+                anchors.verticalCenter: parent.verticalCenter
                 width: Math.min(implicitWidth, parent.width - 12)
                 spacing: Style.space(6)
                 Text {
@@ -417,6 +416,8 @@ BarWidget {
     component SiteIcon: Item {
         id: icon
         property var tab
+        // Only the bar's own favicons take a click on their sound mark.
+        property bool clickable: false
         implicitWidth: root.iconLength
         implicitHeight: root.iconLength
 
@@ -459,9 +460,12 @@ BarWidget {
             border.width: 1
             border.color: root.barGround
         }
-        // A Sounding tab, or one in a Tab window, at the top right.
+        // A Sounding tab, or one in a Tab window, at the top right. Clicking
+        // the sound mutes the tab, or unmutes it.
         Text {
-            visible: !!icon.tab && (icon.tab.sound !== "" || icon.tab.poppedOut)
+            id: mark
+            readonly property bool sounding: !!icon.tab && icon.tab.sound !== ""
+            visible: !!icon.tab && (sounding || icon.tab.poppedOut)
             text: !icon.tab ? "" : icon.tab.sound === "playing" ? "󰕾" : icon.tab.sound === "muted"
                                                                   ? "󰖁" : "󰁜"
             anchors.right: parent.right
@@ -471,6 +475,24 @@ BarWidget {
             color: root.fg
             font.family: root.font
             font.pixelSize: 8
+
+            MouseArea {
+                anchors.fill: parent
+                anchors.margins: -3
+                enabled: mark.sounding && icon.clickable
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.send({
+                                         "do": icon.tab.sound === "muted" ? "unmute" : "mute",
+                                         "tab": icon.tab.id
+                                     })
+                onEntered: if (root.bar)
+                               root.bar.showTooltip(mark, icon.tab.sound === "muted" ? qsTr(
+                                                                                           "Unmute") :
+                                                                                       qsTr("Mute"))
+                onExited: if (root.bar)
+                              root.bar.hideTooltip(mark)
+            }
         }
     }
 
@@ -489,21 +511,53 @@ BarWidget {
             radius: 4
             color: Qt.alpha(root.fg, cellMouse.containsMouse ? 0.08 : 0)
         }
-        // The active tab is underlined in its Space's colour.
-        Rectangle {
-            visible: cell.isActive
+        // The active tab is underlined in its Space's colour. While a tab's
+        // page loads, a short line runs along under it instead.
+        Item {
+            id: underline
+            readonly property bool loading: !!(cell.tab && cell.tab.loading)
+            visible: cell.isActive || loading
             x: root.vertical ? site.x - 5 : site.x
             y: root.vertical ? site.y : site.y + site.height + 2
             width: root.vertical ? 2 : root.iconLength
             height: root.vertical ? root.iconLength : 2
-            radius: 1
-            color: root.space ? root.space.colour : root.fg
+            clip: true
+            opacity: cell.isActive ? 1 : 0.6
+            Rectangle {
+                id: runner
+                readonly property real length: root.vertical ? underline.height : underline.width
+                width: root.vertical ? 2 : (underline.loading ? runner.length / 2 : runner.length)
+                height: root.vertical ? (underline.loading ? runner.length / 2 : runner.length) : 2
+                radius: 1
+                color: root.space ? root.space.colour : root.fg
+                NumberAnimation on x {
+                    running: underline.loading && !root.vertical
+                    loops: Animation.Infinite
+                    from: -runner.length / 2
+                    to: runner.length
+                    duration: 700
+                    onRunningChanged: if (!running)
+                                          runner.x = 0
+                }
+                NumberAnimation on y {
+                    running: underline.loading && root.vertical
+                    loops: Animation.Infinite
+                    from: -runner.length / 2
+                    to: runner.length
+                    duration: 700
+                    onRunningChanged: if (!running)
+                                          runner.y = 0
+                }
+            }
         }
         // Every tab but the active one sits back a little, so a row of
         // favicons reads as a row rather than a wall of colour.
         SiteIcon {
             id: site
             tab: cell.tab
+            // Above the cell's mouse area, for its sound mark.
+            z: 1
+            clickable: true
             opacity: cell.isActive || cellMouse.containsMouse ? 1 : 0.75
             x: (cell.width - width) / 2
             anchors.verticalCenter: parent.verticalCenter
@@ -568,15 +622,6 @@ BarWidget {
                 textFormat: Text.PlainText
                 color: sw.current ? root.barGround : root.fg
                 opacity: sw.current ? 1 : 0.75
-                font.family: root.font
-                font.pixelSize: Style.font.body
-            }
-            Text {
-                visible: !root.vertical
-                anchors.verticalCenter: parent.verticalCenter
-                text: sw.space.count
-                color: sw.current ? root.barGround : root.fg
-                opacity: sw.current ? 0.8 : 0.45
                 font.family: root.font
                 font.pixelSize: Style.font.body
             }

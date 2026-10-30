@@ -249,8 +249,10 @@ void BarTest::aWidgetAsksForTheActionsOfTheFixedSet()
     say(*widget, R"({"do": "cycle", "step": -1})");
     say(*widget, R"({"do": "move", "tab": "t2", "index": 3})");
     say(*widget, R"({"do": "reload", "tab": "ignored"})");
+    say(*widget, R"({"do": "mute", "tab": "t3"})");
+    say(*widget, R"({"do": "unmute", "tab": "t3"})");
 
-    QTRY_COMPARE(asked.count(), 4);
+    QTRY_COMPARE(asked.count(), 6);
     QCOMPARE(asked.at(0).at(0).toString(), QStringLiteral("activate"));
     QCOMPARE(asked.at(0).at(1).toMap(),
         (QVariantMap {{QStringLiteral("tab"), QStringLiteral("t1")},
@@ -261,6 +263,10 @@ void BarTest::aWidgetAsksForTheActionsOfTheFixedSet()
             {QStringLiteral("tab"), QStringLiteral("t2")}, {QStringLiteral("index"), 3}}));
     QCOMPARE(asked.at(3).at(0).toString(), QStringLiteral("reload"));
     QVERIFY(asked.at(3).at(1).toMap().isEmpty());
+    QCOMPARE(asked.at(4).at(0).toString(), QStringLiteral("mute"));
+    QCOMPARE(
+        asked.at(4).at(1).toMap(), (QVariantMap {{QStringLiteral("tab"), QStringLiteral("t3")}}));
+    QCOMPARE(asked.at(5).at(0).toString(), QStringLiteral("unmute"));
 }
 
 // The bar reaches tabs and Spaces and nothing else: no page, no address to

@@ -175,9 +175,10 @@ places it twice: after the workspaces with the Spaces and tabs, and in the cente
 The window then shows only the page, and its sidebar returns when no widget has been there for a few
 seconds. A Private window keeps its own sidebar. _Avoid_: Tab bar, taskbar, panel
 
-**Location**: The page on show as the Omarchy bar widget names it in the bar's center: a lock, the
-host, and the title dimmed, at a fixed width so a tab switch moves nothing around it. Clicking it
-opens the Omnibar; nothing is typed there. _Avoid_: Address (a form address), address bar, URL bar
+**Location**: The page on show as the Omarchy bar widget names it in the bar's center: back, forward
+and reload, then a lock, the host, and the title dimmed, at a fixed width so a tab switch moves
+nothing around it. Clicking it opens the Omnibar; nothing is typed there. _Avoid_: Address (a form
+address), address bar, URL bar
 
 **Command scope**: The Omnibar narrowed to browser commands, shown as a leading `:` in the field.
 Typing `:` into the field enters it and backspacing the `:` leaves it, keeping the typed text.

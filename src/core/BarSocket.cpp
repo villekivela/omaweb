@@ -38,7 +38,7 @@ namespace {
             QStringLiteral("reload"), QStringLiteral("omnibar")};
         static const QStringList onATab {QStringLiteral("activate"), QStringLiteral("close"),
             QStringLiteral("pin"), QStringLiteral("unpin"), QStringLiteral("duplicate"),
-            QStringLiteral("popout")};
+            QStringLiteral("popout"), QStringLiteral("mute"), QStringLiteral("unmute")};
         const auto tab = request.value(QStringLiteral("tab"));
         const auto space = request.value(QStringLiteral("space"));
         if (bare.contains(action)) {

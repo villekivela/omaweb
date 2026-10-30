@@ -115,11 +115,12 @@ Quickshell keeps a plugin's files from its first scan. A release that changes th
 The browser and the widget talk over `$XDG_RUNTIME_DIR/omaweb/bar.sock`, mode 0600, which listens
 only while the bar is chosen. It is apart from the Agent socket and not gated by Allow agents. The
 browser sends one JSON state a line to every widget, one per monitor. A widget sends one action a
-line from a fixed set: `activate`, `close`, `pin`, `unpin`, `duplicate`, `popout` and `move` on a
-tab, `space`, `cycle`, `back`, `forward`, `reload` and `omnibar`. Nothing reaches a page. Favicons
-arrive as PNG files under `$XDG_RUNTIME_DIR/omaweb/bar/`, named by their contents, because the
-widget's `Image` caches by path and a page that draws a count into its icon reports a new picture. A
-burst of changes reaches the bar a few times a second, and a file no tab shows is deleted.
+line from a fixed set: `activate`, `close`, `pin`, `unpin`, `duplicate`, `popout`, `mute`, `unmute`
+and `move` on a tab, `space`, `cycle`, `back`, `forward`, `reload` and `omnibar`. Nothing reaches a
+page. Favicons arrive as PNG files under `$XDG_RUNTIME_DIR/omaweb/bar/`, named by their contents,
+because the widget's `Image` caches by path and a page that draws a count into its icon reports a
+new picture. A burst of changes reaches the bar a few times a second, and a file no tab shows is
+deleted.
 
 The sidebar comes back once no widget has been connected for three seconds, so a shell reload does
 not flash it, and the edge peek shows it at any time. Omarchy's plugin API has no stability promise;

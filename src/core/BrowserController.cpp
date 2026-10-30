@@ -1919,6 +1919,7 @@ namespace {
                 tab.muted ? QStringLiteral("muted")
                           : (tab.audible ? QStringLiteral("playing") : QString())},
             {QStringLiteral("poppedOut"), tab.poppedOut},
+            {QStringLiteral("loading"), tab.loading},
         };
     }
 

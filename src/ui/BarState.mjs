@@ -23,6 +23,7 @@ function tabOf(tab, agentActivity) {
     icon: String(tab.iconUrl || ""),
     sound: tab.sound || "",
     poppedOut: !!tab.poppedOut,
+    loading: !!tab.loading,
     agent: !!agent,
     agentAct: agent ? String(agent.act || "") : "",
   };
