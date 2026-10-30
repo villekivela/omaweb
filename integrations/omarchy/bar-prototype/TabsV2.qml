@@ -621,7 +621,18 @@ BarWidget {
         Rectangle {
             anchors.fill: parent
             radius: 4
-            color: Qt.alpha(root.fg, cell.isActive ? 0.2 : cellMouse.containsMouse ? 0.08 : 0)
+            color: Qt.alpha(root.fg, cell.isActive && !root.flat ? 0.2 : cellMouse.containsMouse ? 0.08 : 0)
+        }
+        // Flat: the active tab is underlined in its Space's colour.
+        Rectangle {
+            visible: root.flat && cell.isActive
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: -1
+            width: root.vertical ? 2 : root.iconLength
+            height: root.vertical ? root.iconLength : 2
+            radius: 1
+            color: root.space ? root.space.colour : root.fg
         }
         SiteIcon {
             id: site
