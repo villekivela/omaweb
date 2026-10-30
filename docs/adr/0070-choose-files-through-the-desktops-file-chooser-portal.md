@@ -64,4 +64,10 @@ the reader.
 - `omaweb-file-chooser-portal` stands up a stub portal on a bus started from
   `tests/platform/fixtures/bare-session-bus.conf`, which activates no service. A standard session
   bus would start the real portal once the stub is gone, and the real portal opens a real dialog.
-- The UI suites run without a session bus, so they cover the fallback.
+- The UI suites cut themselves off from the session bus before Qt starts, so a run by hand cannot
+  reach the desktop's portal either. Their `FileChooser` is a stand-in that records what the picker
+  asked and answers as a test says, and with `FileChooserStandIn.available` false they cover the
+  fallback.
+- A browser that ends with a dialog open closes its request, so the chooser's window does not
+  outlive it. `omaweb-file-chooser-portal` ends a second process that way and reads the stub's
+  `Close`. A backend that ignores `Close` leaves the window, and nothing here can take it back.

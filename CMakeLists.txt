@@ -2413,6 +2413,9 @@ if(BUILD_TESTING)
             OMAWEB_UI_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/src/ui"
             OMAWEB_OMARCHY_IMPORT_PATH="${omaweb_omarchy_root}"
         )
+        if(TARGET Qt6::DBus)
+            target_link_libraries(omaweb-ui-tests PRIVATE Qt6::DBus)
+        endif()
         target_include_directories(omaweb-ui-tests PRIVATE "tests" "src/engine/qt")
         omaweb_strict_target(omaweb-ui-tests)
         # The suite is every `tst_*.qml` under `tests/ui`. The performance

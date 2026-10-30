@@ -8,6 +8,7 @@
 #include <QDBusMetaType>
 #include <QDBusObjectPath>
 #include <QGuiApplication>
+#include <QProcess>
 #include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTest>
@@ -21,6 +22,7 @@ namespace {
 const auto kService = QStringLiteral("org.freedesktop.portal.Desktop");
 const auto kPath = QStringLiteral("/org/freedesktop/portal/desktop");
 const auto kRequestInterface = QStringLiteral("org.freedesktop.portal.Request");
+const auto kAskAndLeave = QStringLiteral("--ask-and-leave");
 
 // A filter as the portal's specification writes it, `(sa(us))`: a name, then
 // patterns that are globs (0) or MIME types (1). Declared here rather than
@@ -191,6 +193,7 @@ private slots:
     void offersQtsNameFilters();
     void reportsACancelledDialog();
     void takesTheDialogBackUnanswered();
+    void takesTheDialogBackWhenTheProcessEnds();
     void namesNoWindowWhenNoneAsked();
     void hearsAPortalThatIsSlowToAnswer();
     void namesTheWindowTheDialogBelongsTo();
@@ -384,6 +387,22 @@ void FileChooserPortalTest::takesTheDialogBackUnanswered()
     QCOMPARE(cancelled.size(), 0);
 }
 
+// A browser that ends with a dialog open leaves no window behind: the request
+// is closed before the process is gone, though nothing runs after it. The
+// process that asked is another one, as the browser is, so its exit is real.
+void FileChooserPortalTest::takesTheDialogBackWhenTheProcessEnds()
+{
+    const auto before = m_portal->asked.size();
+    QProcess asker;
+    asker.setProcessChannelMode(QProcess::ForwardedChannels);
+    QSignalSpy finished(&asker, &QProcess::finished);
+    asker.start(QCoreApplication::applicationFilePath(), {kAskAndLeave});
+    QVERIFY(finished.wait(10000));
+    QCOMPARE(asker.exitCode(), 0);
+    QCOMPARE(m_portal->asked.size(), before + 1);
+    QTRY_VERIFY(m_portal->asked.constLast().request->closed);
+}
+
 void FileChooserPortalTest::namesNoWindowWhenNoneAsked()
 {
     FileChooser chooser;
@@ -459,6 +478,23 @@ void FileChooserPortalTest::asksNothingWithoutAPortal()
     QVERIFY(!chooser.isOpen());
 }
 
-QTEST_MAIN(FileChooserPortalTest)
+// The process the test above starts: it asks for a dialog and ends with it open.
+int askAndLeave(int argc, char **argv)
+{
+    QCoreApplication application(argc, argv);
+    FileChooser chooser;
+    return chooser.ask({{"mode", "open"}, {"title", "Choose file"}}) ? 0 : 1;
+}
+
+int main(int argc, char **argv)
+{
+    if (argc > 1 && QString::fromLatin1(argv[1]) == kAskAndLeave) {
+        return askAndLeave(argc, argv);
+    }
+    QGuiApplication application(argc, argv);
+    QTEST_SET_MAIN_SOURCE_PATH
+    FileChooserPortalTest test;
+    return QTest::qExec(&test, argc, argv);
+}
 
 #include "tst_filechooserportal.moc"
