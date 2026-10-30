@@ -40,6 +40,55 @@ session's 0.973 on JetStream is one low run of Chromium 140, 359.09 against 385.
 faster Omaweb, so Omaweb's own scores are the comparison. aarch64 is measured again when Chrome
 publishes an aarch64 profile or the series moves to a new Chromium.
 
+## The link level
+
+Chromium links every target at `--lto-O0` except Chrome's own, which take `thinlto_optimize_max` and
+`--lto-O2`. At O0 ThinLTO imports functions across files and then neither inlines nor optimizes
+them. `QtWebEngineCore` is the library Qt builds in Chrome's place and kept the default, so the
+series' `toolchain/clang.patch` gives it Chrome's config, and the gate's
+`scripts/check-lto-level.sh` fails a tree that links it below O2. Measured and decided in
+[#886](https://github.com/villekivela/omaweb/issues/886), on 6.11.3 x86_64 on the same machine as
+above, three runs of each suite, the same Omaweb binary against both engine libraries:
+
+| Suite            | `--lto-O0` | `--lto-O2` | Change | ÷ Chromium 140, O0 | ÷ Chromium 140, O2 |
+| ---------------- | ---------- | ---------- | ------ | ------------------ | ------------------ |
+| Speedometer 3.1  | 20.06      | 22.51      | +12.2% | 0.730              | 0.819              |
+| JetStream 2.2    | 360.43     | 363.57     | +0.9%  | 0.937              | 0.939              |
+| MotionMark 1.3.2 | 2695.96    | 3063.84    | +13.6% | 0.940              | 1.041              |
+
+Omaweb's own three Speedometer runs spread by 0.5% at O0 and 0.7% at O2, and the latest Chromium's
+by 1.4% and 1.3% in the two sessions, so Speedometer's gain is outside both and JetStream's is not.
+MotionMark's runs spread more, Omaweb's by 1.5% and 4.1% and the latest Chromium's by 3.6% and 6.8%,
+so its gain is real but its 1.041 does not say the engine composites faster than Chrome.
+
+A profile of one Speedometer run at O2, taken as #860's was, shows where the O0 link lost time.
+`TaskQueueImpl::TraceQueueSize`, 0.44% of the renderer at O0 and in its top 20, falls to 0.01%,
+inlined into its callers once the link optimizes. It asks at run time whether to trace, so the
+tracing build flags were not the cause. TurboFan's `GraphReducer` is in the top 20 at O2, as it is
+in Chrome's.
+
+The rest of the build was set beside Chrome 140's official Linux build. It already matches on
+`is_official_build`, PGO (`chrome_pgo_phase = 2` with Chrome's profile),
+`optimize_for_size = false`, `use_thin_lto`, `thin_lto_enable_optimizations`,
+`enable_call_graph_profile_sort` and `-O2`. Chromium 140 has no `enable_base_tracing`, and
+`optional_trace_events_enabled` is on in both. The engine is ahead on two that cost Chrome time:
+`is_cfi` and `init_stack_vars` are off. Three differences it cannot take:
+
+- `use_partition_alloc_as_malloc` and `use_allocator_shim` are off, set by Qt's
+  `QtToolchainHelpers.cmake` and forced by Chromium's `build_overrides/partition_alloc.gni` for
+  `is_qtwebengine`. The engine is a shared library in an application's process, and the shim would
+  take over `malloc` for all of Qt and Omaweb.
+- `use_custom_libcxx` is off, because Qt and Omaweb are built against libstdc++ and C++ types cross
+  the library's interface.
+
+Two more are untried, because each needs the engine compiled from nothing rather than relinked:
+`use_jumbo_build`, which Qt turns on and Chrome does not, and may cost PGO matches; and thread-local
+storage through `__tls_get_addr`, which a shared library compiled with `-fPIC` uses where Chrome's
+executable does not, 0.35% of [#860](https://github.com/villekivela/omaweb/issues/860)'s profile.
+
+The O2 link costs time and some memory: 449 s cold with ten threads at 3.9 GB of the container's
+anonymous memory, against the 3.5 GB with sixteen at O0 below, and 39 s with a warm ThinLTO cache.
+
 ## How the PGO profile follows the Chromium
 
 Chrome's PGO profile is only good for the Chromium it was taken from, so it is never chosen by hand.

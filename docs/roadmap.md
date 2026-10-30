@@ -89,9 +89,9 @@ longer fades over it ([#883](https://github.com/villekivela/omaweb/issues/883)).
 chrome added since September and is kept ([#884](https://github.com/villekivela/omaweb/issues/884)).
 A frozen away page that keeps growing is traced
 ([#885](https://github.com/villekivela/omaweb/issues/885)). The budget is measured on the release
-build readers run ([#889](https://github.com/villekivela/omaweb/issues/889)), and the engine closes
-its Speedometer gap to Chromium through its build flags
-([#886](https://github.com/villekivela/omaweb/issues/886)).
+build readers run ([#889](https://github.com/villekivela/omaweb/issues/889)), and the x86_64 engine
+links at ThinLTO's `--lto-O2`, as Chrome does, which takes Speedometer from 0.73 of Chromium 140 to
+0.82 ([#886](https://github.com/villekivela/omaweb/issues/886)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
