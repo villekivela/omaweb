@@ -2010,7 +2010,7 @@ class ThemeOnsets(unittest.TestCase):
         shifts = [(0.5, 0.02), (3.18, 1.6), (3.22, 1.0), (3.5, 0.9), (4.0, 0.01),
                   (6.55, 1.7), (6.6, 1.2), (6.9, 0.4), (10.88, 1.4)]
         self.assertEqual(film.theme_onsets(self.THEMES, shifts, 10.7),
-                         [[0.0, "nebula"], [3.13, "lumon"], [6.5, "nebula"]])
+                         [[0.0, "nebula"], [3.08, "lumon"], [6.45, "nebula"]])
 
     def test_a_beat_with_a_different_number_of_changes_keeps_the_marked_times(self):
         for shifts in ([], [(3.18, 1.6)], [(1.0, 1.6), (3.0, 1.6), (6.0, 1.6)]):
@@ -2029,7 +2029,7 @@ class ThemeOnsets(unittest.TestCase):
                             str(raw)], check=True)
             shifts = film.chroma_shifts(raw, 0.0, 4.0)
             self.assertEqual(film.theme_onsets([[0.0, "a"], [3.0, "b"], [3.5, "a"]], shifts, 4.0),
-                             [[0.0, "a"], [0.95, "b"], [2.45, "a"]])
+                             [[0.0, "a"], [0.9, "b"], [2.4, "a"]])
 
     def test_on_the_desktop_only_the_wallpaper_above_the_window_is_watched(self):
         # The window repaints at once and the desktop's sweep follows, and the film's page changes
@@ -2050,10 +2050,10 @@ class ThemeOnsets(unittest.TestCase):
                             str(raw)], check=True)
             whole = film.chroma_shifts(raw, 0.0, 3.0)
             self.assertEqual(film.theme_onsets([[0.0, "a"], [2.5, "b"], [2.9, "c"]], whole, 3.0),
-                             [[0.0, "a"], [0.95, "b"], [1.95, "c"]])
+                             [[0.0, "a"], [0.9, "b"], [1.9, "c"]])
             above = film.chroma_shifts(raw, 0.0, 3.0, 0.2)
             self.assertEqual(film.theme_onsets([[0.0, "a"], [2.5, "b"]], above, 3.0),
-                             [[0.0, "a"], [1.95, "b"]])
+                             [[0.0, "a"], [1.9, "b"]])
 
 
 class RecordCleanup(unittest.TestCase):

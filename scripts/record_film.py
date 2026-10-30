@@ -2332,7 +2332,7 @@ ONSET_SHIFT = 0.1
 ONSET_APART = 0.5
 # The page's change starts this far ahead of the sweep's first frame, which is what reads as in step
 # with it once the page has drawn its own (found by eye against the film, #903).
-ONSET_LEAD = 0.05
+ONSET_LEAD = 0.1
 
 
 def chroma_shifts(raw: Path, start: float, end: float,
