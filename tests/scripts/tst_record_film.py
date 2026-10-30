@@ -2017,6 +2017,7 @@ class ThemeOnsets(unittest.TestCase):
             with self.subTest(shifts=shifts):
                 self.assertEqual(film.theme_onsets(self.THEMES, shifts, 10.7), self.THEMES)
 
+    @unittest.skipUnless(ffmpeg_can_read_brightness(), "this ffmpeg cannot read brightness")
     def test_the_shifts_of_a_recording_are_read_from_its_frames(self):
         with tempfile.TemporaryDirectory() as directory:
             raw = Path(directory) / "raw.mkv"
@@ -2032,6 +2033,7 @@ class ThemeOnsets(unittest.TestCase):
             self.assertEqual(film.theme_onsets([[0.0, "a"], [3.0, "b"], [3.5, "a"]], shifts, 4.0),
                              [[0.0, "a"], [0.9, "b"], [2.4, "a"]])
 
+    @unittest.skipUnless(ffmpeg_can_read_brightness(), "this ffmpeg cannot read brightness")
     def test_on_the_desktop_only_the_wallpaper_above_the_window_is_watched(self):
         # The window repaints at once and the desktop's sweep follows, and the film's page changes
         # with the sweep. Here the bottom half changes at 1.0 s and the top fifth at 2.0 s.
