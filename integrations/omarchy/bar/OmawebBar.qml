@@ -47,7 +47,7 @@ BarWidget {
     readonly property color popupFg: Commons.Color.popups.text
     readonly property string font: bar ? bar.fontFamily : Style.font.family
     readonly property int gap: Style.space(10)
-    readonly property real iconLength: 16
+    readonly property real iconLength: 14
 
     // Which popup is open ("menu", "spaces", "status" or ""), and over what.
     property string popup: ""
@@ -131,7 +131,7 @@ BarWidget {
     readonly property var tabLayout: {
         if (!live || role !== "tabs" || !space)
             return {
-                "pad": 4,
+                "pad": 7,
                 "tabs": [],
                 "hidden": 0
             };
@@ -271,7 +271,7 @@ BarWidget {
                 TabCell {
                     required property var modelData
                     tab: modelData
-                    pad: 3
+                    pad: 5
                     pinned: true
                 }
             }
@@ -499,9 +499,12 @@ BarWidget {
             radius: 1
             color: root.space ? root.space.colour : root.fg
         }
+        // Every tab but the active one sits back a little, so a row of
+        // favicons reads as a row rather than a wall of colour.
         SiteIcon {
             id: site
             tab: cell.tab
+            opacity: cell.isActive || cellMouse.containsMouse ? 1 : 0.75
             x: (cell.width - width) / 2
             anchors.verticalCenter: parent.verticalCenter
         }

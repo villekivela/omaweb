@@ -1,6 +1,6 @@
 // The spacing on either side of a favicon, widest first. The tabs take the
 // widest that fits before any of them is hidden.
-const pads = [4, 3, 2];
+const pads = [7, 5, 3];
 
 // Which of a Space's tabs fit in `room` pixels along the bar, each a favicon
 // `iconLength` long: every one at the widest spacing that fits, or else the
