@@ -131,9 +131,11 @@ export function createCrtRoad(p) {
   }
 
   // The sun: a solid cap, then `bands` cuts that thicken toward the horizon.
-  function sun(context, g, c, bands) {
+  function sun(context, g, c, bands, rise) {
     const radius = g.h * p.sun.radius;
     context.save();
+    // Lowered behind the ridges and the desert, which are drawn over it.
+    context.translate(0, (1 - rise) * radius);
     context.beginPath();
     const solid = radius * p.sun.cap;
     context.rect(g.vx - radius, g.horizonY - radius, radius * 2, solid);
@@ -158,7 +160,7 @@ export function createCrtRoad(p) {
 
   // What does not move: the sky and its stars, the sunrise glow, the sun, the ridges, the desert
   // and the road on it.
-  function still(context, g, c, bands) {
+  function still(context, g, c, bands, rise) {
     context.fillStyle = stops(context.createLinearGradient(0, 0, 0, g.horizonY), p.sky, c);
     context.fillRect(0, 0, g.w, g.horizonY + 1);
 
@@ -194,7 +196,7 @@ export function createCrtRoad(p) {
     );
     context.fillStyle = stops(halo, p.halo.stops, c);
     context.fillRect(0, 0, g.w, g.horizonY);
-    sun(context, g, c, bands);
+    sun(context, g, c, bands, rise);
 
     // The ridges as filled silhouettes, each a tone darker than the one behind it.
     for (const layer of p.ridges.layers) {
@@ -367,13 +369,16 @@ export function createCrtRoad(p) {
       const g = geometry(input.width * p.pitch, input.height * p.pitch, width, p.horizon.at);
       const c = colours(input, p.night);
       const s = input.state;
-      if (!s.still) {
-        s.still = document.createElement("canvas");
+      // The still layer is drawn again as the sun climbs, in fiftieths of its height.
+      const climb = Math.round(input.rise * 50);
+      if (!s.still || s.climb !== climb) {
+        s.climb = climb;
+        s.still ??= document.createElement("canvas");
         s.still.width = input.width;
         s.still.height = input.height;
         const layer = s.still.getContext("2d");
         layer.scale(1 / p.pitch, 1 / p.pitch);
-        still(layer, g, c, Number(input.options.bands));
+        still(layer, g, c, Number(input.options.bands), climb / 50);
       }
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.drawImage(s.still, 0, 0);

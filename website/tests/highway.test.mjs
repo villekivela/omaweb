@@ -8,13 +8,16 @@ import test from "node:test";
 import {
   BAR,
   Cruise,
+  IDLE_DIM,
   cues,
+  dimming,
   keyAnswer,
   launch,
   nearestStop,
   placement,
   quiet,
   revving,
+  rising,
   revealClip,
   stopAt,
   wornAt,
@@ -214,4 +217,27 @@ test("quiet: the last bar before the drop hushes the world, and the drop ends it
   assert.equal(quiet(drop + 5), 0);
   // The engine is cut in the hush, and a rev is not asked for in it.
   assert.equal(revving(drop - 0.5), 0);
+});
+
+// Through the intro the sun climbs from 0.7 of its height to all of it at the drop, easing in and
+// out, so it is the last bright thing in the hush.
+test("rising: the sun climbs from 0.7 of its height to all of it at the drop", () => {
+  const drop = 8 * BAR;
+  assert.equal(rising(0), 0.7);
+  assert.ok(Math.abs(rising(drop / 2) - 0.85) < 1e-9);
+  assert.equal(rising(drop), 1);
+  assert.equal(rising(drop + 3), 1);
+  assert.equal(rising(-1), 0.7);
+});
+
+// The page rests dimmed with the sun down, and the intro lifts the dim by the last bar, where the
+// hush dims it again for the drop, which ends it.
+test("dimming: dim at rest, lifted by the last bar, hushed in it, and gone at the drop", () => {
+  const drop = 8 * BAR;
+  assert.equal(IDLE_DIM, 0.3);
+  assert.equal(dimming(0), 0.3);
+  assert.ok(dimming(drop / 2) < 0.3 && dimming(drop / 2) > 0);
+  assert.equal(dimming(drop - BAR), 0);
+  assert.equal(dimming(drop - 0.7 * BAR), 0.4);
+  assert.equal(dimming(drop), 0);
 });

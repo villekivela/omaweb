@@ -20,8 +20,26 @@ export function quiet(time) {
   return into * into * (3 - 2 * into);
 }
 
+// How high the sun stands, 0 to 1 of its height, through the intro: it sits at `SUN_FROM` and
+// climbs, easing in and out, to all of it at the drop, so it is the last bright thing in the hush.
+export const SUN_FROM = 0.7;
+export function rising(time) {
+  const toward = Math.min(1, Math.max(0, time / (INTRO_BARS * BAR)));
+  return SUN_FROM + (1 - SUN_FROM) * toward * toward * (3 - 2 * toward);
+}
+
 // How much the world dims in the hush, at its deepest: the scene's brightness falls by this much.
 export const HUSH_DIM = 0.4;
+
+// How dim the page rests while it waits for the journey, 0 to 1 of its brightness, and how dim it
+// is through the intro: the rest's dim lifts toward the last bar, where the hush dims it for the
+// drop, and the drop ends it.
+export const IDLE_DIM = 0.3;
+export function dimming(time) {
+  const toward = Math.min(1, Math.max(0, time / ((INTRO_BARS - 1) * BAR)));
+  const lifted = IDLE_DIM * (1 - toward * toward * (3 - 2 * toward));
+  return Math.max(lifted, HUSH_DIM * quiet(time));
+}
 
 // How hard the engine revs while the road waits parked through the intro, 0 to 0.7 of the throttle:
 // a little at first and then more, to the drop where the beat comes in and the drive sets off. In

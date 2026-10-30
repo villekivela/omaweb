@@ -399,3 +399,11 @@ test("input: the hush before the drop reaches a moving Scene, 0 to 1, and a stil
   assert.equal(sceneInput(road, moving).hush, 0);
   assert.equal(sceneInput(road, { ...moving, hush: 0.4, reducedMotion: true }).hush, 0);
 });
+
+test("input: the sun's rise is whole unless the page says otherwise, and held to 0 to 1", () => {
+  const moving = { palette: retro82, width: 10, height: 10 };
+  assert.equal(sceneInput(road, moving).rise, 1);
+  assert.equal(sceneInput(road, { ...moving, rise: 0.7 }).rise, 0.7);
+  assert.equal(sceneInput(road, { ...moving, rise: -2 }).rise, 0);
+  assert.equal(sceneInput(road, { ...moving, rise: 0.4, reducedMotion: true }).rise, 1);
+});

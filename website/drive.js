@@ -10,9 +10,11 @@ import {
   Cruise,
   REVEAL_EASING,
   REVEAL_MS,
+  SUN_FROM,
   cues,
+  dimming,
   keyAnswer,
-  HUSH_DIM,
+  IDLE_DIM,
   LAUNCH,
   launch,
   nearestStop,
@@ -20,6 +22,7 @@ import {
   quiet,
   revealClip,
   revving,
+  rising,
   wornAt,
 } from "./highway.js";
 import { STILL_MEDIA, SceneHost } from "./scene.js";
@@ -74,7 +77,7 @@ if (drive) {
   // The Omnibar stands in front of the sun and catches its light at its rim.
   const host = crtRoad
     ? new SceneHost(canvas, crtRoad, { beat: listenToRadio(), lit: omnibar })
-    : { setNavigating() {}, setParked() {}, setHush() {}, lightUp() {} };
+    : { setNavigating() {}, setParked() {}, setHush() {}, setRise() {}, lightUp() {} };
   // On the Start page the road stands still, and the sky with its shooting stars goes on, until
   // the journey starts: the reader scrolls, or cruise control's first glide at the drop (the radio
   // and the ignition first build to it, the engine revving). Then it runs for good.
@@ -455,6 +458,30 @@ if (drive) {
     const stops = [start, ...cards, drive.querySelector(".install")];
     const times = cues(stops.length);
     root.classList.add("highway");
+    // How the scene looks: it rests dimmed with the sun down on the Start page, the intro lifts
+    // both, the hush dims it for the drop and the drop ends it. The first scroll wakes it, eased.
+    let dimNow = 0;
+    let sunNow = 1;
+    let waking = 0;
+    const look = (dim, rise) => {
+      dimNow = dim;
+      sunNow = rise;
+      host.setRise(rise);
+      // On the scene's wrapper: the glass lifts the canvas by a filter of its own.
+      canvas.parentElement.style.filter = dim ? `brightness(${1 - dim})` : "";
+    };
+    const wake = (seconds = 0.6) => {
+      cancelAnimationFrame(waking);
+      const [dim, rise, began] = [dimNow, sunNow, performance.now()];
+      const step = (now) => {
+        const t = Math.min(1, (now - began) / (seconds * 1000));
+        look(dim * (1 - t), rise + (1 - rise) * t);
+        if (t < 1) waking = requestAnimationFrame(step);
+      };
+      waking = requestAnimationFrame(step);
+    };
+    if (scrollY === 0) look(IDLE_DIM, SUN_FROM);
+    addEventListener("scroll", () => wake(), { once: true, passive: true });
     for (const stop of stops) stop.classList.add("highway__stop");
     throttle = 4;
 
@@ -740,9 +767,11 @@ if (drive) {
         cruising = revving(clock());
         navigate();
         hush(quiet(clock()));
+        look(dimming(clock()), sunNow + (rising(clock()) - sunNow) * 0.3);
       }
       if (index !== null) {
         hush(0);
+        look(0, 1);
         leave();
         glide(index, undefined, before === 0 && index === 1);
         undo = performs.get(stops[index])?.(stops[index]) ?? (() => {});
@@ -762,15 +791,14 @@ if (drive) {
       cruise.start();
       tick();
     };
-    // The hush before the drop: the scene dims and the shooting stars fade.
-    const hush = (depth) => {
-      host.setHush(depth);
-      canvas.style.filter = depth ? `brightness(${1 - HUSH_DIM * depth})` : "";
-    };
+    // The hush before the drop: the shooting stars fade.
+    const hush = (depth) => host.setHush(depth);
     const idle = () => {
       cruising = 0;
       navigate();
       hush(0);
+      cancelAnimationFrame(waking);
+      look(0, 1);
     };
     const end = () => {
       leave();

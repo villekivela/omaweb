@@ -44,6 +44,8 @@ export function sceneInput(scene, environment) {
     // The road stands still, as the hero's does until the journey starts; the sky carries on.
     parked: Boolean(environment.parked),
     // The hush before the drop, 0 to 1: the sky stills with the road.
+    // How high the sun stands, 0 to 1 of its height: the intro raises it.
+    rise: still ? 1 : Math.max(0, Math.min(1, environment.rise ?? 1)),
     hush: still ? 0 : Math.max(0, Math.min(1, environment.hush || 0)),
     beat: still ? 0 : Math.max(0, Math.min(1, environment.beat || 0)),
     reducedMotion: still,
@@ -160,6 +162,7 @@ export class SceneHost {
     this.navigating = 0;
     this.parked = false;
     this.hush = 0;
+    this.rise = 1;
     this.state = {};
     this.frame = 0;
     this.last = -Infinity;
@@ -210,6 +213,7 @@ export class SceneHost {
       navigating: this.navigating,
       parked: this.parked,
       hush: this.hush,
+      rise: this.rise,
       beat: this.beat(),
       reducedMotion: this.reduced.matches,
       phone: this.phone.matches,
@@ -241,6 +245,11 @@ export class SceneHost {
   // Start page until the journey starts.
   setParked(value) {
     this.parked = value;
+  }
+
+  // How high the sun stands, 0 to 1 of its height.
+  setRise(value) {
+    this.rise = value;
   }
 
   // The hush before the drop, 0 to 1, in which the shooting stars fade.
