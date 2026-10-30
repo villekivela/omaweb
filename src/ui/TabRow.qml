@@ -369,7 +369,8 @@ Item {
 
     // A window's outline, where the row ends, in the row's own text colour. On
     // an ordinary row it gives way to the close button under the pointer; a
-    // pin carries it in the corner the speaker leaves free.
+    // pin carries it in the bottom corner, under the speaker's top one, so it
+    // does not move when the tab starts or stops playing (#887).
     Text {
         objectName: "tabWindowMark-" + root.tabId
         visible: root.poppedOut && (root.pinned || (!hoverArea.containsMouse && !root.showsGlance))
@@ -378,8 +379,8 @@ Item {
                                                                                 - width) / 2,
                                                                  root.pixelRatio)
         anchors.verticalCenter: root.pinned ? undefined : parent.verticalCenter
-        anchors.top: root.pinned ? parent.top : undefined
-        anchors.topMargin: 4
+        anchors.bottom: root.pinned ? parent.bottom : undefined
+        anchors.bottomMargin: 4
         text: "web_asset"
         color: root.active || root.tabBeside ? root.colors.text : root.colors.mutedText
         font.family: root.iconFontFamily

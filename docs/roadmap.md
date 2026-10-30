@@ -87,11 +87,14 @@ Files are chosen through the desktop's file chooser portal
 named. Startup's 0.2 s is mostly the runner, and a Start page closed before the first frame no
 longer fades over it ([#883](https://github.com/villekivela/omaweb/issues/883)). The 21 MiB is the
 chrome added since September and is kept ([#884](https://github.com/villekivela/omaweb/issues/884)).
-A frozen away page that keeps growing is traced
-([#885](https://github.com/villekivela/omaweb/issues/885)). The budget is measured on the release
-build readers run ([#889](https://github.com/villekivela/omaweb/issues/889)), and the x86_64 engine
-links at ThinLTO's `--lto-O2`, as Chrome does, which takes Speedometer from 0.73 of Chromium 140 to
-0.82 ([#886](https://github.com/villekivela/omaweb/issues/886)).
+A frozen away page does not grow: the 0.44 MiB was the page brought back on show, and the probe now
+reads the away page's own processes ([#885](https://github.com/villekivela/omaweb/issues/885)). The
+budget is measured on the release build readers run
+([#889](https://github.com/villekivela/omaweb/issues/889)), and the x86_64 engine links at ThinLTO's
+`--lto-O2`, as Chrome does, which takes Speedometer from 0.73 of Chromium 140 to 0.82
+([#886](https://github.com/villekivela/omaweb/issues/886)). A popped-out pin keeps its window mark
+clear of its speaker ([#887](https://github.com/villekivela/omaweb/issues/887)), and the UI tests no
+longer open the desktop's file chooser ([#894](https://github.com/villekivela/omaweb/issues/894)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 

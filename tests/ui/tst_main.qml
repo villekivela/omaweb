@@ -334,6 +334,8 @@ TestCase {
     // each one starts from a settled window. It is put back as a key would put
     // it, so nothing restored here is still moving when the test begins.
     function init() {
+        // A stand-in chooser a failed test left answering is a desktop with no portal again.
+        FileChooserStandIn.reset();
         while (frameWatches.length > 0)
             stopWatching(frameWatches[0]);
         // A Tab window a failed test left open goes back to the sidebar, and
@@ -1986,9 +1988,9 @@ TestCase {
         verify(engine.fileSelectionCancelled);
     }
 
-    // The suite runs on a desktop with no session bus, so no file chooser
-    // portal answers and a page's chooser is Qt's own dialog, in the mode the
-    // page asked for. Cancelling it cancels the page's request.
+    // The suite stands in for a desktop whose file chooser portal does not
+    // answer, so a page's chooser is Qt's own dialog, in the mode the page
+    // asked for. Cancelling it cancels the page's request.
     function test_pageFileSelectionFallsBackToQtsDialogWithoutAPortal() {
         const engine = openPage("https://files.example/form");
         const picker = findChild(window, "pageFileDialog");
@@ -2013,6 +2015,46 @@ TestCase {
         files.reject();
         verify(engine.fileSelectionCancelled);
         verify(!picker.showing);
+    }
+
+    // The desktop's chooser is a stand-in in the suite, which records what the
+    // picker asked and answers as the test says, so no run reaches the
+    // portal of the desktop it runs on. The reader's choice reaches the page.
+    function test_pageFileSelectionIsAskedOfTheDesktopsChooser() {
+        FileChooserStandIn.reset();
+        FileChooserStandIn.available = true;
+        const engine = openPage("https://files.example/form");
+        const picker = findChild(window, "pageFileDialog");
+
+        engine.simulateFileSelection("open-multiple", ["image/png", ".pdf"]);
+        compare(FileChooserStandIn.asked.length, 1);
+        compare(FileChooserStandIn.asked[0].mode, "open-multiple");
+        compare(FileChooserStandIn.asked[0].acceptedTypes, ["image/png", ".pdf"]);
+        verify(picker.showing);
+        verify(!findChild(picker, "qtFileDialog").visible);
+
+        FileChooserStandIn.choose(["file:///home/reader/one.png", "file:///home/reader/two.png"]);
+        compare(engine.lastSelectedFiles.length, 2);
+        verify(!picker.showing);
+
+        engine.simulateFileSelection("open", []);
+        verify(picker.showing);
+        FileChooserStandIn.cancel();
+        verify(engine.fileSelectionCancelled);
+        verify(!picker.showing);
+
+        engine.simulateFileSelection("open", []);
+        verify(picker.showing);
+        picker.close();
+        compare(FileChooserStandIn.closes, 1);
+        verify(!picker.showing);
+    }
+
+    // The suite is cut off from the session bus of the desktop it runs on, so
+    // no dialog test can reach that desktop's file chooser portal, whether it
+    // was started by ctest or by hand.
+    function test_theSuiteCannotReachTheDesktopsSessionBus() {
+        verify(!FileChooserStandIn.sessionBusReachable);
     }
 
     // A save opens in the downloads location under the name it was offered:
@@ -19313,6 +19355,103 @@ TestCase {
             return engineLoader.item === engine;
         });
         verify(engine.visible);
+        browser.closeTab(readingTabId);
+    }
+
+    // A pin's speaker takes the top-right corner and the window mark the
+    // bottom-right one, so a pin that is playing and popped out shows both
+    // (#887). The mark keeps its corner whether or not the tab plays.
+    function test_aPoppedOutPinKeepsItsWindowMarkBelowItsSpeaker() {
+        const engine = openPageInNewTab("https://pinned-sound.example");
+        engine.simulateUserActivation();
+        const tabId = browser.activeTabId;
+        browser.toggleActivePinned();
+        verify(browser.tabPinned(tabId));
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        tabWindowOf(tabId);
+        tryVerify(function () {
+            return findChild(window.contentItem, "pinned-" + tabId) !== null;
+        });
+        const row = findChild(window.contentItem, "pinned-" + tabId);
+        const mark = findChild(window.contentItem, "tabWindowMark-" + tabId);
+        const speaker = findChild(window.contentItem, "audio-" + tabId);
+        verify(row !== null && mark !== null && speaker !== null);
+        verify(mark.visible);
+        const markAt = mark.mapToItem(row, 0, 0);
+        const quiet = {
+            "x": markAt.x,
+            "y": markAt.y
+        };
+
+        engine.simulateAudible(true);
+        tryVerify(function () {
+            return speaker.visible;
+        });
+        verify(mark.visible);
+        const spoken = mark.mapToItem(row, 0, 0);
+        compare(spoken.x, quiet.x);
+        compare(spoken.y, quiet.y);
+        const speakerAt = speaker.mapToItem(row, 0, 0);
+        const apart = spoken.y >= speakerAt.y + speaker.height || spoken.x >= speakerAt.x
+              + speaker.width || spoken.x + mark.width <= speakerAt.x;
+        verify(apart, "the window mark overlaps the speaker");
+        verify(spoken.y > speakerAt.y);
+        verify(spoken.y + mark.height <= row.height);
+        verify(spoken.x + mark.width <= row.width);
+
+        window.tabWindowFor(tabId).close();
+        tryVerify(function () {
+            return window.tabWindowCount === 0;
+        });
+        browser.activateTab(tabId);
+        browser.toggleActivePinned();
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
+    // The Glance's keep button takes the same corner as the speaker on a pin,
+    // so the window mark stays clear of it too (#887).
+    function test_aPoppedOutPinKeepsItsWindowMarkBelowAGlancesKeepButton() {
+        openPageInNewTab("https://pinned-glance.example");
+        const tabId = browser.activeTabId;
+        browser.toggleActivePinned();
+        verify(browser.tabPinned(tabId));
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        tabWindowOf(tabId);
+        tryVerify(function () {
+            return findChild(window.contentItem, "pinned-" + tabId) !== null;
+        });
+        const row = findChild(window.contentItem, "pinned-" + tabId);
+        const mark = findChild(window.contentItem, "tabWindowMark-" + tabId);
+        const keep = findChild(window.contentItem, "glanceKeep-" + tabId);
+        verify(row !== null && mark !== null && keep !== null);
+
+        openGlance("https://glanced.example/page");
+        // The Glance stands over the active tab; point it at the popped-out pin.
+        window.glanceTabId = tabId;
+        tryVerify(function () {
+            return keep.visible && keep.opacity === 1;
+        });
+        verify(mark.visible);
+        const markAt = mark.mapToItem(row, 0, 0);
+        const keepAt = keep.mapToItem(row, 0, 0);
+        verify(markAt.y >= keepAt.y + keep.height || markAt.x >= keepAt.x + keep.width || markAt.x
+               + mark.width <= keepAt.x, "the window mark overlaps the keep button");
+        window.closeGlance();
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+        window.tabWindowFor(tabId).close();
+        tryVerify(function () {
+            return window.tabWindowCount === 0;
+        });
+        browser.activateTab(tabId);
+        browser.toggleActivePinned();
+        browser.closeTab(tabId);
         browser.closeTab(readingTabId);
     }
 

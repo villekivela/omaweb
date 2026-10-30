@@ -170,7 +170,7 @@ its own, and they run side by side:
 | `commit-messages`    | Every non-merge subject in the range                                                                       |
 | `changes`            | Whether the range holds anything the Arch jobs below could break                                           |
 | `arch-linux-clang`   | The `ci` preset under clang against Omaweb's engine, and `ctest --preset ci`                               |
-| `arch-linux-budget`  | The browser from the `ci` preset under clang, held to [the runtime budget](#the-runtime-budget)            |
+| `arch-linux-budget`  | The browser from the `release` preset under clang, held to [the runtime budget](#the-runtime-budget)       |
 | `arch-linux-release` | The `release` preset under clang against Omaweb's engine, and the tests that load its compiled QML         |
 | `arch-linux`         | The required check: passes when `changes` and the three above passed or were skipped                       |
 | `arch-linux-gcc`     | The `ci` preset under GCC against Arch's `qt6-webengine`, and `ctest --preset ci`                          |
@@ -209,9 +209,9 @@ The clang and GCC jobs each restore a ccache directory from the last run and sav
 built, under a key per compiler and preset, capped at 500 MB. A pull request starts from the cache
 of its own last run, or from `main`'s on its first. ccache checks each object against its compiler
 and sources, so a stale cache costs time and nothing else. A new toolchain misses, and a missing
-cache builds cold, slower but the same. `arch-linux-budget` reads `arch-linux-clang`'s cache and
-saves none, because it compiles the same objects. `arch-package` builds through `makepkg` without
-the launcher, as a reader's build does.
+cache builds cold, slower but the same. `arch-linux-budget` reads `arch-linux-release`'s cache and
+saves none, because it builds the same preset, bar the key log. `arch-package` builds through
+`makepkg` without the launcher, as a reader's build does.
 
 The Arch jobs cost between one and fifteen minutes each, and a change confined to `docs/`,
 `website/` or Markdown cannot break a compile, so a `changes` job decides whether they run at all.
@@ -1535,7 +1535,7 @@ budget that speaks only when it breaks hides the drift that is about to break it
 
 ```sh
 scripts/benchmark_runtime.py
-scripts/benchmark_runtime.py startup --browser build/dev/omaweb
+scripts/benchmark_runtime.py startup --browser build/release/omaweb-browser
 scripts/benchmark_runtime.py startup livedin --cache cold
 scripts/benchmark_runtime.py spaces --spaces 4
 scripts/benchmark_runtime.py pageload
@@ -1555,10 +1555,13 @@ Eight measurements, one subcommand each, so a developer can run the one they are
   after the first added. That is the price of the engine profile per Space that
   [ADR 0008](adr/0008-isolate-space-storage-on-disk.md) buys.
 - `freezing` loads a page that takes a megabyte every fifth of a second into a second Space, puts
-  that Space away, and reports how much the engine's processes grew over the ten seconds after they
-  had settled. The browser's own process is left out: a page runs in a renderer, and on CI the
-  browser process takes a step of about 6 MiB at a moment nothing can predict, more than the whole
-  budget. A Space switch leaves the engine busy for a moment, so the probe first reads every two
+  that Space away, and reports how much the processes that page started grew over the ten seconds
+  after they had settled. Every other process is left out. On CI the browser's own process takes a
+  step of about 6 MiB at a moment nothing can predict, more than the whole budget, and the page
+  brought back on show runs V8's memory reducer about twelve seconds after the switch, which faults
+  in up to a mebibyte of the engine's library (#885). The processes are read by what they hold,
+  resident or swapped out, not by proportional share, because a share moves when another process
+  maps or leaves the same library. Freezing is not instant, so the probe first reads every two
   seconds until three readings in a row agree within a quarter of a mebibyte, for at most thirty
   seconds. The log says how long that took and how far the reading moved meanwhile.
   [ADR 0033](adr/0033-stop-an-away-spaces-pages-instead-of-taking-them.md) keeps a frozen page's
@@ -1585,10 +1588,11 @@ map a window, Spaces or tabs that never open and an allocator page that never al
 skips: each of those fails the run, because each is either a broken browser or a number that would
 mean nothing.
 
-CI runs it in the `arch-linux-budget` job, which builds the browser from the `ci` preset and runs
-nothing else, under cage on the headless backend, with `--require-dns` so that `pageload` fails
-there rather than skips. What it measures there is what needs no hardware, and a page's first paint,
-which is held against CI's own software renderer rather than a reader's GPU. Scrolling is not in it.
+CI runs it in the `arch-linux-budget` job, which builds the browser from the `release` preset, the
+build the package ships, and runs nothing else, under cage on the headless backend, with
+`--require-dns` so that `pageload` fails there rather than skips. What it measures there is what
+needs no hardware, and a page's first paint, which is held against CI's own software renderer rather
+than a reader's GPU. Scrolling is not in it.
 
 To run it on a Hyprland desktop without its keys reaching the desktop, run it as the program of a
 headless cage, as CI does, with `HYPRLAND_INSTANCE_SIGNATURE` unset so that keys go through `wtype`
@@ -1597,7 +1601,7 @@ to cage:
 ```sh
 env -u HYPRLAND_INSTANCE_SIGNATURE WLR_BACKENDS=headless WLR_RENDERER=pixman \
     WLR_LIBINPUT_NO_DEVICES=1 QT_QPA_PLATFORM=wayland cage -- \
-    scripts/benchmark_runtime.py livetabs --browser build/dev/omaweb-browser
+    scripts/benchmark_runtime.py livetabs --browser build/release/omaweb-browser
 ```
 
 The window mapping is read from the browser's own Wayland protocol log rather than from a
