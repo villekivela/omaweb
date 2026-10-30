@@ -6,7 +6,17 @@
 
 import { createCrtRoad } from "./crt-road.js";
 import { filmKey, filmState, seekAt } from "./film.js";
-import { Cruise, cues, keyAnswer, nearestStop, placement, wornAt } from "./highway.js";
+import {
+  Cruise,
+  REVEAL_EASING,
+  REVEAL_MS,
+  cues,
+  keyAnswer,
+  nearestStop,
+  placement,
+  revealClip,
+  wornAt,
+} from "./highway.js";
 import { STILL_MEDIA, SceneHost } from "./scene.js";
 
 // The road's parameters, shared with the browser's own road and served beside this script. A
@@ -477,12 +487,34 @@ if (drive) {
     };
     const styled = (worn) => ground(worn) !== ground("");
     const named = picker.querySelector(".themes__name");
-    const wear = (worn) => {
+    const dress = (worn) => {
       root.dataset.theme = worn;
       const swatch = swatches.find((choice) => choice.dataset.themeChoice === worn);
       named.textContent =
         swatch?.dataset.name ??
         worn.replace(/(^|-)([a-z])/g, (_, gap, letter) => (gap ? " " : "") + letter.toUpperCase());
+    };
+    const still = matchMedia("(prefers-reduced-motion: reduce)");
+    // The theme the film changes to opens with the desktop's diagonal reveal, a View Transition
+    // whose new view grows from a slanted line through the viewport's middle. With reduced motion,
+    // or no View Transitions, it changes at once, as does a theme the reader picks.
+    const wear = (worn, reveal = false) => {
+      if (!reveal || still.matches || !document.startViewTransition) return dress(worn);
+      const transition = document.startViewTransition(() => dress(worn));
+      transition.ready
+        .then(() => {
+          const { clientWidth: width, clientHeight: height } = root;
+          root.animate(
+            { clipPath: [revealClip(0, width, height), revealClip(1, width, height)] },
+            {
+              duration: REVEAL_MS,
+              easing: REVEAL_EASING,
+              fill: "forwards",
+              pseudoElement: "::view-transition-new(root)",
+            },
+          );
+        })
+        .catch(() => {});
     };
     let following = 0;
     let rolled = -1;
@@ -501,7 +533,7 @@ if (drive) {
       const follow = () => {
         if (theme !== picked) return;
         const worn = wornAt(clip.video.currentTime, clip.themes);
-        if (worn && root.dataset.theme !== worn) wear(worn);
+        if (worn && root.dataset.theme !== worn) wear(worn, true);
         following = clip.video.ended ? 0 : requestAnimationFrame(follow);
       };
       following = requestAnimationFrame(follow);

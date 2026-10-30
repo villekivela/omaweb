@@ -67,6 +67,30 @@ export function wornAt(time, themes) {
   return worn;
 }
 
+// The reveal of a theme the film changes, as Omarchy's desktop draws it
+// (/usr/share/omarchy/shell/plugins/background/Background.qml): the new theme opens from a slanted
+// line through the middle of the viewport and widens to both edges. The band's edges lean by
+// `SLANT`, x moving that many px per px down, over `REVEAL_MS`, eased in and out as a cubic.
+export const SLANT = -0.18;
+export const REVEAL_MS = 420;
+export const REVEAL_EASING = "cubic-bezier(0.65, 0, 0.35, 1)";
+
+// The `clip-path` of the new theme's view when the band has spread `spread` (0 to 1) of the way to
+// covering a `width` x `height` viewport.
+export function revealClip(spread, width, height) {
+  const lean = -SLANT * (height / 2);
+  const half = spread * (width / 2 + lean);
+  const edge = (centre, y) => `${centre}px ${y}px`;
+  const top = width / 2 + lean;
+  const bottom = width / 2 - lean;
+  return `polygon(${[
+    edge(top - half, 0),
+    edge(top + half, 0),
+    edge(bottom + half, height),
+    edge(bottom - half, height),
+  ].join(", ")})`;
+}
+
 // What a key the reader presses does to the drive: Esc stops it wherever their focus is, M is the
 // radio's own, a key on one of cruise control's own controls (`own`) is that control's, and any
 // other takes the wheel.

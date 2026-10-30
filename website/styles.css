@@ -1788,3 +1788,11 @@ html.highway {
     display: none;
   }
 }
+
+/* The Theme clip's change of theme (drive.js) opens as a band, not a cross-fade: the old view stays
+   and the new one is clipped by the animation the script gives it. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}

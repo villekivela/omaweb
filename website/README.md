@@ -215,8 +215,12 @@ J and K glide to the next and the previous stop, and Return on a row to its card
 from its start when it is read and holds its last frame; without `clips.json` the cards keep their
 captures. The Theme card's clip names the theme the recording wears at each moment, and the page
 wears each from its frame on, its picker naming it, and the reader's theme again when the card is no
-longer read. Lumon, which the desktop film changes to, is among the page's themes for that, with no
-swatch. Every card and the install catch the road's light as the Omnibar does.
+longer read. A change the clip makes opens with the desktop's diagonal reveal, a View Transition
+whose new view's `clip-path` grows from a slanted centre line to the viewport's edges (`revealClip`
+in `highway.js`); with reduced motion, or no View Transitions, it is at once, as is a theme the
+reader picks. The clip's times are those at which the recording's own change begins to show. Lumon,
+which the desktop film changes to, is among the page's themes for that, with no swatch. Every card
+and the install catch the road's light as the Omnibar does.
 
 ## The release pages
 

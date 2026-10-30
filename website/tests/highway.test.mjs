@@ -12,6 +12,7 @@ import {
   keyAnswer,
   nearestStop,
   placement,
+  revealClip,
   stopAt,
   wornAt,
 } from "../highway.js";
@@ -162,4 +163,16 @@ test("keys: M is the radio's, a cruise control's own key is its, and any other t
   for (const key of ["j", "k", "ArrowDown", " ", "f", "o"]) {
     assert.equal(keyAnswer(key, false), "hold", key);
   }
+});
+
+// The new theme opens from a slanted line through the middle of the viewport, as Omarchy's desktop
+// does, its edges leaning 0.18 px left for every px down. On a 1000 x 500 viewport the line runs
+// from x 545 at the top to x 455 at the bottom.
+test("reveal: the new theme opens from a slanted centre line and widens to cover the viewport", () => {
+  assert.equal(revealClip(0, 1000, 500), "polygon(545px 0px, 545px 0px, 455px 500px, 455px 500px)");
+  assert.equal(
+    revealClip(0.5, 1000, 500),
+    "polygon(272.5px 0px, 817.5px 0px, 727.5px 500px, 182.5px 500px)",
+  );
+  assert.equal(revealClip(1, 1000, 500), "polygon(0px 0px, 1090px 0px, 1000px 500px, -90px 500px)");
 });
