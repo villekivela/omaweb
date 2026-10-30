@@ -19399,6 +19399,10 @@ TestCase {
         const keepAt = keep.mapToItem(row, 0, 0);
         verify(markAt.y >= keepAt.y + keep.height || markAt.x >= keepAt.x + keep.width || markAt.x
                + mark.width <= keepAt.x, "the window mark overlaps the keep button");
+        window.closeGlance();
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
         window.tabWindowFor(tabId).close();
         tryVerify(function () {
             return window.tabWindowCount === 0;
