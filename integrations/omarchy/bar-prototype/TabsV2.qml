@@ -628,7 +628,7 @@ BarWidget {
         Rectangle {
             visible: root.flat && cell.isActive
             x: root.vertical ? site.x - 5 : site.x
-            y: root.vertical ? site.y : site.y + site.height + 3
+            y: root.vertical ? site.y : site.y + site.height + 2
             width: root.vertical ? 2 : root.iconLength
             height: root.vertical ? root.iconLength : 2
             radius: 1
