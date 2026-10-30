@@ -1761,8 +1761,8 @@ html.highway {
   background: var(--accent);
 }
 
-/* On the drive the box is the scrollbar and holds the cards' words, so the cards show their
-   pictures alone. */
+/* On the drive the box is the scrollbar and holds the cards' words and the install's line, so
+   the cards show their pictures alone. */
 .highway {
   scrollbar-width: none;
 }
@@ -1771,7 +1771,8 @@ html.highway {
   display: none;
 }
 
-.highway .card > p {
+.highway .card > p,
+.highway .install__lede {
   display: none;
 }
 
