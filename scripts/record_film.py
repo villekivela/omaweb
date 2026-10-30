@@ -2325,19 +2325,22 @@ def framed(entry: dict, stage: Stage, drawn: Pointer, pointer_input: str | None,
     return chains
 
 
-# A frame whose chroma, averaged over the frame, moves this far from the one before it is a theme
-# showing: a sweep of the desktop or a repaint of the window. The beat is quiet otherwise. Frames of
-# one change are less than a half second apart, and the next change is further off.
-ONSET_SHIFT = 0.5
+# A frame whose chroma, averaged over what is watched, moves this far from the one before it is a
+# theme showing: a sweep of the desktop or a repaint of the window. The beat is quiet otherwise.
+# Frames of one change are less than a half second apart, and the next change is further off.
+ONSET_SHIFT = 0.1
 ONSET_APART = 0.5
 
 
-def chroma_shifts(raw: Path, start: float, end: float) -> list[tuple[float, float]]:
-    """How far each frame of `raw` between `start` and `end` seconds moves the frame's mean chroma
-    from the frame before, as (seconds into that span, shift) pairs."""
+def chroma_shifts(raw: Path, start: float, end: float,
+                  above: float = 1.0) -> list[tuple[float, float]]:
+    """How far each frame of `raw` between `start` and `end` seconds moves the mean chroma of its
+    top `above` (a fraction of its height) from the frame before, as (seconds into that span, shift)
+    pairs."""
     answer = subprocess.run(
         ["ffmpeg", "-v", "error", "-ss", f"{start:.3f}", "-t", f"{end - start:.3f}", "-i", str(raw),
-         "-vf", "scale=320:-2,signalstats,metadata=print:file=-", "-f", "null", "-"],
+         "-vf", f"crop=iw:ih*{above}:0:0,scale=320:-2,signalstats,metadata=print:file=-",
+         "-f", "null", "-"],
         capture_output=True, text=True, check=True).stdout
     shifts, at, mean, last = [], 0.0, None, None
     for line in answer.splitlines():
@@ -2358,7 +2361,8 @@ def theme_onsets(themes: list, shifts: list[tuple[float, float]], length: float)
 
     The recorder marks a change when it saw it, which on the desktop is some 2.7 s after the
     recording shows it, so each change takes the start of its own run of frames in `shifts`, in
-    order. A beat whose recording shows another number of changes keeps the times it was marked
+    order. On the desktop the window repaints at once and the desktop's sweep follows, and the
+    page's reveal is the sweep's, so `shifts` come from the wallpaper above the window. A beat whose recording shows another number of changes keeps the times it was marked
     with. The first theme is the beat's own, from its start.
     """
     runs: list[float] = []
@@ -2384,8 +2388,12 @@ def cut_clips(out: Path, marks: list[dict], stage: Stage, drawn: Pointer) -> Non
         if card is None:
             continue
         if "themes" in entry:
+            # Under cage the recording is the window, and its repaint is the change; on the desktop
+            # the wallpaper above the window shows the desktop's sweep.
+            above = 0.75 * stage.window[1] or 1.0
             entry["themes"] = theme_onsets(entry["themes"], chroma_shifts(
-                out / "raw.mkv", entry["start"], entry["end"]), entry["end"] - entry["start"])
+                out / "raw.mkv", entry["start"], entry["end"], above),
+                entry["end"] - entry["start"])
         drawn_input = ["-i", str(drawn.path)] if pointer(entry) else []
         chains = framed(entry, stage, drawn, "1:v" if drawn_input else None, "beat")
         chains.append(f"[beat]scale={CLIP_WIDTH}:-2,{COLOURS}[clip]")

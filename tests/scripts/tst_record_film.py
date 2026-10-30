@@ -2031,6 +2031,30 @@ class ThemeOnsets(unittest.TestCase):
             self.assertEqual(film.theme_onsets([[0.0, "a"], [3.0, "b"], [3.5, "a"]], shifts, 4.0),
                              [[0.0, "a"], [1.0, "b"], [2.5, "a"]])
 
+    def test_on_the_desktop_only_the_wallpaper_above_the_window_is_watched(self):
+        # The window repaints at once and the desktop's sweep follows, and the film's page changes
+        # with the sweep. Here the bottom half changes at 1.0 s and the top fifth at 2.0 s.
+        with tempfile.TemporaryDirectory() as directory:
+            raw = Path(directory) / "raw.mkv"
+            top, bottom = "0x203040", "0x603020"
+            subprocess.run(["ffmpeg", "-v", "error",
+                            "-f", "lavfi", "-i", f"color=c={top}:size=320x180:rate=30:duration=3",
+                            "-f", "lavfi", "-i", f"color=c={bottom}:size=320x90:rate=30:duration=1",
+                            "-f", "lavfi", "-i", f"color=c={top}:size=320x90:rate=30:duration=2",
+                            "-f", "lavfi", "-i", f"color=c={bottom}:size=320x36:rate=30:duration=1",
+                            "-filter_complex",
+                            "[1:v][2:v]concat=n=2:v=1:a=0[low];"
+                            "[0:v][low]overlay=0:90:eof_action=pass[a];"
+                            "[a][3:v]overlay=0:0:enable='gte(t,2)'",
+                            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                            str(raw)], check=True)
+            whole = film.chroma_shifts(raw, 0.0, 3.0)
+            self.assertEqual(film.theme_onsets([[0.0, "a"], [2.5, "b"], [2.9, "c"]], whole, 3.0),
+                             [[0.0, "a"], [1.0, "b"], [2.0, "c"]])
+            above = film.chroma_shifts(raw, 0.0, 3.0, 0.2)
+            self.assertEqual(film.theme_onsets([[0.0, "a"], [2.5, "b"]], above, 3.0),
+                             [[0.0, "a"], [2.0, "b"]])
+
 
 class RecordCleanup(unittest.TestCase):
     """The browser is stopped whatever stops the run, and a second Ctrl+C cannot keep it going."""
