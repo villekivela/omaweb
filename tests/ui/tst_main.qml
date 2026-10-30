@@ -19358,6 +19358,103 @@ TestCase {
         browser.closeTab(readingTabId);
     }
 
+    // A pin's speaker takes the top-right corner and the window mark the
+    // bottom-right one, so a pin that is playing and popped out shows both
+    // (#887). The mark keeps its corner whether or not the tab plays.
+    function test_aPoppedOutPinKeepsItsWindowMarkBelowItsSpeaker() {
+        const engine = openPageInNewTab("https://pinned-sound.example");
+        engine.simulateUserActivation();
+        const tabId = browser.activeTabId;
+        browser.toggleActivePinned();
+        verify(browser.tabPinned(tabId));
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        tabWindowOf(tabId);
+        tryVerify(function () {
+            return findChild(window.contentItem, "pinned-" + tabId) !== null;
+        });
+        const row = findChild(window.contentItem, "pinned-" + tabId);
+        const mark = findChild(window.contentItem, "tabWindowMark-" + tabId);
+        const speaker = findChild(window.contentItem, "audio-" + tabId);
+        verify(row !== null && mark !== null && speaker !== null);
+        verify(mark.visible);
+        const markAt = mark.mapToItem(row, 0, 0);
+        const quiet = {
+            "x": markAt.x,
+            "y": markAt.y
+        };
+
+        engine.simulateAudible(true);
+        tryVerify(function () {
+            return speaker.visible;
+        });
+        verify(mark.visible);
+        const spoken = mark.mapToItem(row, 0, 0);
+        compare(spoken.x, quiet.x);
+        compare(spoken.y, quiet.y);
+        const speakerAt = speaker.mapToItem(row, 0, 0);
+        const apart = spoken.y >= speakerAt.y + speaker.height || spoken.x >= speakerAt.x
+              + speaker.width || spoken.x + mark.width <= speakerAt.x;
+        verify(apart, "the window mark overlaps the speaker");
+        verify(spoken.y > speakerAt.y);
+        verify(spoken.y + mark.height <= row.height);
+        verify(spoken.x + mark.width <= row.width);
+
+        window.tabWindowFor(tabId).close();
+        tryVerify(function () {
+            return window.tabWindowCount === 0;
+        });
+        browser.activateTab(tabId);
+        browser.toggleActivePinned();
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
+    // The Glance's keep button takes the same corner as the speaker on a pin,
+    // so the window mark stays clear of it too (#887).
+    function test_aPoppedOutPinKeepsItsWindowMarkBelowAGlancesKeepButton() {
+        openPageInNewTab("https://pinned-glance.example");
+        const tabId = browser.activeTabId;
+        browser.toggleActivePinned();
+        verify(browser.tabPinned(tabId));
+        openPageInNewTab("https://reading.example");
+        const readingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        tabWindowOf(tabId);
+        tryVerify(function () {
+            return findChild(window.contentItem, "pinned-" + tabId) !== null;
+        });
+        const row = findChild(window.contentItem, "pinned-" + tabId);
+        const mark = findChild(window.contentItem, "tabWindowMark-" + tabId);
+        const keep = findChild(window.contentItem, "glanceKeep-" + tabId);
+        verify(row !== null && mark !== null && keep !== null);
+
+        openGlance("https://glanced.example/page");
+        // The Glance stands over the active tab; point it at the popped-out pin.
+        window.glanceTabId = tabId;
+        tryVerify(function () {
+            return keep.visible && keep.opacity === 1;
+        });
+        verify(mark.visible);
+        const markAt = mark.mapToItem(row, 0, 0);
+        const keepAt = keep.mapToItem(row, 0, 0);
+        verify(markAt.y >= keepAt.y + keep.height || markAt.x >= keepAt.x + keep.width || markAt.x
+               + mark.width <= keepAt.x, "the window mark overlaps the keep button");
+        window.closeGlance();
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+        window.tabWindowFor(tabId).close();
+        tryVerify(function () {
+            return window.tabWindowCount === 0;
+        });
+        browser.activateTab(tabId);
+        browser.toggleActivePinned();
+        browser.closeTab(tabId);
+        browser.closeTab(readingTabId);
+    }
+
     // A Pinned tab pops out with its pin, and a split's tab pops out of its
     // split, which ends. A Glance is not a tab, and has to be kept as one
     // first.
