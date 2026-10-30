@@ -35,8 +35,11 @@ if pacman -Si "$engine" > /dev/null 2>&1; then
 else
     makepkg_dep_flags="-d"
     # At the version the PKGBUILD asks for: pacman refuses a bare assumed
-    # package for a versioned dependency.
-    floor=$(sed -n "s/^[[:space:]]*'$engine>=\([^']*\)'.*/\1/p" "$repo_root/packaging/PKGBUILD")
+    # package for a versioned dependency. An architecture can ask for a newer
+    # engine than the rest (`depends_x86_64`), so the highest floor named is
+    # the one assumed, which meets every lower one too.
+    floor=$(grep -o "'$engine>=[^']*'" "$repo_root/packaging/PKGBUILD" \
+        | sed "s/^'$engine>=\(.*\)'$/\1/" | sort -V | tail -n 1)
     pacman_dep_flags="--assume-installed $engine${floor:+=$floor}"
     echo "==> $engine is in no configured repository, so it is assumed"
     echo "==> This run checks packaging and not that the browser can start"

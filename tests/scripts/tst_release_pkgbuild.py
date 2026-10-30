@@ -152,6 +152,23 @@ class EngineAndCapability(unittest.TestCase):
         for pkgbuild in (SOURCE_PKGBUILD.read_text(), release_pkgbuild()):
             self.assertIn(f"{ENGINE}>=6.11.3-1", depends(pkgbuild))
 
+    def test_the_x86_64_engine_is_linked_as_chrome_is(self) -> None:
+        # 6.11.3-2 links the x86_64 engine at ThinLTO's --lto-O2, as Chrome's
+        # own targets are, which took Speedometer from 0.73 of Chromium 140 to
+        # 0.82 (#886). aarch64 builds with GCC and stays on 6.11.3-1, so the
+        # floor is the browser package's on x86_64 alone; the client depends on
+        # no engine on either.
+        for pkgbuild, browser, client in (
+            (SOURCE_PKGBUILD.read_text(), "omaweb-git", "omaweb-cli-git"),
+            (release_pkgbuild(), "omaweb", "omaweb-cli"),
+        ):
+            self.assertEqual(
+                assignment(package_function(pkgbuild, browser), "depends_x86_64"),
+                f"'{ENGINE}>=6.11.3-2'",
+            )
+            self.assertNotIn("depends_x86_64", package_function(pkgbuild, client))
+            self.assertNotRegex(pkgbuild, r"(?m)^depends_x86_64=")
+
     def test_the_option_is_one_cmake_declares(self) -> None:
         # A misspelt or renamed option is accepted by CMake with a warning
         # nobody reads, and the build goes on without it.
