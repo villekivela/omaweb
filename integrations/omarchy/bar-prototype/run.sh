@@ -32,12 +32,13 @@ case "${1:-start}" in
 start)
   ln -sfn "$here" "$link"
   omarchy-shell shell rescanPlugins >/dev/null
-  # Tabs after the workspaces, the address beside the center.
+  # Tabs after the workspaces, the address first in the center (Omarchy 4.0.6
+  # has no centerBegin).
   jq --arg id "$id" '
     .bar.layout.left |= (map(select(.id != $id)) | (map(.id) | index("omarchy.workspaces")) as $at
       | if $at == null then . + [{id: $id, role: "tabs"}]
         else .[: $at + 1] + [{id: $id, role: "tabs"}] + .[$at + 1 :] end)
-    | .bar.layout.centerBegin = ((.bar.layout.centerBegin // []) | map(select(.id != $id))) + [{id: $id, role: "address"}]
+    | .bar.layout.center = [{id: $id, role: "address"}] + ((.bar.layout.center // []) | map(select(.id != $id)))
     | .bar.layout.right |= map(select(.id != $id))
   ' "$config" >"$config.tmp"
   mv "$config.tmp" "$config"
