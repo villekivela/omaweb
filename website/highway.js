@@ -17,6 +17,13 @@ export function revving(time) {
   return 0.7 * toward ** 2;
 }
 
+// The throw forward as the drive sets off at the drop, 0 to 1 over the first 45% of the first
+// glide (`t`, 0 to 1): full at once, falling away to nothing. The page scales it by `LAUNCH`.
+export const LAUNCH = 1;
+export function launch(t) {
+  return Math.max(0, 1 - t / 0.45) ** 2;
+}
+
 // When cruise control reaches each of `count` stops, in seconds into the song.
 export function cues(count) {
   return Array.from({ length: count }, (_, index) =>

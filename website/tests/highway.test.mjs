@@ -10,6 +10,7 @@ import {
   Cruise,
   cues,
   keyAnswer,
+  launch,
   nearestStop,
   placement,
   revving,
@@ -187,4 +188,14 @@ test("revving: the intro builds slowly, then faster, to 0.7 at the drop", () => 
   assert.equal(revving(drop), 0.7);
   assert.equal(revving(drop * 3), 0.7);
   assert.equal(revving(-1), 0);
+});
+
+// At the drop the road does not ease into its speed: it starts at it, as a throw forward, and the
+// throw falls away over the first 45% of the glide, before the glide's own swell takes over.
+test("launch: full at the drop, falling away to nothing by 45% of the glide", () => {
+  assert.equal(launch(0), 1);
+  assert.equal(launch(0.225), 0.25);
+  assert.equal(launch(0.45), 0);
+  assert.equal(launch(1), 0);
+  assert.ok(launch(0.1) > launch(0.2));
 });

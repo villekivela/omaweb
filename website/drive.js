@@ -12,6 +12,8 @@ import {
   REVEAL_MS,
   cues,
   keyAnswer,
+  LAUNCH,
+  launch,
   nearestStop,
   placement,
   revealClip,
@@ -638,7 +640,7 @@ if (drive) {
       resting = null;
       root.style.scrollSnapType = "";
     };
-    const glide = (index, duration = 2200) => {
+    const glide = (index, duration = 2200, thrown = false) => {
       cancelAnimationFrame(gliding);
       const from = scrollY;
       const to = base + index * length;
@@ -650,7 +652,8 @@ if (drive) {
         if (Math.abs(scrollY - placed) > 2) return takeWheel();
         const t = Math.min(1, (now - began) / duration);
         const eased = t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
-        cruising = Math.sin(Math.PI * t);
+        // The first glide, at the drop, starts at speed: the engine's rev is thrown forward.
+        cruising = Math.max(Math.sin(Math.PI * t), thrown ? LAUNCH * launch(t) : 0);
         placed = Math.round(from + (to - from) * eased);
         scrollTo({ top: placed, behavior: "instant" });
         if (t < 1) gliding = requestAnimationFrame(move);
@@ -728,6 +731,7 @@ if (drive) {
     };
 
     const tick = () => {
+      const before = cruise.current;
       const index = cruise.tick(clock());
       // The road waits parked through the intro while the engine revs, to the drop.
       if (cruise.state === "cruising" && cruise.current === 0 && !gliding) {
@@ -736,7 +740,7 @@ if (drive) {
       }
       if (index !== null) {
         leave();
-        glide(index);
+        glide(index, undefined, before === 0 && index === 1);
         undo = performs.get(stops[index])?.(stops[index]) ?? (() => {});
         if (cruise.state === "parked" && timed)
           setTimeout(() => cruise.state === "parked" && end(), 4000);
