@@ -112,6 +112,9 @@ bool BarSocket::listen(const QString &path)
         qWarning("The bar socket's directory %s could not be made", qPrintable(directory));
         return false;
     }
+    // Only this user may enter Omaweb's own directory. One `OMAWEB_BAR_SOCKET`
+    // names may not be Omaweb's to change, and the socket's own mode holds
+    // there, as the Agent socket's does.
     if (QFileInfo(directory).fileName() == u"omaweb"
         && ::chmod(QFile::encodeName(directory).constData(), S_IRWXU) != 0) {
         qWarning("The bar socket's directory %s could not be made private", qPrintable(directory));

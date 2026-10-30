@@ -64,15 +64,19 @@ BarWidget {
 
     // The bar is the shell's, so it is the shell that can hand Omaweb the
     // keyboard: the browser cannot take focus for a click it never saw.
+    // A window is told by its title, which the browser sends for its main
+    // window. Where the title matches no window or more than one, nothing is
+    // raised rather than the wrong one.
     function raise(tab) {
         const windows = ToplevelManager.toplevels.values;
+        const only = found => found.length === 1 ? found[0] : null;
         let target = null;
         if (tab && tab.poppedOut)
-            target = windows.find(w => w.appId === root.tabWindowAppId && w.title === tab.title);
+            target = only(windows.filter(w => w.appId === root.tabWindowAppId && w.title
+                                              === tab.title));
         if (!target && root.live)
-            target = windows.find(w => w.appId === root.appId && w.title === root.browser.window);
-        if (!target)
-            target = windows.find(w => w.appId === root.appId && !w.title.startsWith("Private"));
+            target = only(windows.filter(w => w.appId === root.appId && w.title
+                                              === root.browser.window));
         if (target)
             target.activate();
     }
@@ -104,13 +108,6 @@ BarWidget {
         return String(host || "").replace(/^www\./, "").slice(0, 2);
     }
 
-    function hostTint(host) {
-        let hash = 0;
-        for (let i = 0; i < host.length; i++)
-            hash = (hash * 31 + host.charCodeAt(i)) >>> 0;
-        return Qt.hsla((hash % 360) / 360, 0.45, 0.42, 1);
-    }
-
     function along(item) {
         return item && item.visible ? (vertical ? item.implicitHeight : item.implicitWidth) : 0;
     }
@@ -127,7 +124,9 @@ BarWidget {
     }
     readonly property real fixedLength: !live || role !== "tabs" ? 0 : along(navGroup) + along(
                                                                        spacesRow) + along(pinsRow)
-                                                                   + along(statusMark) + gap * 4
+                                                                   + along(statusMark) + along(
+                                                                       recordingMark) + along(
+                                                                       releaseMark) + gap * 4
                                                                    + grid.spacing * 6
     readonly property var tabLayout: {
         if (!live || role !== "tabs" || !space)
@@ -214,7 +213,7 @@ BarWidget {
             horizontalItemAlignment: Grid.AlignHCenter
             BarText {
                 text: "󰁍"
-                dim: !(root.live && root.browser.nav.canBack)
+                dim: !(root.live && root.browser.location.canBack)
                 tooltip: qsTr("Back")
                 onClicked: root.send({
                                          "do": "back"
@@ -222,7 +221,7 @@ BarWidget {
             }
             BarText {
                 text: "󰁔"
-                dim: !(root.live && root.browser.nav.canForward)
+                dim: !(root.live && root.browser.location.canForward)
                 tooltip: qsTr("Forward")
                 onClicked: root.send({
                                          "do": "forward"
@@ -306,7 +305,16 @@ BarWidget {
             onClicked: root.openPopup("spaces", plusN)
         }
 
-        // The Status island's marks: the downloads running.
+        // The Status island's marks, each only while it applies: a Problem
+        // recording, the downloads running and a newer release.
+        BarText {
+            id: recordingMark
+            visible: root.role === "tabs" && root.live && !!root.browser.status.recording
+            text: "󰑋"
+            colour: Commons.Color.urgent
+            tooltip: qsTr("Recording a problem")
+            onClicked: root.openPopup("status", recordingMark)
+        }
         BarText {
             id: statusMark
             visible: root.role === "tabs" && !!root.downloads && root.downloads.running > 0
@@ -314,6 +322,13 @@ BarWidget {
             tooltip: root.downloads ? root.downloads.files.map(d => d.name + " " + d.progress
                                                                     + "%").join("\n") : ""
             onClicked: root.openPopup("status", statusMark)
+        }
+        BarText {
+            id: releaseMark
+            visible: root.role === "tabs" && root.live && !!root.browser.status.release
+            text: root.vertical || !visible ? "󰚰" : "󰚰 " + root.browser.status.release.version
+            tooltip: visible ? root.browser.status.release.instruction : ""
+            onClicked: root.openPopup("status", releaseMark)
         }
 
         // ----- role: location, at a fixed width so a tab switch moves nothing
@@ -336,7 +351,7 @@ BarWidget {
                 spacing: Style.space(6)
                 Text {
                     id: lock
-                    text: root.live && root.browser.nav.secure ? "󰌾" : "󰿆"
+                    text: root.live && root.browser.location.secure ? "󰌾" : "󰿆"
                     color: root.fg
                     opacity: 0.6
                     font.family: root.font
@@ -344,7 +359,7 @@ BarWidget {
                 }
                 Text {
                     id: hostText
-                    text: root.live ? root.browser.nav.host : ""
+                    text: root.live ? root.browser.location.host : ""
                     textFormat: Text.PlainText
                     color: root.fg
                     font.family: root.font
@@ -354,7 +369,7 @@ BarWidget {
                 Text {
                     width: Math.max(0, Math.min(implicitWidth, location.width - 12 - lock.implicitWidth
                                                 - hostText.implicitWidth - Style.space(12)))
-                    text: root.live ? root.browser.nav.title : ""
+                    text: root.live ? root.browser.location.title : ""
                     textFormat: Text.PlainText
                     elide: Text.ElideRight
                     color: root.fg
@@ -366,7 +381,7 @@ BarWidget {
             Text {
                 visible: root.vertical
                 anchors.centerIn: parent
-                text: "󰌾"
+                text: root.live && root.browser.location.secure ? "󰌾" : "󰿆"
                 color: root.fg
                 font.family: root.font
                 font.pixelSize: Style.font.body
@@ -383,7 +398,7 @@ BarWidget {
                     root.raise(null);
                 }
                 onEntered: if (root.bar && root.live)
-                               root.bar.showTooltip(location, root.browser.nav.title)
+                               root.bar.showTooltip(location, root.browser.location.title)
                 onExited: if (root.bar)
                               root.bar.hideTooltip(location)
             }
@@ -420,11 +435,13 @@ BarWidget {
             anchors.fill: parent
             radius: 4
             visible: image.status !== Image.Ready
-            color: icon.tab ? root.hostTint(icon.tab.host) : "grey"
+            // A page with no icon: its host's first letters, in the bar's own
+            // colours, since only Space colours mark anything here.
+            color: Qt.alpha(root.fg, 0.16)
             Text {
                 anchors.centerIn: parent
                 text: icon.tab ? root.hostCode(icon.tab.host) : ""
-                color: "white"
+                color: root.fg
                 font.family: root.font
                 font.pixelSize: 8
                 font.bold: true
@@ -591,6 +608,7 @@ BarWidget {
         id: label
         property string text
         property string tooltip
+        property color colour: root.fg
         property bool dim: false
         signal clicked
         implicitWidth: root.vertical ? root.barSize - 8 : glyph.implicitWidth + Style.space(10)
@@ -606,7 +624,7 @@ BarWidget {
             id: glyph
             anchors.centerIn: parent
             text: label.text
-            color: root.fg
+            color: label.colour
             font.family: root.font
             font.pixelSize: Style.font.body
         }
@@ -876,6 +894,12 @@ BarWidget {
         id: statusBody
         Column {
             width: parent ? parent.width : 360
+            PopupRow {
+                visible: root.live && !!root.browser.status.recording
+                glyph: "󰑋"
+                label: qsTr("Recording a problem")
+                detail: qsTr("Stop it from the window's Status island")
+            }
             Repeater {
                 model: root.downloads ? root.downloads.files : []
                 PopupRow {
@@ -884,6 +908,13 @@ BarWidget {
                     label: modelData.name
                     detail: qsTr("%1% downloaded").arg(modelData.progress)
                 }
+            }
+            PopupRow {
+                visible: root.live && !!root.browser.status.release
+                glyph: "󰚰"
+                label: visible ? qsTr("Omaweb %1 is out").arg(root.browser.status.release.version) :
+                                 ""
+                detail: visible ? root.browser.status.release.instruction : ""
             }
         }
     }

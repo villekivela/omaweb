@@ -278,7 +278,7 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
     connect(&m_tabs, &QAbstractItemModel::dataChanged, this, barChanged);
     connect(&m_tabs, &QAbstractItemModel::modelReset, this, barAwayChanged);
     connect(&m_spaces, &QAbstractItemModel::modelReset, this, barAwayChanged);
-    connect(&m_spaces, &QAbstractItemModel::dataChanged, this, barAwayChanged);
+    connect(&m_spaces, &QAbstractItemModel::dataChanged, this, barChanged);
     connect(&m_spaces, &QAbstractItemModel::rowsMoved, this, barChanged);
     connect(&m_spaces, &QAbstractItemModel::rowsInserted, this, barChanged);
     connect(&m_spaces, &QAbstractItemModel::rowsRemoved, this, barAwayChanged);

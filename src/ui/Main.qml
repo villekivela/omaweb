@@ -1389,7 +1389,15 @@ ApplicationWindow {
                                       "fraction": downloads ? downloads.fraction : 0,
                                       "files": downloads && downloads.running > 0
                                                ? downloads.runningDownloads : []
-                                  }
+                                  },
+                                  "release": {
+                                      "announcing": window.releases ? window.releases.announcing :
+                                                                      false,
+                                      "release": window.releases ? window.releases.release : "",
+                                      "instruction": window.releases ? window.releases.instruction :
+                                                                       ""
+                                  },
+                                  "recording": !!window.recording && window.recording.recording
                               });
     }
 
@@ -1411,9 +1419,14 @@ ApplicationWindow {
             break;
         case "pin":
         case "unpin":
+            // Pinning is the tab on show's to do, so the tab is shown for it
+            // and the one the reader was on is shown again.
             if (browser.tabPinned(args.tab) !== (action === "pin")) {
+                const onShow = browser.activeTabId;
                 browser.activateTab(args.tab);
                 browser.toggleActivePinned();
+                if (onShow !== args.tab)
+                    browser.activateTab(onShow);
             }
             break;
         case "duplicate":
@@ -1426,7 +1439,7 @@ ApplicationWindow {
                 window.popOutTab(args.tab);
             break;
         case "move":
-            browser.moveTab(args.tab, args.index);
+            window.moveTabAsListedInBar(args.tab, args.index);
             break;
         case "cycle":
             window.stepTab(args.step);
@@ -1449,13 +1462,30 @@ ApplicationWindow {
         }
     }
 
+    // The bar lists a section's tabs without the blank ones, and the browser
+    // counts every tab of the section, so the destination is the place of the
+    // tab the bar lists there.
+    function moveTabAsListedInBar(tabId, index) {
+        const browser = window.windowBrowser;
+        const shown = browser.barSpaces().find(space => space.id === browser.activeSpaceId);
+        if (!shown)
+            return;
+        const section = browser.tabPinned(tabId) ? shown.pins : shown.tabs;
+        const target = section[Math.min(index, section.length - 1)];
+        if (target)
+            browser.moveTab(tabId, browser.tabSectionIndex(target.id));
+    }
+
     // A change to anything the bar shows is told once the turn that made it
     // is over, so a switch of Space is one state rather than a dozen.
     readonly property var barInputs: [window.tabsInBar, window.title, window.connectionState,
-        window.colors, window.spaceColours, window.agentTabActivity, engineLoader.item
-        ? engineLoader.item.canGoBack : false, engineLoader.item ? engineLoader.item.canGoForward :
-                                                                   false, window.downloads
-        ? window.downloads.running : 0, window.downloads ? window.downloads.fraction : 0]
+        window.colors, window.spaceColours, window.agentTabActivity, window.barPageCanGoBack,
+        window.barPageCanGoForward, window.downloads ? window.downloads.running : 0,
+        window.downloads ? window.downloads.fraction : 0, window.releases
+        ? window.releases.announcing : false, window.recording ? window.recording.recording : false]
+    readonly property bool barPageCanGoBack: engineLoader.item ? engineLoader.item.canGoBack : false
+    readonly property bool barPageCanGoForward: engineLoader.item ? engineLoader.item.canGoForward :
+                                                                    false
     onBarInputsChanged: barPublish.restart()
 
     Timer {

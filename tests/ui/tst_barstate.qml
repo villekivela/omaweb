@@ -55,7 +55,13 @@ TestCase {
                                      running: 0,
                                      fraction: 0,
                                      files: []
-                                 }
+                                 },
+                                 release: {
+                                     announcing: false,
+                                     release: "",
+                                     instruction: ""
+                                 },
+                                 recording: false
                              }, extra || {});
     }
 
@@ -106,11 +112,11 @@ TestCase {
         const state = BarState.build(inputs());
 
         compare(state.window, "Issue — Work — Omaweb");
-        compare(state.nav.host, "github.com");
-        compare(state.nav.title, "Issue");
-        compare(state.nav.secure, true);
-        compare(state.nav.canBack, true);
-        compare(state.nav.canForward, false);
+        compare(state.location.host, "github.com");
+        compare(state.location.title, "Issue");
+        compare(state.location.secure, true);
+        compare(state.location.canBack, true);
+        compare(state.location.canForward, false);
     }
 
     function test_aRunningDownloadIsAStatusMark() {
@@ -131,5 +137,29 @@ TestCase {
         compare(state.status.downloads.progress, 50);
         compare(state.status.downloads.files[0].name, "omarchy.iso");
         compare(state.status.downloads.files[0].progress, 50);
+    }
+
+    // The Status island's other marks reach the bar as they reach the island:
+    // a newer release with what to run for it, and a Problem recording.
+    function test_aNewerReleaseIsAStatusMark() {
+        compare(BarState.build(inputs()).status.release, null);
+
+        const state = BarState.build(inputs({
+                                                release: {
+                                                    announcing: true,
+                                                    release: "v0.21.0",
+                                                    instruction: "sudo pacman -Syu omaweb"
+                                                }
+                                            }));
+
+        compare(state.status.release.version, "v0.21.0");
+        compare(state.status.release.instruction, "sudo pacman -Syu omaweb");
+    }
+
+    function test_aProblemRecordingIsAStatusMark() {
+        compare(BarState.build(inputs()).status.recording, false);
+        compare(BarState.build(inputs({
+                                          recording: true
+                                      })).status.recording, true);
     }
 }

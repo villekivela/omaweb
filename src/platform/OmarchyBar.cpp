@@ -5,6 +5,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QPointer>
 #include <QProcess>
 #include <QSaveFile>
 #include <QTimer>
@@ -73,7 +74,7 @@ OmarchyCommand runOmarchyCommand()
         });
         QObject::connect(process, &QProcess::errorOccurred, process,
             [process, answer](QProcess::ProcessError error) {
-                if (error != QProcess::FailedToStart && error != QProcess::Timedout) {
+                if (error != QProcess::FailedToStart) {
                     return;
                 }
                 if (*answer) {
@@ -105,42 +106,88 @@ bool OmarchyBarPlacement::available() const { return m_available; }
 void OmarchyBarPlacement::checkAvailable()
 {
     m_command(QStringLiteral("omarchy-shell"), {QStringLiteral("shell"), QStringLiteral("ping")},
-        {}, [this](int exitCode, const QByteArray &output) {
+        {}, [guard = QPointer(this)](int exitCode, const QByteArray &output) {
+            if (!guard) {
+                return;
+            }
             const auto answered = exitCode == 0 && !output.trimmed().isEmpty();
-            if (m_available != answered) {
-                m_available = answered;
-                emit availableChanged();
+            auto *self = guard.data();
+            if (self->m_available != answered) {
+                self->m_available = answered;
+                emit self->availableChanged();
             }
         });
 }
 
 void OmarchyBarPlacement::place()
 {
-    if (!link()) {
-        return;
-    }
-    // The shell finds a plugin by scanning, which it does on its own time;
-    // the layout naming the widget waits for it rather than failing.
-    shell(QStringLiteral("rescanPlugins"));
-    editLayout(placeFilter, [this] { shell(QStringLiteral("reloadConfig")); });
+    enqueue([this](const std::function<void()> &next) {
+        if (!link()) {
+            next();
+            return;
+        }
+        // The shell finds a plugin by scanning, which it does on its own
+        // time; the layout naming the widget waits for it rather than failing.
+        shell(QStringLiteral("rescanPlugins"));
+        editLayout(placeFilter, [this, next] {
+            shell(QStringLiteral("reloadConfig"));
+            next();
+        });
+    });
 }
 
 void OmarchyBarPlacement::remove()
 {
-    editLayout(removeFilter, [this] {
-        shell(QStringLiteral("reloadConfig"));
-        const QFileInfo link(m_paths.link());
-        if (link.isSymLink()) {
-            QFile::remove(link.filePath());
-            shell(QStringLiteral("rescanPlugins"));
-        } else if (link.exists()) {
-            qWarning("%s is not the link Omaweb made, so it is left where it is",
-                qPrintable(link.filePath()));
-        }
+    enqueue([this](const std::function<void()> &next) {
+        editLayout(removeFilter, [this, next] {
+            shell(QStringLiteral("reloadConfig"));
+            const QFileInfo link(m_paths.link());
+            if (link.isSymLink()) {
+                QFile::remove(link.filePath());
+                shell(QStringLiteral("rescanPlugins"));
+            } else if (link.exists()) {
+                qWarning("%s is not the link Omaweb made, so it is left where it is",
+                    qPrintable(link.filePath()));
+            }
+            next();
+        });
     });
 }
 
-void OmarchyBarPlacement::relink() { link(); }
+void OmarchyBarPlacement::relink()
+{
+    enqueue([this](const std::function<void()> &next) {
+        link();
+        next();
+    });
+}
+
+// One change at a time, each reading the layout the one before it wrote: two
+// edits under way at once would each start from the same file, and whichever
+// jq finished last would undo the other.
+void OmarchyBarPlacement::enqueue(Step step)
+{
+    m_steps.push_back(std::move(step));
+    if (!m_stepping) {
+        runNextStep();
+    }
+}
+
+void OmarchyBarPlacement::runNextStep()
+{
+    if (m_steps.empty()) {
+        m_stepping = false;
+        return;
+    }
+    m_stepping = true;
+    auto step = std::move(m_steps.front());
+    m_steps.pop_front();
+    step([guard = QPointer(this)] {
+        if (guard) {
+            guard->runNextStep();
+        }
+    });
+}
 
 // A plugin directory of that name that is not a link is the reader's, such as
 // a copy they are working on, and Omaweb leaves it be.
@@ -165,6 +212,7 @@ bool OmarchyBarPlacement::link()
     return true;
 }
 
+// `then` runs once the edit is over, written or not.
 void OmarchyBarPlacement::editLayout(const QString &filter, std::function<void()> then)
 {
     auto layout = readFile(m_paths.shellConfig);
@@ -177,7 +225,12 @@ void OmarchyBarPlacement::editLayout(const QString &filter, std::function<void()
     m_command(QStringLiteral("jq"),
         {QStringLiteral("--arg"), QStringLiteral("id"), QLatin1StringView(omarchyBarWidgetId),
             QStringLiteral("--indent"), QStringLiteral("2"), filter},
-        layout, [this, then = std::move(then)](int exitCode, const QByteArray &edited) {
+        layout,
+        [this, guard = QPointer(this), then = std::move(then)](
+            int exitCode, const QByteArray &edited) {
+            if (!guard) {
+                return;
+            }
             QSaveFile file(m_paths.shellConfig);
             if (exitCode != 0 || edited.trimmed().isEmpty()
                 || !QDir().mkpath(QFileInfo(m_paths.shellConfig).absolutePath())
@@ -185,7 +238,6 @@ void OmarchyBarPlacement::editLayout(const QString &filter, std::function<void()
                 || !file.commit()) {
                 qWarning("The bar's layout in %s could not be changed (jq exited %d)",
                     qPrintable(m_paths.shellConfig), exitCode);
-                return;
             }
             then();
         });

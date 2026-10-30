@@ -1,7 +1,8 @@
 // What the main window tells Omarchy's bar about itself (#906), one JSON
 // object a line over the bar socket. The browser lists the Spaces; the window
 // adds what only it knows: each Space's colour as the sidebar draws it, the
-// Agent tabs, the page on show and the downloads running.
+// Agent tabs, the page on show for the Location, and the Status island's marks.
+// A mark that does not apply is null or false, as the island leaves it out.
 
 function hostOf(address) {
   const text = String(address || "");
@@ -31,6 +32,7 @@ export function build(inputs) {
   const agents = inputs.agentActivity || {};
   const page = inputs.page;
   const downloads = inputs.downloads;
+  const release = inputs.release;
   return {
     type: "state",
     version: 1,
@@ -45,7 +47,7 @@ export function build(inputs) {
       pins: space.pins.map((tab) => tabOf(tab, agents)),
       tabs: space.tabs.map((tab) => tabOf(tab, agents)),
     })),
-    nav: {
+    location: {
       host: hostOf(page.url),
       title: page.title,
       secure: !!page.secure,
@@ -61,6 +63,11 @@ export function build(inputs) {
           progress: percent(file.fraction),
         })),
       },
+      release:
+        release.announcing && release.release
+          ? { version: release.release, instruction: release.instruction }
+          : null,
+      recording: !!inputs.recording,
     },
   };
 }

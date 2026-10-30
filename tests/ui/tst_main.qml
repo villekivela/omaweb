@@ -5233,6 +5233,47 @@ TestCase {
         compare(settings.tabsPlacement, "sidebar");
     }
 
+    // Pinning from the bar's menu is about the tab it was opened on, and the
+    // tab on show stays on show.
+    function test_theBarPinsATabWithoutShowingIt() {
+        openPage("https://bar-pin-first.example/");
+        const first = browser.activeTabId;
+        openPageInNewTab("https://bar-pin-second.example/");
+        const second = browser.activeTabId;
+
+        omarchyBar.actionRequested("pin", {
+                                       "tab": first
+                                   });
+
+        verify(browser.tabPinned(first));
+        compare(browser.activeTabId, second);
+        omarchyBar.actionRequested("unpin", {
+                                       "tab": first
+                                   });
+        verify(!browser.tabPinned(first));
+        compare(browser.activeTabId, second);
+    }
+
+    // The bar's popup counts a section's tabs as it lists them.
+    function test_theBarMovesATabToWhereItListsIt() {
+        openPage("https://bar-move-a.example/");
+        openPageInNewTab("https://bar-move-b.example/");
+        const b = browser.activeTabId;
+        openPageInNewTab("https://bar-move-c.example/");
+        const c = browser.activeTabId;
+        const listed = browser.barSpaces().find(space => space.id === browser.activeSpaceId).tabs;
+        const at = listed.findIndex(tab => tab.id === b);
+
+        omarchyBar.actionRequested("move", {
+                                       "tab": c,
+                                       "index": at
+                                   });
+
+        const moved = browser.barSpaces().find(space => space.id === browser.activeSpaceId).tabs;
+        compare(moved.findIndex(tab => tab.id === c), at);
+        compare(moved.findIndex(tab => tab.id === b), at + 1);
+    }
+
     SignalSpy {
         id: barPublished
         target: omarchyBar
@@ -5253,7 +5294,7 @@ TestCase {
         const state = barPublished.signalArguments[barPublished.count - 1][0];
         compare(state.activeSpace, browser.activeSpaceId);
         compare(state.spaces.length, browser.spaces.rowCount());
-        compare(state.nav.host, "bar-location.example");
+        compare(state.location.host, "bar-location.example");
         compare(state.window, window.title);
         const shown = state.spaces.find(space => space.id === browser.activeSpaceId);
         compare(shown.active, browser.activeTabId);
@@ -5264,7 +5305,7 @@ TestCase {
         openPageInNewTab("https://bar-another.example/");
         tryVerify(function () {
             return barPublished.count > 0 && barPublished.signalArguments[barPublished.count
-                                                                          - 1][0].nav.host
+                                                                          - 1][0].location.host
                     === "bar-another.example";
         });
     }

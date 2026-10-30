@@ -570,8 +570,8 @@ int main(int argc, char *argv[])
     // The tabs in Omarchy's bar (#906). The socket listens only while the
     // reader has chosen the bar, and the widget is placed and taken out when
     // they choose; a start leaves the layout where the reader has it.
-    omaweb::BarTabs barTabs(omaweb::barSocketPath(),
-        QFileInfo(omaweb::barSocketPath()).dir().filePath(QStringLiteral("bar")));
+    const auto barSocket = omaweb::barSocketPath();
+    omaweb::BarTabs barTabs(barSocket, QFileInfo(barSocket).dir().filePath(QStringLiteral("bar")));
     const auto tabsInBar = [&settingsFile] {
         return settingsFile.value(QStringLiteral("tabs")).toString()
             == QLatin1String("omarchy-bar");
@@ -599,8 +599,13 @@ int main(int argc, char *argv[])
                 return;
             }
             barTabs.setOn(tabsInBar());
-            if (mayPlaceBar) {
-                tabsInBar() ? barPlacement.place() : barPlacement.remove();
+            if (!mayPlaceBar) {
+                return;
+            }
+            if (tabsInBar()) {
+                barPlacement.place();
+            } else {
+                barPlacement.remove();
             }
         });
     if (!validatingQml) {

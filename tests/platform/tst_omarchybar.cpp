@@ -9,6 +9,9 @@
 #include <QProcess>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QTimer>
+
+#include <algorithm>
 #include <QTest>
 
 using omaweb::OmarchyBarPaths;
@@ -83,6 +86,10 @@ QStringList section(const QJsonObject &layout, const QString &name)
 class Desktop final {
 public:
     bool shellRunning = true;
+    // Whether jq answers on a later turn of the event loop, as a process does,
+    // and each one sooner than the one before, as two processes may.
+    bool later = false;
+    int jqCalls = 0;
     QList<QStringList> shellCalls;
 
     OmarchyCommand command()
@@ -95,7 +102,14 @@ public:
                 jq.write(input);
                 jq.closeWriteChannel();
                 jq.waitForFinished();
-                done(jq.exitCode(), jq.readAllStandardOutput());
+                const auto exitCode = jq.exitCode();
+                const auto output = jq.readAllStandardOutput();
+                if (later) {
+                    QTimer::singleShot(std::max(0, 60 - 50 * jqCalls++),
+                        [done, exitCode, output] { done(exitCode, output); });
+                } else {
+                    done(exitCode, output);
+                }
                 return;
             }
             if (program == u"omarchy-shell") {
@@ -139,6 +153,7 @@ private slots:
     void removingLeavesAPluginOmawebDidNotLinkAlone();
     void startingPointsTheLinkAtThisBuildAndLeavesTheLayoutAlone();
     void theSettingIsOfferedOnlyWhileTheShellAnswers();
+    void choosingTheBarAndBackAtOnceLeavesTheSidebarsLayout();
 };
 
 void OmarchyBarTest::placingLinksTheShippedWidgetIntoThePlugins()
@@ -292,6 +307,29 @@ void OmarchyBarTest::theSettingIsOfferedOnlyWhileTheShellAnswers()
     placement.checkAvailable();
     QVERIFY(!placement.available());
     QCOMPARE(changed.count(), 2);
+}
+
+// A reader who chooses the bar and the sidebar again before the first edit is
+// written gets the second: each edit starts from what the one before it wrote.
+void OmarchyBarTest::choosingTheBarAndBackAtOnceLeavesTheSidebarsLayout()
+{
+    Home home;
+    write(home.paths.shellConfig, readersLayout);
+    Desktop desktop;
+    desktop.later = true;
+    OmarchyBarPlacement placement(home.paths, home.shipped, desktop.command());
+
+    placement.place();
+    placement.remove();
+
+    QTRY_VERIFY(!QFileInfo(home.paths.link()).isSymLink());
+    QTest::qWait(100);
+    const auto layout = layoutIn(home.paths.shellConfig);
+    QCOMPARE(section(layout, QStringLiteral("left")),
+        (QStringList {QStringLiteral("omarchy.menu"), QStringLiteral("omarchy.workspaces"),
+            QStringLiteral("omarchy.media")}));
+    QCOMPARE(
+        section(layout, QStringLiteral("center")), QStringList {QStringLiteral("omarchy.clock")});
 }
 
 QTEST_GUILESS_MAIN(OmarchyBarTest)

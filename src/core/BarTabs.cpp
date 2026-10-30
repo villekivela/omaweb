@@ -60,6 +60,4 @@ void BarTabs::setShowsTabsForTests(bool shows)
     emit showsTabsChanged();
 }
 
-BarSocket &BarTabs::socket() { return m_socket; }
-
 } // namespace omaweb

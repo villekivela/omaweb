@@ -41,8 +41,6 @@ public:
     // Stands in for a widget connecting, for the interface's tests.
     Q_INVOKABLE void setShowsTabsForTests(bool shows);
 
-    BarSocket &socket();
-
 signals:
     void offeredChanged();
     void showsTabsChanged();

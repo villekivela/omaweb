@@ -5,6 +5,7 @@
 #include <QString>
 #include <QStringList>
 
+#include <deque>
 #include <functional>
 
 namespace omaweb {
@@ -70,6 +71,10 @@ signals:
     void availableChanged();
 
 private:
+    // A change, which calls `next` once it is over.
+    using Step = std::function<void(const std::function<void()> &next)>;
+    void enqueue(Step step);
+    void runNextStep();
     bool link();
     void editLayout(const QString &filter, std::function<void()> then);
     void shell(const QString &method);
@@ -78,6 +83,8 @@ private:
     QString m_shippedWidget;
     OmarchyCommand m_command;
     bool m_available = false;
+    std::deque<Step> m_steps;
+    bool m_stepping = false;
 };
 
 } // namespace omaweb
