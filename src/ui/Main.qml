@@ -6,6 +6,7 @@ import Omaweb
 import Omaweb.Engine
 import "DevicePixels.mjs" as DevicePixels
 import "SpaceColour.mjs" as SpaceColour
+import "BarState.mjs" as BarState
 import "SettingsAttention.mjs" as SettingsAttention
 
 ApplicationWindow {
@@ -35,12 +36,34 @@ ApplicationWindow {
     property var sharedEngineProfile: null
     property var colors: privateWindow ? privatePalette(theme.palette) : theme.palette
     property bool sidebarCollapsed: false
+    // The tabs in Omarchy's bar (#906). While the bar shows them, the window
+    // shows only the page and the sidebar is away whatever the reader left it
+    // as; the edge peek still shows it. A Private window keeps its own sidebar
+    // and never reaches the bar.
+    readonly property var barTabs: omarchyBar
+    readonly property bool tabsInBar: !window.privateWindow && window.barTabs.showsTabs
+    readonly property bool sidebarAway: window.sidebarCollapsed || window.tabsInBar
+    // A peek the keyboard opened, with the tabs in the bar, stays open for as
+    // long as the keyboard is in the outline. A peek the pointer opened goes
+    // with the pointer, wherever the keyboard is.
+    property bool sidebarPeekedByKey: false
+    onSidebarPeekedChanged: if (!sidebarPeeked)
+                                sidebarPeekedByKey = false
+    readonly property bool outlineHasFocus: {
+        for (let item = window.activeFocusItem; item; item = item.parent)
+            if (item === sidebar)
+                return true;
+        return false;
+    }
     // A deliberate pause at the window edge borrows the page for the sidebar
     // without changing whether the reader left it collapsed.
     property bool sidebarPeeked: false
     // The window edge the sidebar stands against, "left" or "right". The page,
     // the seam and the edge it peeks from follow it.
     property string sidebarSide: "left"
+    // Where the reader chose to show the tabs, "sidebar" or "omarchy-bar".
+    // Whether the bar is showing them is the bar's to say, in tabsInBar.
+    property string tabsPlacement: "sidebar"
     // The desktop asking for no movement, which stills everything the chrome
     // would move, whatever started it.
     readonly property bool reducedMotion: SystemMotion.reduced
@@ -855,7 +878,7 @@ ApplicationWindow {
     // hangs off that tab's row where there is a row on screen to hang it off.
     function openActiveTabMenu() {
         const row = sidebar.activeTabItem;
-        if (!window.sidebarCollapsed && row && row.visible) {
+        if (!window.sidebarAway && row && row.visible) {
             row.openMenu(0, row.height);
             return;
         }
@@ -1324,6 +1347,8 @@ ApplicationWindow {
     // Space, the tab closing, or a sheet taking the page area.
     onSettingsOpenChanged: if (settingsOpen) {
                                window.buildSettings();
+                               if (!window.privateWindow)
+                                   window.barTabs.checkOffered();
                                window.closeGlance();
                            }
     onHistoryOpenChanged: if (historyOpen)
@@ -1332,8 +1357,136 @@ ApplicationWindow {
     // The two halves of the shell, each one key away from the other: the
     // outline of what is open, and the page itself.
     function focusSidebar() {
-        window.sidebarCollapsed = false;
+        if (window.tabsInBar) {
+            window.sidebarPeeked = true;
+            window.sidebarPeekedByKey = true;
+        } else {
+            window.sidebarCollapsed = false;
+        }
         sidebar.focusOutline();
+    }
+
+    // What the bar is told, built from what the window already shows.
+    function barState() {
+        const page = engineLoader.item;
+        const downloads = window.downloads;
+        return BarState.build({
+                                  "spaces": window.windowBrowser.barSpaces(),
+                                  "activeSpace": window.windowBrowser.activeSpaceId,
+                                  "colourOf": name => String(SpaceColour.drawn(window.colors, name,
+                                                                               window.spaceColours)),
+                                  "agentActivity": window.agentTabActivity,
+                                  "window": window.title,
+                                  "page": {
+                                      "url": String(window.windowBrowser.activeUrl),
+                                      "title": window.windowBrowser.activeTitle,
+                                      "secure": window.connectionState === "secure",
+                                      "canGoBack": page ? page.canGoBack : false,
+                                      "canGoForward": page ? page.canGoForward : false
+                                  },
+                                  "downloads": {
+                                      "running": downloads ? downloads.running : 0,
+                                      "fraction": downloads ? downloads.fraction : 0,
+                                      "files": downloads && downloads.running > 0
+                                               ? downloads.runningDownloads : []
+                                  }
+                              });
+    }
+
+    function publishToBar() {
+        if (window.tabsInBar)
+            window.barTabs.publish(window.barState());
+    }
+
+    // The bar's fixed set of actions (#906), each the one its sidebar row or
+    // command already takes.
+    function takeBarAction(action, args) {
+        const browser = window.windowBrowser;
+        switch (action) {
+        case "activate":
+            browser.activateTabInSpace(args.space || browser.activeSpaceId, args.tab);
+            break;
+        case "close":
+            browser.closeTab(args.tab);
+            break;
+        case "pin":
+        case "unpin":
+            if (browser.tabPinned(args.tab) !== (action === "pin")) {
+                browser.activateTab(args.tab);
+                browser.toggleActivePinned();
+            }
+            break;
+        case "duplicate":
+            browser.duplicateTab(args.tab);
+            break;
+        case "popout":
+            if (browser.tabPoppedOut(args.tab))
+                window.putBackTab(args.tab);
+            else
+                window.popOutTab(args.tab);
+            break;
+        case "move":
+            browser.moveTab(args.tab, args.index);
+            break;
+        case "cycle":
+            window.stepTab(args.step);
+            break;
+        case "space":
+            browser.switchSpace(args.space);
+            break;
+        case "back":
+            window.goBack();
+            break;
+        case "forward":
+            window.goForward();
+            break;
+        case "reload":
+            window.reloadPage();
+            break;
+        case "omnibar":
+            window.openOmnibar(false);
+            break;
+        }
+    }
+
+    // A change to anything the bar shows is told once the turn that made it
+    // is over, so a switch of Space is one state rather than a dozen.
+    readonly property var barInputs: [window.tabsInBar, window.title, window.connectionState,
+        window.colors, window.spaceColours, window.agentTabActivity, engineLoader.item
+        ? engineLoader.item.canGoBack : false, engineLoader.item ? engineLoader.item.canGoForward :
+                                                                   false, window.downloads
+        ? window.downloads.running : 0, window.downloads ? window.downloads.fraction : 0]
+    onBarInputsChanged: barPublish.restart()
+
+    Timer {
+        id: barPublish
+        interval: 0
+        onTriggered: window.publishToBar()
+    }
+
+    Connections {
+        target: window.tabsInBar ? window.windowBrowser : null
+
+        function onBarSpacesChanged() {
+            barPublish.restart();
+        }
+    }
+
+    Connections {
+        target: window.privateWindow ? null : window.barTabs
+
+        function onActionRequested(action, args) {
+            window.takeBarAction(action, args);
+        }
+    }
+
+    // With the tabs in the bar there is no sidebar to show or hide, only the
+    // peek at it.
+    function toggleSidebar() {
+        if (window.tabsInBar)
+            window.sidebarPeeked = !window.sidebarPeeked;
+        else
+            window.sidebarCollapsed = !window.sidebarCollapsed;
     }
 
     function focusPage() {
@@ -1352,7 +1505,7 @@ ApplicationWindow {
     // never shows one either.
     function visibleRegions() {
         const regions = [];
-        if (sidebar.visible && !window.sidebarCollapsed)
+        if (sidebar.visible && !window.sidebarAway)
             regions.push(window.measureRegion("sidebar", sidebar, 0, sidebar.width));
         if (!window.settingsOpen && !window.historyOpen) {
             if (engineLoader.splitOnShow) {
@@ -2468,6 +2621,8 @@ ApplicationWindow {
                                                                           >= 0);
         window.sidebarSide = window.windowBrowser.preference("sidebar-side", "left") === "right"
                 ? "right" : "left";
+        window.tabsPlacement = window.windowBrowser.preference("tabs", "sidebar") === "omarchy-bar"
+                ? "omarchy-bar" : "sidebar";
         window.spaceColours = window.windowBrowser.preference("space-colours", "true") === "true";
     }
 
@@ -2484,6 +2639,11 @@ ApplicationWindow {
     function setSidebarSide(side) {
         window.sidebarSide = side;
         window.windowBrowser.setPreference("sidebar-side", side);
+    }
+
+    function setTabsPlacement(placement) {
+        window.tabsPlacement = placement;
+        window.windowBrowser.setPreference("tabs", placement);
     }
 
     function setStartPageScene(scene) {
@@ -2620,8 +2780,8 @@ ApplicationWindow {
 
         function onPreferenceChanged(name) {
             if (name === "glance" || name === "start-page-scene" || name === "start-page-glass" || name
-                    === "sidebar-side" || name === "space-colours" || name === "telemetry-text"
-                    || name === "telemetry-hidden")
+                    === "sidebar-side" || name === "tabs" || name === "space-colours" || name
+                    === "telemetry-text" || name === "telemetry-hidden")
                 window.restoreChromeAppearance();
             else if (name === "app-icon")
                 window.restoreAppIcon();
@@ -2738,7 +2898,7 @@ ApplicationWindow {
     // Site information floats from the address, so a collapsed sidebar peeks
     // for as long as the card is open. `detail` opens it at one of its tiles.
     function openSiteInformation(detail) {
-        if (window.sidebarCollapsed)
+        if (window.sidebarAway)
             window.sidebarPeeked = true;
         if (detail !== "certificate")
             window.siteInformationFromQuestion = false;
@@ -3634,10 +3794,9 @@ ApplicationWindow {
             // How much of the sidebar is on show. Only hiding and showing move
             // it, so they are what eases: a resize changes the width the reader
             // owns, and the seam follows that at once as it always has.
-            property real revealed: window.sidebarCollapsed ? 0 : 1
+            property real revealed: window.sidebarAway ? 0 : 1
             readonly property real seam: chromeRow.revealed * window.sidebarDrawnWidth
-            readonly property real settledSeam: window.sidebarCollapsed ? 0 :
-                                                                          window.sidebarDrawnWidth
+            readonly property real settledSeam: window.sidebarAway ? 0 : window.sidebarDrawnWidth
             property real peekRevealed: window.sidebarPeeked ? 1 : 0
             readonly property bool sidebarOnRight: window.sidebarSide === "right"
             // Where a right sidebar's inner edge stands. A window need not be
@@ -3709,7 +3868,7 @@ ApplicationWindow {
                 width: window.sidebarDrawnWidth
                 // Its outer edge against the window's, the shown part of it
                 // inside the row: a hidden sidebar leaves toward its own edge.
-                readonly property real shown: chromeRow.seam + (window.sidebarCollapsed
+                readonly property real shown: chromeRow.seam + (window.sidebarAway
                                                                 ? chromeRow.peekRevealed * width :
                                                                   0)
                 x: chromeRow.sidebarOnRight ? DevicePixels.snap(chromeRow.width - shown,
@@ -3733,8 +3892,8 @@ ApplicationWindow {
                 agentSpaceIds: window.agentSpaceIds
                 spaceColours: window.spaceColours
                 privateWindow: window.privateWindow
-                collapsed: window.sidebarCollapsed
-                floating: chromeRow.peekRevealed > 0 && window.sidebarCollapsed
+                collapsed: window.sidebarAway
+                floating: chromeRow.peekRevealed > 0 && window.sidebarAway
                 easeSpaces: window.chromeEase
                 spacesCanMove: !window.reducedMotion
                 connectionState: window.connectionState
@@ -3807,7 +3966,7 @@ ApplicationWindow {
                 onBackRequested: engineLoader.goBack()
                 onForwardRequested: engineLoader.goForward()
                 onReloadRequested: engineLoader.reloadPage()
-                onSidebarToggled: window.sidebarCollapsed = !window.sidebarCollapsed
+                onSidebarToggled: window.toggleSidebar()
                 onWindowMoveRequested: window.startSystemMove()
                 onPageFocusRequested: window.focusPage()
 
@@ -4956,6 +5115,8 @@ ApplicationWindow {
                             tintFavicons: window.tintFavicons
                             appIcon: window.appIcon
                             sidebarSide: window.sidebarSide
+                            tabsPlacement: window.tabsPlacement
+                            tabsInBarOffered: !window.privateWindow && window.barTabs.offered
                             glanceEnabled: window.glanceEnabled
                             spaceColours: window.spaceColours
                             startPageScene: window.sceneSettingsWindow.startPageScene
@@ -5039,6 +5200,9 @@ ApplicationWindow {
                             }
                             onSidebarSideChosen: function (side) {
                                 window.setSidebarSide(side);
+                            }
+                            onTabsPlacementChosen: function (placement) {
+                                window.setTabsPlacement(placement);
                             }
                         }
                     }
@@ -5221,7 +5385,7 @@ ApplicationWindow {
             anchors.bottom: parent.bottom
             width: 6
             z: 48
-            visible: window.sidebarCollapsed && !window.sidebarPeeked &&
+            visible: window.sidebarAway && !window.sidebarPeeked &&
                      !engineLoader.siteFullscreenActive
             hoverEnabled: true
             acceptedButtons: Qt.NoButton
@@ -5240,6 +5404,7 @@ ApplicationWindow {
             // when the sidebar first appears, then put a peek away on exit.
             interval: 120
             running: window.sidebarPeeked && !sidebarHover.hovered && !window.siteInformationOpen
+                     && !(window.sidebarPeekedByKey && window.outlineHasFocus)
             onTriggered: window.sidebarPeeked = false
         }
 

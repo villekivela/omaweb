@@ -1,5 +1,6 @@
 #include "AgentActivityLog.h"
 #include "AgentControl.h"
+#include "BarTabs.h"
 #include "BrowserController.h"
 #include "BrowserStateExchange.h"
 #include "ContentBlocker.h"
@@ -916,6 +917,7 @@ public slots:
         // The tests draw the chrome without asking GitHub anything, so the
         // watch announces no release and the Release mark is not shown.
         engine->rootContext()->setContextProperty(QStringLiteral("releaseWatch"), &m_releaseWatch);
+        engine->rootContext()->setContextProperty(QStringLiteral("omarchyBar"), &m_barTabs);
         engine->rootContext()->setContextProperty(
             QStringLiteral("globalPrivacyControl"), QVariant::fromValue<QObject *>(nullptr));
         engine->rootContext()->setContextProperty(
@@ -1021,6 +1023,8 @@ private:
     DesktopProbe m_desktopProbe;
     WindowFocusProbe m_windowFocusProbe;
     ReleaseWatchProbe m_releaseWatch;
+    // Never turned on: a test stands in for a widget with setShowsTabsForTests.
+    omaweb::BarTabs m_barTabs {QString(), QString()};
     std::unique_ptr<QTemporaryDir> m_dataRoot;
     SuggestServerProbe m_suggestServer;
     std::unique_ptr<omaweb::EngineSuggestions> m_engineSuggestions;

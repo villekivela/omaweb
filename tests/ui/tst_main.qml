@@ -366,6 +366,7 @@ TestCase {
         window.spaceOverflowMenuOpen = false;
         if (browser.splitOnShow)
             browser.separateSplit();
+        omarchyBar.setShowsTabsForTests(false);
         window.sidebarCollapsed = false;
         window.sidebarPeeked = false;
         if (window.sidebarWidth !== window.sidebarDefaultWidth)
@@ -5119,6 +5120,153 @@ TestCase {
         compare(window.sidebarCollapsed, true);
         compare(backdrop.visible, false);
         SystemMotion.reduced = false;
+    }
+
+    // The tabs in Omarchy's bar (#906): the window shows only the page, and the
+    // reader's own choice of a hidden sidebar is left as it was.
+    function test_withTheTabsInTheBarTheWindowShowsOnlyThePage() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const engineViewport = findChild(window.contentItem, "engineViewport");
+        tryCompare(sidebar, "visible", true);
+
+        omarchyBar.setShowsTabsForTests(true);
+
+        tryCompare(sidebar, "visible", false);
+        tryCompare(engineViewport, "x", 0);
+        tryCompare(engineViewport, "width", window.width);
+        compare(window.sidebarCollapsed, false);
+
+        omarchyBar.setShowsTabsForTests(false);
+        tryCompare(sidebar, "visible", true);
+    }
+
+    function test_theEdgeStillPeeksAtTheSidebarWhileTheTabsAreInTheBar() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        mouseMove(window.contentItem, window.width / 2, window.height / 2);
+        omarchyBar.setShowsTabsForTests(true);
+        tryCompare(sidebar, "visible", false);
+
+        mouseMove(window.contentItem, 2, window.height / 2);
+
+        tryCompare(sidebar, "visible", true);
+        compare(sidebar.floating, true);
+        mouseMove(window.contentItem, window.width / 2, window.height / 2);
+        tryCompare(sidebar, "visible", false);
+    }
+
+    // Moving to the outline by key peeks at it, since there is no sidebar to
+    // bring back.
+    function test_theKeyToTheOutlinePeeksWhileTheTabsAreInTheBar() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        mouseMove(window.contentItem, window.width / 2, window.height / 2);
+        omarchyBar.setShowsTabsForTests(true);
+        tryCompare(sidebar, "visible", false);
+
+        window.focusSidebar();
+
+        tryCompare(sidebar, "visible", true);
+        compare(window.sidebarCollapsed, false);
+        wait(300);
+        verify(sidebar.visible);
+        window.focusPage();
+        tryCompare(sidebar, "visible", false);
+    }
+
+    function test_theBarSwitchesSpaceAndSelectsATabInAnother() {
+        const spaces = swipeSpaces();
+
+        omarchyBar.actionRequested("space", {
+                                       "space": spaces.second
+                                   });
+        tryCompare(browser, "activeSpaceId", spaces.second);
+        omarchyBar.actionRequested("activate", {
+                                       "tab": spaces.firstTab,
+                                       "space": spaces.first
+                                   });
+        tryCompare(browser, "activeSpaceId", spaces.first);
+        compare(browser.activeTabId, spaces.firstTab);
+        forgetSwipeSpaces(spaces);
+    }
+
+    function test_theBarPinsDuplicatesAndClosesATab() {
+        openPage("https://bar-first.example/");
+        openPageInNewTab("https://bar-second.example/");
+        const second = browser.activeTabId;
+        const count = browser.tabs.rowCount();
+
+        omarchyBar.actionRequested("pin", {
+                                       "tab": second
+                                   });
+        verify(browser.tabPinned(second));
+        omarchyBar.actionRequested("unpin", {
+                                       "tab": second
+                                   });
+        verify(!browser.tabPinned(second));
+        omarchyBar.actionRequested("duplicate", {
+                                       "tab": second
+                                   });
+        compare(browser.tabs.rowCount(), count + 1);
+        const duplicate = browser.activeTabId;
+        verify(duplicate !== second);
+        omarchyBar.actionRequested("close", {
+                                       "tab": duplicate
+                                   });
+        compare(browser.tabs.rowCount(), count);
+        omarchyBar.actionRequested("cycle", {
+                                       "step": -1
+                                   });
+        verify(browser.activeTabId !== second);
+    }
+
+    // The choice is the reader's settings file's, and it is what the browser
+    // reads to open the bar socket and place the widget.
+    function test_choosingTheBarInSettingsKeepsTheChoice() {
+        const settings = findChild(window.contentItem, "settingsSurface");
+        compare(settings.tabsPlacement, "sidebar");
+
+        settings.tabsPlacementChosen("omarchy-bar");
+
+        compare(browser.preference("tabs", "sidebar"), "omarchy-bar");
+        compare(settings.tabsPlacement, "omarchy-bar");
+        settings.tabsPlacementChosen("sidebar");
+        compare(browser.preference("tabs", "omarchy-bar"), "sidebar");
+        compare(settings.tabsPlacement, "sidebar");
+    }
+
+    SignalSpy {
+        id: barPublished
+        target: omarchyBar
+        signalName: "published"
+    }
+
+    // What the bar is told is what the window shows: every Space, the one on
+    // show, and the page there.
+    function test_theWindowTellsTheBarWhatItShows() {
+        openPage("https://bar-location.example/read");
+        barPublished.clear();
+
+        omarchyBar.setShowsTabsForTests(true);
+
+        tryVerify(function () {
+            return barPublished.count > 0;
+        });
+        const state = barPublished.signalArguments[barPublished.count - 1][0];
+        compare(state.activeSpace, browser.activeSpaceId);
+        compare(state.spaces.length, browser.spaces.rowCount());
+        compare(state.nav.host, "bar-location.example");
+        compare(state.window, window.title);
+        const shown = state.spaces.find(space => space.id === browser.activeSpaceId);
+        compare(shown.active, browser.activeTabId);
+        verify(shown.tabs.some(tab => tab.id === browser.activeTabId && tab.host
+                                      === "bar-location.example"));
+
+        barPublished.clear();
+        openPageInNewTab("https://bar-another.example/");
+        tryVerify(function () {
+            return barPublished.count > 0 && barPublished.signalArguments[barPublished.count
+                                                                          - 1][0].nav.host
+                    === "bar-another.example";
+        });
     }
 
     // A click CI saw miss, and 255 runs here never did (#507). One that misses

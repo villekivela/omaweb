@@ -78,6 +78,10 @@ namespace {
             {QLatin1StringView("browser-theme"), Kind::Text, QString()},
             {QLatin1StringView("sidebar-side"), Kind::Text, QStringLiteral("left"),
                 {QStringLiteral("left"), QStringLiteral("right")}},
+            // Where the tabs are shown: the sidebar, or Omarchy's bar (#906).
+            // Not synced, because the bar is this desktop's.
+            {QLatin1StringView("tabs"), Kind::Text, QStringLiteral("sidebar"),
+                {QStringLiteral("sidebar"), QStringLiteral("omarchy-bar")}},
             {QLatin1StringView("glance"), Kind::Switch, true},
             {QLatin1StringView("start-page-scene"), Kind::Text, QStringLiteral("crt-road")},
             {QLatin1StringView("start-page-glass"), Kind::Switch, true},

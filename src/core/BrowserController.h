@@ -294,6 +294,13 @@ public:
     // session keeps them, so listing them wakes none of their pages. A Space
     // at rest has none to list, and a Private window has no other Space.
     Q_INVOKABLE QVariantList awaySpaceTabs() const;
+    // Every Space for the Omarchy bar (#906), in order: its `id`, `name`,
+    // `colour`, the `active` tab it shows, and its `pins` and `tabs`, each
+    // with its `id`, `title`, `url`, `iconUrl`, `sound` ("playing", "muted"
+    // or none) and whether it is `poppedOut`. The Space on show answers from
+    // its live tabs and the others from the session, read once after each
+    // change of Space.
+    Q_INVOKABLE QVariantList barSpaces();
     // Switches to the Space and selects its tab, or does neither: a tab the
     // Space does not hold is refused before the Space on show changes.
     Q_INVOKABLE bool activateTabInSpace(const QString &spaceId, const QString &tabId);
@@ -785,6 +792,8 @@ signals:
     void downloadDirectoryChanged();
     void retainedTabsChanged();
     void tabWindowsChanged();
+    // What barSpaces answers may have changed.
+    void barSpacesChanged();
     // The reader selected a popped-out tab in the main window, which raises
     // its Tab window and leaves the main window as it was.
     void tabWindowRaiseRequested(const QString &tabId);
@@ -1110,6 +1119,8 @@ private:
     // The popped-out tabs of each Space not on show, as last read from its
     // store.
     QHash<QString, QVector<TabState>> m_awayTabWindows;
+    // The tabs of each Space not on show, as the bar last read them.
+    QHash<QString, QVector<TabState>> m_barAwayTabs;
     // Set for the length of a Space switch, while the tabs on show and the
     // Space they belong to change at different moments: the list is composed
     // once the switch is done, so a Tab window never reads as gone mid-way.

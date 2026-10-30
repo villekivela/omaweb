@@ -90,6 +90,40 @@ raise the opacity with the Sidebar opacity slider instead, or in their theme, wh
 compositor setting at all. A theme switch renders over the theme file and leaves the slider's value
 alone.
 
+## Tabs in the bar
+
+Settings' interface section offers Tabs: Sidebar or Omarchy bar, where Omarchy's shell answers. It
+is an experiment and stays off unless chosen. With Omarchy bar, the main window shows only the page,
+and the widget in `bar/` shows its Spaces, Pinned tabs and tabs in Omarchy's bar. A Private window
+keeps its own sidebar. The choice is kept on this machine and is not synced.
+
+Choosing it links the package's copy of the widget, `/usr/share/omaweb/omarchy/bar`, into
+`~/.config/omarchy/plugins/omaweb.bar`, and places it twice in `~/.config/omarchy/shell.json`: role
+`tabs` after `omarchy.workspaces`, and role `location` first in the center. Omarchy 4.0.6 has no
+`centerBegin` section. The layout is edited with `jq`, which keeps the file's order, and the shell
+is asked to rescan its plugins and read the file again. Choosing Sidebar takes both placements and
+the link out. A start with the bar chosen points the link at the running build's widget and leaves
+the layout where the reader moved it.
+
+Quickshell keeps a plugin's files from its first scan. A release that changes the widget shows after
+`omarchy-restart-shell`.
+
+The browser and the widget talk over `$XDG_RUNTIME_DIR/omaweb/bar.sock`, mode 0600, which listens
+only while the bar is chosen. It is apart from the Agent socket and not gated by Allow agents. The
+browser sends one JSON state a line to every widget, one per monitor. A widget sends one action a
+line from a fixed set: `activate`, `close`, `pin`, `unpin`, `duplicate`, `popout` and `move` on a
+tab, `space`, `cycle`, `back`, `forward`, `reload` and `omnibar`. Nothing reaches a page. Favicons
+arrive as PNG files under `$XDG_RUNTIME_DIR/omaweb/bar/`, named by their contents, because the
+widget's `Image` caches by path and a page that draws a count into its icon reports a new picture. A
+burst of changes reaches the bar a few times a second, and a file no tab shows is deleted.
+
+The sidebar comes back once no widget has been connected for three seconds, so a shell reload does
+not flash it, and the edge peek shows it at any time. Omarchy's plugin API has no stability promise;
+that return is what keeps the tabs reachable when an Omarchy update breaks the widget.
+
+`OMAWEB_NO_OMARCHY_TEMPLATE` also stops Omaweb placing the widget. Link `bar/` into the plugins and
+add the two entries by hand instead.
+
 ## Overrides
 
 Set `OMAWEB_NO_OMARCHY_TEMPLATE` to any value to stop Omaweb writing into `~/.config/omarchy` at

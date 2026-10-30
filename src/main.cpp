@@ -5,9 +5,11 @@
 #include "AgentMcp.h"
 #include "AgentProtocol.h"
 #include "AppIcon.h"
+#include "BarTabs.h"
 #include "BrowserController.h"
 #include "ContentBlocker.h"
 #include "ControlSocket.h"
+#include "OmarchyBar.h"
 #include "QtAgentInput.h"
 #include "PageSnapshot.h"
 #include "WindowExposure.h"
@@ -565,6 +567,54 @@ int main(int argc, char *argv[])
         });
     followAppIcon();
 #endif
+    // The tabs in Omarchy's bar (#906). The socket listens only while the
+    // reader has chosen the bar, and the widget is placed and taken out when
+    // they choose; a start leaves the layout where the reader has it.
+    omaweb::BarTabs barTabs(omaweb::barSocketPath(),
+        QFileInfo(omaweb::barSocketPath()).dir().filePath(QStringLiteral("bar")));
+    const auto tabsInBar = [&settingsFile] {
+        return settingsFile.value(QStringLiteral("tabs")).toString()
+            == QLatin1String("omarchy-bar");
+    };
+#if defined(Q_OS_LINUX)
+    // The package's copy of the widget, beside the binary's, or the tree's in
+    // a build run from it.
+    auto barWidget = QDir::cleanPath(QDir(QCoreApplication::applicationDirPath())
+            .filePath(QStringLiteral(OMAWEB_BAR_WIDGET_FROM_BROWSER)));
+    if (!QFileInfo(barWidget).isDir()) {
+        barWidget = QStringLiteral(OMAWEB_BAR_WIDGET_SOURCE);
+    }
+    omaweb::OmarchyBarPlacement barPlacement(
+        omaweb::OmarchyBarPaths::fromEnvironment(), barWidget, omaweb::runOmarchyCommand());
+    // A reader who manages their Omarchy configuration themselves places the
+    // widget themselves, as they install the theme's template.
+    const auto mayPlaceBar = !qEnvironmentVariableIsSet("OMAWEB_NO_OMARCHY_TEMPLATE");
+    QObject::connect(&barPlacement, &omaweb::OmarchyBarPlacement::availableChanged, &barTabs,
+        [&barTabs, &barPlacement] { barTabs.setOffered(barPlacement.available()); });
+    QObject::connect(&barTabs, &omaweb::BarTabs::offerCheckRequested, &barPlacement,
+        &omaweb::OmarchyBarPlacement::checkAvailable);
+    QObject::connect(&settingsFile, &omaweb::SettingsFile::changed, &barTabs,
+        [&barTabs, &barPlacement, tabsInBar, mayPlaceBar](const QStringList &keys) {
+            if (!keys.contains(QStringLiteral("tabs")) || tabsInBar() == barTabs.on()) {
+                return;
+            }
+            barTabs.setOn(tabsInBar());
+            if (mayPlaceBar) {
+                tabsInBar() ? barPlacement.place() : barPlacement.remove();
+            }
+        });
+    if (!validatingQml) {
+        barTabs.setOn(tabsInBar());
+        if (tabsInBar() && mayPlaceBar) {
+            barPlacement.relink();
+        }
+        if (QFileInfo::exists(omaweb::OmarchyThemePaths::fromEnvironment().state)) {
+            barPlacement.checkAvailable();
+        }
+    }
+#else
+    Q_UNUSED(tabsInBar);
+#endif
     omaweb::WindowManager windowManager(configRoot(), launch.privateWindowsAvailable);
     const auto developmentSyncModule = QStringLiteral(OMAWEB_SYNC_MODULE_PATH);
     const auto syncModulePath = QFileInfo::exists(developmentSyncModule)
@@ -679,6 +729,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(
         QStringLiteral("diagnosticOverrides"), diagnosticOverrides.named);
     engine.rootContext()->setContextProperty(QStringLiteral("releaseWatch"), &releaseWatch);
+    engine.rootContext()->setContextProperty(QStringLiteral("omarchyBar"), &barTabs);
     engine.rootContext()->setContextProperty(
         QStringLiteral("globalPrivacyControl"), &globalPrivacyControl);
     engine.rootContext()->setContextProperty(QStringLiteral("httpsOnly"), &httpsOnly);

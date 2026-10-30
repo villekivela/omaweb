@@ -163,7 +163,7 @@ jobs:
         # the theme and layout tests measure text, so `gnu-free-fonts` is the
         # same font asked for by name.
         run:
-          pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative
+          pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base jq qt6-declarative
           qt6-shadertools qt6-tools libsecret libsodium gnu-free-fonts iptables
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # The engine Omaweb ships (ADR 0049) rather than the distribution's, so
@@ -320,7 +320,7 @@ jobs:
         # is the smaller thing to ask for: one program under one compositor,
         # which is exactly the shape of this step.
         run:
-          pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative
+          pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base jq qt6-declarative
           qt6-shadertools qt6-tools qt6-wayland libsecret libsodium cage wtype dnsmasq
           gnu-free-fonts
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -439,7 +439,7 @@ jobs:
       - name: Install toolchain
         # As `arch-linux-clang`'s.
         run:
-          pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base qt6-declarative
+          pacman -Syu --noconfirm git cmake ninja clang ccache rust qt6-base jq qt6-declarative
           qt6-shadertools qt6-tools libsecret libsodium gnu-free-fonts
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install Omaweb's engine
@@ -521,7 +521,7 @@ jobs:
     steps:
       - name: Install toolchain
         run:
-          pacman -Syu --noconfirm git cmake ninja gcc ccache rust qt6-base qt6-declarative
+          pacman -Syu --noconfirm git cmake ninja gcc ccache rust qt6-base jq qt6-declarative
           qt6-shadertools qt6-tools qt6-webengine libsecret libsodium
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Restore the compiler cache
@@ -581,7 +581,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Install toolchain
-        run: pacman -Syu --noconfirm git cmake ninja gcc ccache qt6-base
+        run: pacman -Syu --noconfirm git cmake ninja gcc ccache qt6-base jq
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The client reports the version it takes from the nearest tag.
@@ -626,7 +626,7 @@ jobs:
     steps:
       - name: Install toolchain
         run:
-          pacman -Syu --noconfirm git cmake ninja clang rust qt6-base qt6-declarative
+          pacman -Syu --noconfirm git cmake ninja clang rust qt6-base jq qt6-declarative
           qt6-shadertools qt6-tools qt6-webengine qt6-wayland hicolor-icon-theme xdg-utils libsecret
           libsodium
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

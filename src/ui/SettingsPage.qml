@@ -167,6 +167,10 @@ Rectangle {
     property bool tintFavicons: false
     property string appIcon: "black-and-white"
     property string sidebarSide: "left"
+    // Where the tabs are shown, "sidebar" or "omarchy-bar" (#906), and whether
+    // Omarchy's shell answered, which is where the bar is offered.
+    property string tabsPlacement: "sidebar"
+    property bool tabsInBarOffered: false
     property bool glanceEnabled: true
     property bool spaceColours: true
     // The Start page's Scene, by its id, or "none".
@@ -456,6 +460,7 @@ Rectangle {
     signal tintFaviconsToggled(bool enabled)
     signal appIconChosen(string icon)
     signal sidebarSideChosen(string side)
+    signal tabsPlacementChosen(string placement)
     signal glanceToggled(bool enabled)
     signal spaceColoursToggled(bool enabled)
     signal startPageSceneChosen(string scene)
@@ -1336,6 +1341,40 @@ Rectangle {
                             accessibleName: qsTr("Sidebar side")
                             onChanged: function (side) {
                                 root.sidebarSideChosen(side);
+                            }
+                        }
+                    }
+
+                    // An experiment, offered only where Omarchy's shell
+                    // answers, and kept on show while it is chosen so the
+                    // sidebar can always be chosen back.
+                    SettingRow {
+                        objectName: "tabsPlacementRow"
+                        width: pane.width
+                        visible: root.tabsInBarOffered || root.tabsPlacement === "omarchy-bar"
+                        colors: root.colors
+                        title: qsTr("Tabs")
+                        note: qsTr(
+                                  "Where Spaces and tabs are shown. Omarchy bar puts them in the bar beside the workspaces and leaves the window to the page. The sidebar comes back if the bar does not show them.")
+
+                        SettingChoice {
+                            objectName: "tabsPlacement"
+                            enabled: root.settingsWritable
+                            colors: root.colors
+                            options: [
+                                {
+                                    value: "sidebar",
+                                    label: qsTr("Sidebar", "tabs: shown in the window's sidebar")
+                                },
+                                {
+                                    value: "omarchy-bar",
+                                    label: qsTr("Omarchy bar", "tabs: shown in Omarchy's bar")
+                                }
+                            ]
+                            value: root.tabsPlacement
+                            accessibleName: qsTr("Tabs")
+                            onChanged: function (placement) {
+                                root.tabsPlacementChosen(placement);
                             }
                         }
                     }

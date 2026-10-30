@@ -310,6 +310,8 @@ private slots:
     void repairsAPairingTheStoreHandsBackBroken();
     void splitsInAPrivateWindowAndWritesNothing();
     void listsEveryOtherSpacesTabsFromTheSession();
+    void listsEverySpaceWithItsPinsAndTabsForTheBar();
+    void listsAChangeToATabOnShowForTheBar();
     void switchesSpaceAndSelectsTheTabAsOneAction();
     void listsNoOtherSpacesTabsInAPrivateWindow();
 };
@@ -5400,6 +5402,97 @@ QStringList listedTabIds(const QVariantList &tabs)
 }
 
 } // namespace
+
+namespace {
+
+QStringList barTabIds(const QVariantMap &space, const QString &group)
+{
+    QStringList ids;
+    for (const auto &tab : space.value(group).toList()) {
+        ids.append(tab.toMap().value(QStringLiteral("id")).toString());
+    }
+    return ids;
+}
+
+} // namespace
+
+// The Omarchy bar lists every Space, the one on show from its live tabs and
+// the rest from the session, each with its pins apart from its tabs and the
+// tab it would show (#906). A Space at rest lists no tab.
+void BrowserControllerTest::listsEverySpaceWithItsPinsAndTabsForTheBar()
+{
+    SessionFixture fixture(threeSpacesWithTabs());
+    QVERIFY_SESSION_READY(fixture);
+    const auto controller = fixture.createController();
+    QSignalSpy suspended(controller.get(), &BrowserController::spaceSuspended);
+
+    const auto spaces = controller->barSpaces();
+
+    QCOMPARE(spaces.size(), 4);
+    const auto personal = spaces.at(0).toMap();
+    QCOMPARE(personal.value(QStringLiteral("id")).toString(), QStringLiteral("personal"));
+    QCOMPARE(personal.value(QStringLiteral("name")).toString(), QStringLiteral("Personal"));
+    QCOMPARE(personal.value(QStringLiteral("active")).toString(), QStringLiteral("mail"));
+    QCOMPARE(barTabIds(personal, QStringLiteral("tabs")),
+        (QStringList {QStringLiteral("news"), QStringLiteral("mail")}));
+    QVERIFY(barTabIds(personal, QStringLiteral("pins")).isEmpty());
+
+    const auto work = spaces.at(1).toMap();
+    QCOMPARE(work.value(QStringLiteral("colour")).toString(), QStringLiteral("yellow"));
+    QCOMPARE(work.value(QStringLiteral("active")).toString(), QStringLiteral("board"));
+    QCOMPARE(barTabIds(work, QStringLiteral("pins")), QStringList {QStringLiteral("board")});
+    QCOMPARE(barTabIds(work, QStringLiteral("tabs")), QStringList {QStringLiteral("spec")});
+    const auto board = work.value(QStringLiteral("pins")).toList().first().toMap();
+    QCOMPARE(board.value(QStringLiteral("title")).toString(), QStringLiteral("Board"));
+    QCOMPARE(board.value(QStringLiteral("url")).toUrl(),
+        QUrl(QStringLiteral("https://board.example/team")));
+    QCOMPARE(board.value(QStringLiteral("sound")).toString(), QString());
+    QCOMPARE(board.value(QStringLiteral("poppedOut")).toBool(), false);
+
+    const auto resting = spaces.at(2).toMap();
+    QVERIFY(barTabIds(resting, QStringLiteral("tabs")).isEmpty());
+    QCOMPARE(barTabIds(spaces.at(3).toMap(), QStringLiteral("tabs")),
+        QStringList {QStringLiteral("essay")});
+    QCOMPARE(suspended.count(), 0);
+}
+
+// What the bar shows of the Space on show is what its sidebar would: a tab
+// that starts playing says so, with the icon its page reports.
+void BrowserControllerTest::listsAChangeToATabOnShowForTheBar()
+{
+    SessionFixture fixture(threeSpacesWithTabs());
+    QVERIFY_SESSION_READY(fixture);
+    const auto controller = fixture.createController();
+    QSignalSpy changed(controller.get(), &BrowserController::barSpacesChanged);
+
+    controller->reportTabPageState(QStringLiteral("news"),
+        QUrl(QStringLiteral("https://news.example/today")), QStringLiteral("Today, live"),
+        QUrl(QStringLiteral("image://favicon/https://news.example/live.png")), false, true);
+
+    QVERIFY(changed.count() > 0);
+    const auto news = controller->barSpaces()
+                          .first()
+                          .toMap()
+                          .value(QStringLiteral("tabs"))
+                          .toList()
+                          .first()
+                          .toMap();
+    QCOMPARE(news.value(QStringLiteral("title")).toString(), QStringLiteral("Today, live"));
+    QCOMPARE(news.value(QStringLiteral("sound")).toString(), QStringLiteral("playing"));
+    QCOMPARE(news.value(QStringLiteral("iconUrl")).toUrl(),
+        QUrl(QStringLiteral("image://favicon/https://news.example/live.png")));
+    controller->setTabMuted(QStringLiteral("news"), true);
+    QCOMPARE(controller->barSpaces()
+                 .first()
+                 .toMap()
+                 .value(QStringLiteral("tabs"))
+                 .toList()
+                 .first()
+                 .toMap()
+                 .value(QStringLiteral("sound"))
+                 .toString(),
+        QStringLiteral("muted"));
+}
 
 // The Omnibar reaches a page open in another Space through what the session
 // keeps of that Space, so listing it neither puts a Space away nor brings one back,

@@ -1,6 +1,7 @@
 #include "AgentActivityLog.h"
 #include <QJSValue>
 #include "AgentControl.h"
+#include "BarTabs.h"
 #include "BrowserController.h"
 #include "BrowserTheme.h"
 #include "StoredFaviconProvider.h"
@@ -731,6 +732,9 @@ int main(int argc, char *argv[])
         QStringLiteral("0.0.1"), omaweb::ReleaseWatch::Ask::Never);
     releaseWatch.showRelease(QStringLiteral("v9.9.9"));
     engine.rootContext()->setContextProperty(QStringLiteral("releaseWatch"), &releaseWatch);
+    // The lab has no bar to show its tabs in.
+    static omaweb::BarTabs barTabs {QString(), QString()};
+    engine.rootContext()->setContextProperty(QStringLiteral("omarchyBar"), &barTabs);
     // `--problem-recording` starts a Problem recording, so its mark is there to
     // be reviewed. The report asks the lab's machine nothing.
     static omaweb::ProblemRecording problemRecording;

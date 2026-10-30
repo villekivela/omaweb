@@ -3687,6 +3687,24 @@ Päivitykset osoitteesta %3</translation>
         <translation>Oikea</translation>
     </message>
     <message>
+        <source>Tabs</source>
+        <translation>Välilehdet</translation>
+    </message>
+    <message>
+        <source>Where Spaces and tabs are shown. Omarchy bar puts them in the bar beside the workspaces and leaves the window to the page. The sidebar comes back if the bar does not show them.</source>
+        <translation>Missä tilat ja välilehdet näytetään. Omarchyn palkki tuo ne palkkiin työtilojen viereen ja jättää ikkunan sivulle. Sivupalkki palaa, jos palkki ei näytä niitä.</translation>
+    </message>
+    <message>
+        <source>Sidebar</source>
+        <comment>tabs: shown in the window&apos;s sidebar</comment>
+        <translation>Sivupalkki</translation>
+    </message>
+    <message>
+        <source>Omarchy bar</source>
+        <comment>tabs: shown in Omarchy&apos;s bar</comment>
+        <translation>Omarchyn palkki</translation>
+    </message>
+    <message>
         <source>Scene on the Start page</source>
         <translation>Aloitussivun maisema</translation>
     </message>

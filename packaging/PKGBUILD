@@ -77,6 +77,9 @@ optdepends=(
     'mesa: hardware video decode on AMD GPUs, through the Mesa VA-API driver'
     'libva-nvidia-driver: hardware video decode on NVIDIA GPUs, over NVDEC'
     'libva-utils: `vainfo`, which reports which driver answers on this host'
+    # Showing the tabs in Omarchy's bar edits the bar's layout with `jq`, as
+    # Omarchy's own commands do, and Omarchy depends on it already.
+    'jq: placing the tabs in the Omarchy bar'
 )
 # The repository this file sits in, rather than a fresh clone of the remote.
 # `makepkg` run from a checkout should package the tree the reader has in front

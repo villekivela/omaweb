@@ -24,6 +24,7 @@ private slots:
     void rewritesTheFileAsTheReaderLaidItOut();
     void writesOnlyWhatDiffersFromTheDefault();
     void keepsSpaceColourOnUnlessTheReaderTurnsItOff();
+    void showsTheTabsInTheSidebarUnlessTheReaderMovesThemToTheBar();
     void keepsTheLastGoodValuesWhileTheFileCannotBeRead();
     void startsOnTheDefaultsFromAFileOfAnotherVersion();
     void readsABadValueAsItsDefaultAndNamesIt();
@@ -139,6 +140,20 @@ void SettingsFileTest::writesOnlyWhatDiffersFromTheDefault()
     QVERIFY(!settings.set(QStringLiteral("glance"), QStringLiteral("no")));
     QVERIFY(!settings.set(QStringLiteral("not-a-setting"), true));
     QCOMPARE(readFile(path), QByteArray("{\n  \"version\": 1,\n  \"tint-favicons\": true\n}\n"));
+}
+
+// The Omarchy bar is an experiment (#906), so the tabs stay in the sidebar for
+// every reader who has not chosen the bar.
+void SettingsFileTest::showsTheTabsInTheSidebarUnlessTheReaderMovesThemToTheBar()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    SettingsFile settings(root.filePath(QStringLiteral("config")));
+    QCOMPARE(settings.value(QStringLiteral("tabs")), QJsonValue(QStringLiteral("sidebar")));
+
+    QVERIFY(settings.set(QStringLiteral("tabs"), QStringLiteral("omarchy-bar")));
+    QCOMPARE(settings.value(QStringLiteral("tabs")), QJsonValue(QStringLiteral("omarchy-bar")));
+    QVERIFY(!settings.set(QStringLiteral("tabs"), QStringLiteral("titlebar")));
 }
 
 // Space colour is a switch in the file, on by default, as the Scene is.

@@ -2100,6 +2100,66 @@ TestCase {
         return rows;
     }
 
+    SignalSpy {
+        id: tabsPlacementSpy
+        signalName: "tabsPlacementChosen"
+    }
+
+    function choiceButton(choice, label) {
+        for (let index = 0; index < choice.children.length; ++index) {
+            const child = choice.children[index];
+            if (child.hasOwnProperty("bordered") && child.text === label)
+                return child;
+        }
+        return null;
+    }
+
+    // Showing the tabs in Omarchy's bar is an experiment (#906), offered only
+    // where Omarchy's shell answers.
+    function test_theTabsAreNotOfferedForTheBarWhereNoOmarchyShellAnswers() {
+        const page = makeInterfacePage();
+        page.tabsInBarOffered = false;
+        page.tabsPlacement = "sidebar";
+
+        verify(!findChild(page, "tabsPlacementRow").visible);
+    }
+
+    function test_theTabsCanBeMovedToOmarchysBar() {
+        const page = makeInterfacePage();
+        page.tabsInBarOffered = true;
+        page.tabsPlacement = "sidebar";
+        tabsPlacementSpy.target = page;
+        tabsPlacementSpy.clear();
+        const row = findChild(page, "tabsPlacementRow");
+        tryVerify(function () {
+            return row.visible;
+        });
+        compare(row.title, "Tabs");
+        const choice = findChild(page, "tabsPlacement");
+        compare(choice.value, "sidebar");
+
+        const bar = choiceButton(choice, "Omarchy bar");
+        verify(bar !== null);
+        bringIntoView(bar);
+        mouseClick(bar);
+
+        compare(tabsPlacementSpy.count, 1);
+        compare(tabsPlacementSpy.signalArguments[0][0], "omarchy-bar");
+    }
+
+    // A reader who chose the bar can always choose the sidebar back, shell or
+    // no shell.
+    function test_theTabsCanComeBackFromTheBarWithoutTheShell() {
+        const page = makeInterfacePage();
+        page.tabsInBarOffered = false;
+        page.tabsPlacement = "omarchy-bar";
+
+        tryVerify(function () {
+            return findChild(page, "tabsPlacementRow").visible;
+        });
+        compare(findChild(page, "tabsPlacement").value, "omarchy-bar");
+    }
+
     // The browser theme leads Interface: following the desktop first, named
     // for the desktop's theme, then every installed theme by name. Each row
     // ends with the theme's background, foreground and accent (#710).

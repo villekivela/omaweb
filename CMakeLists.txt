@@ -405,6 +405,12 @@ add_library(omaweb-core STATIC
     src/core/AgentControl.h
     src/core/AgentSetup.cpp
     src/core/AgentSetup.h
+    src/core/BarFeed.cpp
+    src/core/BarFeed.h
+    src/core/BarSocket.cpp
+    src/core/BarSocket.h
+    src/core/BarTabs.cpp
+    src/core/BarTabs.h
     src/core/BrowserStateExchange.cpp
     src/core/BrowserStateExchange.h
     src/core/BrowserController.cpp
@@ -815,6 +821,8 @@ add_library(omaweb-platform STATIC
     src/platform/InputMethod.h
     src/platform/MediaAnnouncer.cpp
     src/platform/MediaAnnouncer.h
+    src/platform/OmarchyBar.cpp
+    src/platform/OmarchyBar.h
     src/platform/OmarchyTheme.cpp
     src/platform/OmarchyTheme.h
     src/platform/PagePrinter.cpp
@@ -937,6 +945,7 @@ set(omaweb_ui_files
     src/ui/SettingsAttention.mjs
     src/ui/SidebarFill.mjs
     src/ui/SiteChip.mjs
+    src/ui/BarState.mjs
     src/ui/SpaceColour.mjs
     src/ui/DownloadBar.qml
     src/ui/DownloadMark.qml
@@ -1252,6 +1261,17 @@ if(OMAWEB_BUILD_BROWSER)
             "${CMAKE_INSTALL_FULL_LIBDIR}/omaweb" "${CMAKE_INSTALL_FULL_DATADIR}/omaweb/skills/omaweb")
         target_compile_definitions(omaweb-browser PRIVATE
             OMAWEB_AGENT_SKILL_FROM_BROWSER="${omaweb_agent_skill_from_browser}")
+
+        # The Omarchy bar widget, which choosing the bar links into the reader's
+        # plugins (#906). Found the same way as the skill, and in the tree for
+        # a build run from it.
+        file(RELATIVE_PATH omaweb_bar_widget_from_browser
+            "${CMAKE_INSTALL_FULL_LIBDIR}/omaweb" "${CMAKE_INSTALL_FULL_DATADIR}/omaweb/omarchy/bar")
+        target_compile_definitions(omaweb-browser PRIVATE
+            OMAWEB_BAR_WIDGET_FROM_BROWSER="${omaweb_bar_widget_from_browser}"
+            OMAWEB_BAR_WIDGET_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/integrations/omarchy/bar")
+        install(DIRECTORY "integrations/omarchy/bar"
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/omaweb/omarchy")
 
         # Off the PATH: `omaweb` there is the small client, which hands
         # everything that is not a verb to this.
@@ -1578,6 +1598,12 @@ if(BUILD_TESTING)
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_terminal_theme_import.py
         )
     endif()
+
+    # The plumbing between the browser and its Omarchy bar widget (#906).
+    qt_add_executable(omaweb-bar-tests "tests/core/tst_bar.cpp")
+    target_link_libraries(omaweb-bar-tests PRIVATE omaweb-core Qt6::Gui Qt6::Test)
+    omaweb_strict_target(omaweb-bar-tests)
+    add_test(NAME omaweb-bar COMMAND omaweb-bar-tests)
 
     qt_add_executable(omaweb-core-tests
         "tests/core/SessionFixture.cpp"
@@ -2266,6 +2292,11 @@ if(BUILD_TESTING)
     )
     omaweb_strict_target(omaweb-app-icon-tests)
     add_test(NAME omaweb-app-icon COMMAND omaweb-app-icon-tests)
+
+    qt_add_executable(omaweb-omarchy-bar-tests tests/platform/tst_omarchybar.cpp)
+    target_link_libraries(omaweb-omarchy-bar-tests PRIVATE omaweb-platform Qt6::Test)
+    omaweb_strict_target(omaweb-omarchy-bar-tests)
+    add_test(NAME omaweb-omarchy-bar COMMAND omaweb-omarchy-bar-tests)
 
     qt_add_executable(omaweb-favicon-tint-tests tests/ui/tst_favicontint.cpp)
     target_link_libraries(omaweb-favicon-tint-tests PRIVATE omaweb-ui Qt6::Gui Qt6::Test)

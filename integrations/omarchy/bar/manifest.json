@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "id": "omaweb.bar",
+  "name": "Omaweb",
+  "version": "1.0.0",
+  "author": "Omaweb",
+  "license": "MIT",
+  "description": "Omaweb's Spaces and tabs in the bar, and the page on show. Omaweb places it when its tabs are set to show in the Omarchy bar.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "OmawebBar.qml"
+  },
+  "barWidget": {
+    "displayName": "Omaweb",
+    "description": "Spaces, Pinned tabs and tabs, or the location of the page on show, by role.",
+    "category": "Productivity",
+    "aliases": ["browser", "tabs"],
+    "allowMultiple": true,
+    "defaultSection": "left",
+    "defaults": {
+      "role": "tabs",
+      "spaceNames": "full",
+      "maxWidthPercent": 40,
+      "locationWidth": 360
+    },
+    "schema": [
+      {
+        "key": "role",
+        "type": "enum",
+        "label": "Role",
+        "options": ["tabs", "location"],
+        "defaultValue": "tabs"
+      },
+      {
+        "key": "spaceNames",
+        "type": "enum",
+        "label": "Space names",
+        "options": ["full", "letter"],
+        "defaultValue": "full"
+      },
+      {
+        "key": "maxWidthPercent",
+        "type": "integer",
+        "label": "Widest share of the bar (%)",
+        "min": 10,
+        "max": 80,
+        "step": 5,
+        "defaultValue": 40
+      },
+      {
+        "key": "locationWidth",
+        "type": "integer",
+        "label": "Location width (px)",
+        "min": 160,
+        "max": 800,
+        "step": 20,
+        "defaultValue": 360
+      }
+    ]
+  }
+}

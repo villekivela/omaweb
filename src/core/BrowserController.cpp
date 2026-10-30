@@ -265,6 +265,27 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
     connect(&m_tabs, &QAbstractItemModel::rowsRemoved, this, [this] { refreshTabWindows(); });
     connect(&m_tabs, &QAbstractItemModel::dataChanged, this, [this] { refreshTabWindows(); });
     connect(&m_tabs, &QAbstractItemModel::modelReset, this, [this] { refreshTabWindows(); });
+    // The Omarchy bar lists every Space. What it read of the others from the
+    // session stands until something can have changed them.
+    const auto barChanged = [this] { emit barSpacesChanged(); };
+    const auto barAwayChanged = [this] {
+        m_barAwayTabs.clear();
+        emit barSpacesChanged();
+    };
+    connect(&m_tabs, &QAbstractItemModel::rowsInserted, this, barChanged);
+    connect(&m_tabs, &QAbstractItemModel::rowsRemoved, this, barAwayChanged);
+    connect(&m_tabs, &QAbstractItemModel::rowsMoved, this, barChanged);
+    connect(&m_tabs, &QAbstractItemModel::dataChanged, this, barChanged);
+    connect(&m_tabs, &QAbstractItemModel::modelReset, this, barAwayChanged);
+    connect(&m_spaces, &QAbstractItemModel::modelReset, this, barAwayChanged);
+    connect(&m_spaces, &QAbstractItemModel::dataChanged, this, barAwayChanged);
+    connect(&m_spaces, &QAbstractItemModel::rowsMoved, this, barChanged);
+    connect(&m_spaces, &QAbstractItemModel::rowsInserted, this, barChanged);
+    connect(&m_spaces, &QAbstractItemModel::rowsRemoved, this, barAwayChanged);
+    connect(this, &BrowserController::activeSpaceChanged, this, barAwayChanged);
+    connect(this, &BrowserController::activeTabChanged, this, barChanged);
+    connect(this, &BrowserController::tabWindowsChanged, this, barAwayChanged);
+    connect(this, &BrowserController::awayTabDiscarded, this, barAwayChanged);
     // The neighbours follow the Space on show, which a switch reports as a
     // change of data, and the order of the list. They are named with the
     // change, and their tabs asked for once it is over, so a switch's own
@@ -1881,6 +1902,67 @@ QVariantList BrowserController::awaySpaceTabs() const
                 {QStringLiteral("iconUrl"), tab.iconUrl},
             });
         }
+    }
+    return listed;
+}
+
+namespace {
+
+    QVariantMap barTab(const TabState &tab)
+    {
+        return {
+            {QStringLiteral("id"), tab.id},
+            {QStringLiteral("title"), tab.title},
+            {QStringLiteral("url"), tab.url},
+            {QStringLiteral("iconUrl"), tab.iconUrl},
+            {QStringLiteral("sound"),
+                tab.muted ? QStringLiteral("muted")
+                          : (tab.audible ? QStringLiteral("playing") : QString())},
+            {QStringLiteral("poppedOut"), tab.poppedOut},
+        };
+    }
+
+} // namespace
+
+QVariantList BrowserController::barSpaces()
+{
+    QVariantList listed;
+    if (m_privateBrowsing) {
+        return listed;
+    }
+    for (const auto &space : m_spaces.items()) {
+        QVector<TabState> tabs;
+        QString active;
+        if (space.id == m_activeSpaceId) {
+            tabs = m_tabs.items();
+            active = m_activeTabId;
+        } else {
+            auto away = m_barAwayTabs.find(space.id);
+            if (away == m_barAwayTabs.end()) {
+                auto loaded = m_store->loadTabs(space.id);
+                showRestoredPages(loaded);
+                away = m_barAwayTabs.insert(space.id, loaded);
+            }
+            tabs = *away;
+            const auto shown = std::ranges::find_if(tabs, &TabState::active);
+            active = shown == tabs.cend() ? QString() : shown->id;
+        }
+        QVariantList pins;
+        QVariantList ordinary;
+        for (const auto &tab : std::as_const(tabs)) {
+            if (isBlank(tab.url)) {
+                continue;
+            }
+            (tab.pinned ? pins : ordinary).append(barTab(tab));
+        }
+        listed.append(QVariantMap {
+            {QStringLiteral("id"), space.id},
+            {QStringLiteral("name"), space.name},
+            {QStringLiteral("colour"), space.color},
+            {QStringLiteral("active"), active},
+            {QStringLiteral("pins"), pins},
+            {QStringLiteral("tabs"), ordinary},
+        });
     }
     return listed;
 }

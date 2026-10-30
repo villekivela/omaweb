@@ -126,7 +126,7 @@ QtObject {
         case "take-over-space":
             return window.takeOverSpace();
         case "toggle-sidebar":
-            window.sidebarCollapsed = !window.sidebarCollapsed;
+            window.toggleSidebar();
             return true;
         case "widen-sidebar":
             window.nudgeSidebar(24);
