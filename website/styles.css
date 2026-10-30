@@ -1538,8 +1538,12 @@ html.highway {
 
 /* A card as large as the window allows with its words under its capture, the Agents card laid out
    as the others, and the theme card, three captures across, a little wider for its picker. */
+.highway {
+  --card-width: min(980px, 86vw, (100vh - 250px) * 1.45);
+}
+
 .highway .card.highway__stop {
-  width: min(980px, 86vw, (100vh - 250px) * 1.45);
+  width: var(--card-width);
 }
 
 .highway #theme.highway__stop {
@@ -1649,16 +1653,17 @@ html.highway {
    read, as a film's subtitles, cruise control's buttons, and along its foot the line of the stops,
    the page's scrollbar, lit as far as the reader has come. Nearly opaque rather than glass: a blur
    behind it would be worked out again for every frame of the road. */
+/* It hangs just under a card, as wide as one: a card is its capture alone, 16:9, centred. */
 .journey {
   position: fixed;
-  bottom: 16px;
+  top: calc(50% + var(--card-width) * 9 / 32 + 14px);
   left: 50%;
   z-index: 300;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px 18px;
-  width: min(100vw - 32px, 760px);
+  width: var(--card-width);
   padding: 12px 16px 0;
   border: 1px solid var(--edge);
   border-radius: 3px;
@@ -1773,6 +1778,10 @@ html.highway {
 .highway .card > h2,
 .highway .card > p {
   display: none;
+}
+
+.highway .card {
+  padding: 0;
 }
 
 /* Footer */
