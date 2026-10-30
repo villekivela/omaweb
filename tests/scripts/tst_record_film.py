@@ -2014,6 +2014,14 @@ class ThemeOnsets(unittest.TestCase):
         self.assertEqual(film.theme_onsets(self.THEMES, shifts, 10.7),
                          [[0.0, "nebula"], [3.08, "lumon"], [6.45, "nebula"]])
 
+    def test_a_sweep_that_starts_as_a_thin_band_is_timed_from_where_it_gets_going(self):
+        # Retro 82's sweep shows as a thin band for a third of a second before it widens: the
+        # change is timed from its first frame at a quarter of its strongest, not from the band.
+        shifts = [(3.95, 0.25), (3.99, 0.4), (4.29, 0.9), (4.32, 3.6), (4.35, 6.6), (4.42, 13.5),
+                  (4.49, 5.7), (9.79, 35.0), (9.82, 10.0)]
+        self.assertEqual(film.theme_onsets(self.THEMES, shifts, 10.7),
+                         [[0.0, "nebula"], [4.22, "lumon"], [9.69, "nebula"]])
+
     def test_a_beat_with_a_different_number_of_changes_keeps_the_marked_times(self):
         for shifts in ([], [(3.18, 1.6)], [(1.0, 1.6), (3.0, 1.6), (6.0, 1.6)]):
             with self.subTest(shifts=shifts):

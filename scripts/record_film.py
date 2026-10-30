@@ -2332,6 +2332,9 @@ def framed(entry: dict, stage: Stage, drawn: Pointer, pointer_input: str | None,
 # Frames of one change are less than a half second apart, and the next change is further off.
 ONSET_SHIFT = 0.1
 ONSET_APART = 0.5
+# A change is timed from the first frame of its run at this share of the run's strongest: a sweep
+# can show as a thin band for a third of a second before it widens, as Retro 82's does.
+ONSET_SHARE = 0.25
 # The page's change starts this far ahead of the sweep's first frame, which is what reads as in step
 # with it once the page has drawn its own (found by eye against the film, #903).
 ONSET_LEAD = 0.1
@@ -2365,24 +2368,27 @@ def theme_onsets(themes: list, shifts: list[tuple[float, float]], length: float)
     """`themes` with each change after the first moved to when the recording first shows it.
 
     The recorder marks a change when it saw it, which on the desktop is some 2.7 s after the
-    recording shows it, so each change takes the start of its own run of frames in `shifts`, less
-    `ONSET_LEAD`, in order. On the desktop the window repaints at once and the desktop's sweep
+    recording shows it, so each change takes its own run of frames in `shifts`, in order, from the
+    first at `ONSET_SHARE` of the run's strongest, less `ONSET_LEAD`. On the desktop the window repaints at once and the desktop's sweep
     follows, and the page's reveal is the sweep's, so `shifts` come from the wallpaper above the
     window. A beat whose recording shows another number of changes keeps the times it was marked
     with. The first theme is the beat's own, from its start.
     """
-    runs: list[float] = []
+    runs: list[list[tuple[float, float]]] = []
     previous = None
-    for at, shift in shifts:
-        if at > length or shift < ONSET_SHIFT:
+    for at, moved in shifts:
+        if at > length or moved < ONSET_SHIFT:
             continue
         if previous is None or at - previous >= ONSET_APART:
-            runs.append(at)
+            runs.append([])
+        runs[-1].append((at, moved))
         previous = at
     if len(runs) != len(themes) - 1:
         return themes
+    starts = [next(at for at, moved in run if moved >= ONSET_SHARE * max(m for _, m in run))
+              for run in runs]
     return [themes[0]] + [[round(at - ONSET_LEAD, 3), name]
-                          for at, (_, name) in zip(runs, themes[1:])]
+                          for at, (_, name) in zip(starts, themes[1:])]
 
 
 def cut_clips(out: Path, marks: list[dict], stage: Stage, drawn: Pointer) -> None:
