@@ -26,6 +26,7 @@ import {
   revealClip,
   revving,
   rising,
+  streaking,
   wornAt,
 } from "./highway.js";
 import { STILL_MEDIA, SceneHost } from "./scene.js";
@@ -83,7 +84,14 @@ if (drive) {
   // The Omnibar stands in front of the sun and catches its light at its rim.
   const host = crtRoad
     ? new SceneHost(canvas, crtRoad, { beat: listenToRadio(), lit: omnibar })
-    : { setNavigating() {}, setParked() {}, setHush() {}, setRise() {}, lightUp() {} };
+    : {
+        setNavigating() {},
+        setParked() {},
+        setHush() {},
+        setRise() {},
+        setStreak() {},
+        lightUp() {},
+      };
   // On the Start page the road stands still, and the sky with its shooting stars goes on, until
   // the journey starts: the reader scrolls, or cruise control's first glide at the drop (the radio
   // and the ignition first build to it, the engine revving). Then it runs for good.
@@ -847,6 +855,7 @@ if (drive) {
       cancelAnimationFrame(waking);
       cancelAnimationFrame(bursting);
       bursting = 0;
+      host.setStreak(0);
       look(0, 1);
       mark(null);
     };
@@ -864,13 +873,16 @@ if (drive) {
         dropping = setTimeout(() => root.removeAttribute("data-drop"), 1200);
       }
     };
-    // The drop: the sun's flare bursts and fades with the song, the sun at full height.
+    // The drop: the sun's flare bursts and fades with the song, the sun at full height, and the
+    // stars streak into speed lines and come back.
     const burst = () => {
       cancelAnimationFrame(waking);
       const step = () => {
         const bright = glare(clock());
+        const streak = streaking(clock());
         look(-bright, 1);
-        bursting = bright > 0 ? requestAnimationFrame(step) : 0;
+        host.setStreak(streak);
+        bursting = bright > 0 || streak > 0 ? requestAnimationFrame(step) : 0;
       };
       step();
     };

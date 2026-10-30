@@ -1867,6 +1867,19 @@ html.highway {
   animation: headline-flashes 1.2s ease-out;
 }
 
+/* At the drop the camera is pulled back as the drive sets off, the horizon and the sun dipping
+   and settling again. */
+.highway[data-drop] .drive__scene {
+  transform-origin: 50% 100%;
+  animation: camera-pulls 1.2s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+@keyframes camera-pulls {
+  18% {
+    transform: translateY(14px) scale(1.03);
+  }
+}
+
 @keyframes headline-flashes {
   from {
     color: #fff;

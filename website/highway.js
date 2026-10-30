@@ -28,6 +28,13 @@ export function rising(time) {
   return SUN_FROM + (1 - SUN_FROM) * toward * toward * (3 - 2 * toward);
 }
 
+// How far the stars streak into speed lines, 0 to 1: at once and fully at the drop, back to
+// points, slowly at the last, a second after.
+export function streaking(time) {
+  const after = time - INTRO_BARS * BAR;
+  return after < 0 ? 0 : Math.max(0, 1 - after) ** 2;
+}
+
 // The intro's bar at `time`, 0 to 7, and 8 from the drop on: the page steps its headlights and its
 // headline by it.
 export function introBar(time) {

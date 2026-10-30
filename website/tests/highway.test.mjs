@@ -21,6 +21,7 @@ import {
   quiet,
   revving,
   rising,
+  streaking,
   revealClip,
   stopAt,
   wornAt,
@@ -280,4 +281,15 @@ test("introBar: the intro's bar, from 0 to the drop's 8", () => {
   assert.equal(introBar(8 * BAR), 8);
   assert.equal(introBar(20 * BAR), 8);
   assert.equal(introBar(-1), 0);
+});
+
+// At the drop the stars streak into speed lines, at once and fully, and come back to points over
+// the next second.
+test("streaking: none before the drop, full at it, gone a second after", () => {
+  const drop = 8 * BAR;
+  assert.equal(streaking(drop - 0.01), 0);
+  assert.equal(streaking(drop), 1);
+  assert.ok(Math.abs(streaking(drop + 0.5) - 0.25) < 1e-9);
+  assert.equal(streaking(drop + 1), 0);
+  assert.equal(streaking(drop + 9), 0);
 });

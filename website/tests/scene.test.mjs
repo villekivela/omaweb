@@ -434,3 +434,11 @@ test("road: a first shooting star comes at firstAt, for as long as one lasts", (
   assert.equal(strokes(2.5 + star.lasts + 0.1), 0);
   delete globalThis.document;
 });
+
+test("input: the stars' streak reaches a moving Scene, 0 to 1, and a still one gets none", () => {
+  const moving = { palette: retro82, width: 10, height: 10 };
+  assert.equal(sceneInput(road, moving).streak, 0);
+  assert.equal(sceneInput(road, { ...moving, streak: 0.5 }).streak, 0.5);
+  assert.equal(sceneInput(road, { ...moving, streak: 4 }).streak, 1);
+  assert.equal(sceneInput(road, { ...moving, streak: 0.5, reducedMotion: true }).streak, 0);
+});

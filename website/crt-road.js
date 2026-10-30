@@ -160,7 +160,7 @@ export function createCrtRoad(p) {
 
   // What does not move: the sky and its stars, the sunrise glow, the sun, the ridges, the desert
   // and the road on it.
-  function still(context, g, c, bands, rise) {
+  function still(context, g, c, bands, rise, streak) {
     context.fillStyle = stops(context.createLinearGradient(0, 0, 0, g.horizonY), p.sky, c);
     context.fillRect(0, 0, g.w, g.horizonY + 1);
 
@@ -182,8 +182,20 @@ export function createCrtRoad(p) {
       const alpha = brightest
         ? 1
         : (st.alpha.base + st.alpha.range * bright) * (1 - high * st.alpha.horizonFade);
-      context.fillStyle = css(c.light, alpha);
-      context.fillRect(across * g.w, high * g.horizonY * st.reach, size, size);
+      const x = across * g.w;
+      const y = high * g.horizonY * st.reach;
+      if (streak > 0) {
+        // A speed line away from the vanishing point, longer the further out the star stands.
+        context.strokeStyle = css(c.light, alpha);
+        context.lineWidth = size;
+        context.beginPath();
+        context.moveTo(x, y);
+        context.lineTo(x + (x - g.vx) * streak * 0.35, y + (y - g.horizonY) * streak * 0.35);
+        context.stroke();
+      } else {
+        context.fillStyle = css(c.light, alpha);
+        context.fillRect(x, y, size, size);
+      }
     }
 
     const halo = context.createRadialGradient(
@@ -298,7 +310,8 @@ export function createCrtRoad(p) {
     const slot = early ? -1 : Math.floor(input.time / star.every);
     const into = early ? input.time - star.firstAt : input.time - slot * star.every;
     if (!input.reducedMotion && into < star.lasts && (early || hash(slot) > star.chance)) {
-      const length = g.w * star.length;
+      // Stretched into a longer streak as the drive sets off.
+      const length = g.w * star.length * (1 + 2 * input.streak);
       const run = into / star.lasts;
       const x = (star.across[0] + star.across[1] * hash(slot + 1)) * g.w + length * run;
       const y =
@@ -374,14 +387,16 @@ export function createCrtRoad(p) {
       // The still layer is drawn again as the sun climbs, in two-hundredths of its height, so the
       // climb is smooth rather than stepped.
       const climb = Math.round(input.rise * 200);
-      if (!s.still || s.climb !== climb) {
+      const streak = Math.round(input.streak * 20);
+      if (!s.still || s.climb !== climb || s.streak !== streak) {
         s.climb = climb;
+        s.streak = streak;
         s.still ??= document.createElement("canvas");
         s.still.width = input.width;
         s.still.height = input.height;
         const layer = s.still.getContext("2d");
         layer.scale(1 / p.pitch, 1 / p.pitch);
-        still(layer, g, c, Number(input.options.bands), climb / 200);
+        still(layer, g, c, Number(input.options.bands), climb / 200, streak / 20);
       }
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.drawImage(s.still, 0, 0);

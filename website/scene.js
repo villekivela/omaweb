@@ -46,6 +46,8 @@ export function sceneInput(scene, environment) {
     // The hush before the drop, 0 to 1: the sky stills with the road.
     // How high the sun stands, 0 to 1 of its height: the intro raises it.
     rise: still ? 1 : Math.max(0, Math.min(1, environment.rise ?? 1)),
+    // How far the stars streak into speed lines, 0 to 1, as the drive sets off.
+    streak: still ? 0 : Math.max(0, Math.min(1, environment.streak || 0)),
     hush: still ? 0 : Math.max(0, Math.min(1, environment.hush || 0)),
     beat: still ? 0 : Math.max(0, Math.min(1, environment.beat || 0)),
     reducedMotion: still,
@@ -163,6 +165,7 @@ export class SceneHost {
     this.parked = false;
     this.hush = 0;
     this.rise = 1;
+    this.streak = 0;
     this.state = {};
     this.frame = 0;
     this.last = -Infinity;
@@ -214,6 +217,7 @@ export class SceneHost {
       parked: this.parked,
       hush: this.hush,
       rise: this.rise,
+      streak: this.streak,
       beat: this.beat(),
       reducedMotion: this.reduced.matches,
       phone: this.phone.matches,
@@ -245,6 +249,11 @@ export class SceneHost {
   // Start page until the journey starts.
   setParked(value) {
     this.parked = value;
+  }
+
+  // How far the stars streak into speed lines, 0 to 1.
+  setStreak(value) {
+    this.streak = value;
   }
 
   // How high the sun stands, 0 to 1 of its height.
