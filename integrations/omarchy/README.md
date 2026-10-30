@@ -105,6 +105,10 @@ is asked to rescan its plugins and read the file again. Choosing Sidebar takes b
 the link out. A start with the bar chosen points the link at the running build's widget and leaves
 the layout where the reader moved it.
 
+While the bar is chosen, Settings also offers Space names in the bar: the full name, or the first
+letter with the full name on hover. It is the widget's own `spaceNames` setting on its `tabs` entry,
+so Settings and the bar's widget settings change the same value.
+
 Quickshell keeps a plugin's files from its first scan. A release that changes the widget shows after
 `omarchy-restart-shell`.
 

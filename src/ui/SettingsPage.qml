@@ -171,6 +171,8 @@ Rectangle {
     // Omarchy's shell answered, which is where the bar is offered.
     property string tabsPlacement: "sidebar"
     property bool tabsInBarOffered: false
+    // How the bar names a Space: "full", or "letter" for its first letter.
+    property string barSpaceNames: "full"
     property bool glanceEnabled: true
     property bool spaceColours: true
     // The Start page's Scene, by its id, or "none".
@@ -461,6 +463,7 @@ Rectangle {
     signal appIconChosen(string icon)
     signal sidebarSideChosen(string side)
     signal tabsPlacementChosen(string placement)
+    signal barSpaceNamesChosen(string spaceNames)
     signal glanceToggled(bool enabled)
     signal spaceColoursToggled(bool enabled)
     signal startPageSceneChosen(string scene)
@@ -1375,6 +1378,39 @@ Rectangle {
                             accessibleName: qsTr("Tabs")
                             onChanged: function (placement) {
                                 root.tabsPlacementChosen(placement);
+                            }
+                        }
+                    }
+
+                    // The bar widget's own setting, which its settings in the
+                    // bar change too.
+                    SettingRow {
+                        objectName: "barSpaceNamesRow"
+                        width: pane.width
+                        visible: root.tabsPlacement === "omarchy-bar"
+                        colors: root.colors
+                        title: qsTr("Space names in the bar")
+                        note: qsTr(
+                                  "First letter shortens each Space to its first letter, so more tabs fit. The full name shows on hover.")
+
+                        SettingChoice {
+                            objectName: "barSpaceNames"
+                            enabled: root.settingsWritable
+                            colors: root.colors
+                            options: [
+                                {
+                                    value: "full",
+                                    label: qsTr("Full name", "space names in the bar")
+                                },
+                                {
+                                    value: "letter",
+                                    label: qsTr("First letter", "space names in the bar")
+                                }
+                            ]
+                            value: root.barSpaceNames
+                            accessibleName: qsTr("Space names in the bar")
+                            onChanged: function (spaceNames) {
+                                root.barSpaceNamesChosen(spaceNames);
                             }
                         }
                     }

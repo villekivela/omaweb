@@ -2147,6 +2147,39 @@ TestCase {
         compare(tabsPlacementSpy.signalArguments[0][0], "omarchy-bar");
     }
 
+    SignalSpy {
+        id: barSpaceNamesSpy
+        signalName: "barSpaceNamesChosen"
+    }
+
+    // How the bar names a Space is about the bar, so it is offered while the
+    // tabs are there.
+    function test_spaceNamesInTheBarAreOfferedWhileTheTabsAreThere() {
+        const page = makeInterfacePage();
+        page.tabsInBarOffered = true;
+        page.tabsPlacement = "sidebar";
+        const row = findChild(page, "barSpaceNamesRow");
+        verify(!row.visible);
+
+        page.tabsPlacement = "omarchy-bar";
+        page.barSpaceNames = "full";
+        barSpaceNamesSpy.target = page;
+        barSpaceNamesSpy.clear();
+
+        tryVerify(function () {
+            return row.visible;
+        });
+        compare(row.title, "Space names in the bar");
+        const choice = findChild(page, "barSpaceNames");
+        compare(choice.value, "full");
+        const letter = choiceButton(choice, "First letter");
+        verify(letter !== null);
+        bringIntoView(letter);
+        mouseClick(letter);
+        compare(barSpaceNamesSpy.count, 1);
+        compare(barSpaceNamesSpy.signalArguments[0][0], "letter");
+    }
+
     // A reader who chose the bar can always choose the sidebar back, shell or
     // no shell.
     function test_theTabsCanComeBackFromTheBarWithoutTheShell() {

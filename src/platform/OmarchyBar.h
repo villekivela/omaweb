@@ -50,6 +50,7 @@ OmarchyCommand runOmarchyCommand();
 class OmarchyBarPlacement final : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool available READ available NOTIFY availableChanged)
+    Q_PROPERTY(QString spaceNames READ spaceNames NOTIFY spaceNamesChanged)
 
 public:
     OmarchyBarPlacement(OmarchyBarPaths paths, QString shippedWidget, OmarchyCommand command,
@@ -67,8 +68,16 @@ public:
     // reader moved the widget is theirs.
     void relink();
 
+    // How the tabs' placement names a Space: "full", or "letter" for its first
+    // letter. It is the widget's own setting in the layout, so Omaweb's
+    // Settings and the bar's agree.
+    QString spaceNames() const;
+    void setSpaceNames(const QString &spaceNames);
+    void readSpaceNames();
+
 signals:
     void availableChanged();
+    void spaceNamesChanged();
 
 private:
     // A change, which calls `next` once it is over.
@@ -83,6 +92,7 @@ private:
     QString m_shippedWidget;
     OmarchyCommand m_command;
     bool m_available = false;
+    QString m_spaceNames = QStringLiteral("full");
     std::deque<Step> m_steps;
     bool m_stepping = false;
 };

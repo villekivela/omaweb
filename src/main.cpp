@@ -591,8 +591,21 @@ int main(int argc, char *argv[])
     const auto mayPlaceBar = !qEnvironmentVariableIsSet("OMAWEB_NO_OMARCHY_TEMPLATE");
     QObject::connect(&barPlacement, &omaweb::OmarchyBarPlacement::availableChanged, &barTabs,
         [&barTabs, &barPlacement] { barTabs.setOffered(barPlacement.available()); });
-    QObject::connect(&barTabs, &omaweb::BarTabs::offerCheckRequested, &barPlacement,
-        &omaweb::OmarchyBarPlacement::checkAvailable);
+    // Settings opening asks again whether the shell answers, and reads the
+    // widget's setting the bar may have changed since.
+    QObject::connect(
+        &barTabs, &omaweb::BarTabs::offerCheckRequested, &barPlacement, [&barPlacement] {
+            barPlacement.checkAvailable();
+            barPlacement.readSpaceNames();
+        });
+    QObject::connect(&barPlacement, &omaweb::OmarchyBarPlacement::spaceNamesChanged, &barTabs,
+        [&barTabs, &barPlacement] { barTabs.showSpaceNames(barPlacement.spaceNames()); });
+    QObject::connect(&barTabs, &omaweb::BarTabs::spaceNamesRequested, &barPlacement,
+        [&barPlacement, mayPlaceBar](const QString &spaceNames) {
+            if (mayPlaceBar) {
+                barPlacement.setSpaceNames(spaceNames);
+            }
+        });
     QObject::connect(&settingsFile, &omaweb::SettingsFile::changed, &barTabs,
         [&barTabs, &barPlacement, tabsInBar, mayPlaceBar](const QStringList &keys) {
             if (!keys.contains(QStringLiteral("tabs")) || tabsInBar() == barTabs.on()) {
@@ -613,6 +626,7 @@ int main(int argc, char *argv[])
         if (tabsInBar() && mayPlaceBar) {
             barPlacement.relink();
         }
+        barPlacement.readSpaceNames();
         if (QFileInfo::exists(omaweb::OmarchyThemePaths::fromEnvironment().state)) {
             barPlacement.checkAvailable();
         }

@@ -51,6 +51,23 @@ void BarTabs::publish(const QVariantMap &state)
 
 void BarTabs::checkOffered() { emit offerCheckRequested(); }
 
+QString BarTabs::spaceNames() const { return m_spaceNames; }
+
+void BarTabs::showSpaceNames(const QString &spaceNames)
+{
+    if (m_spaceNames == spaceNames) {
+        return;
+    }
+    m_spaceNames = spaceNames;
+    emit spaceNamesChanged();
+}
+
+void BarTabs::setSpaceNames(const QString &spaceNames)
+{
+    showSpaceNames(spaceNames);
+    emit spaceNamesRequested(spaceNames);
+}
+
 void BarTabs::setShowsTabsForTests(bool shows)
 {
     if (m_showsForTests == shows) {

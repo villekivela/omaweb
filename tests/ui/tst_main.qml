@@ -5274,6 +5274,20 @@ TestCase {
         compare(moved.findIndex(tab => tab.id === b), at + 1);
     }
 
+    // The choice reaches the bar's own setting for its widget, through the
+    // browser, and Settings shows what the bar has.
+    function test_choosingSpaceNamesInSettingsReachesTheBar() {
+        const settings = findChild(window.contentItem, "settingsSurface");
+        compare(settings.barSpaceNames, "full");
+
+        settings.barSpaceNamesChosen("letter");
+
+        compare(omarchyBar.spaceNames, "letter");
+        compare(settings.barSpaceNames, "letter");
+        settings.barSpaceNamesChosen("full");
+        compare(omarchyBar.spaceNames, "full");
+    }
+
     SignalSpy {
         id: barPublished
         target: omarchyBar

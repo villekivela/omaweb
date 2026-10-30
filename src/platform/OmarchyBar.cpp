@@ -5,6 +5,9 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QPointer>
 #include <QProcess>
 #include <QSaveFile>
@@ -31,6 +34,14 @@ namespace {
     const auto removeFilter = QStringLiteral(R"(
 if (.bar.layout | type) == "object"
 then .bar.layout |= map_values(if type == "array" then map(select(.id != $id)) else . end)
+else . end
+)");
+
+    // The tabs' entry's own setting, wherever the reader has moved it.
+    const auto spaceNamesFilter = QStringLiteral(R"(
+if (.bar.layout | type) == "object"
+then .bar.layout |= map_values(if type == "array"
+  then map(if .id == $id and .role == "tabs" then .spaceNames = "%1" else . end) else . end)
 else . end
 )");
 
@@ -152,6 +163,51 @@ void OmarchyBarPlacement::remove()
             next();
         });
     });
+}
+
+QString OmarchyBarPlacement::spaceNames() const { return m_spaceNames; }
+
+void OmarchyBarPlacement::setSpaceNames(const QString &spaceNames)
+{
+    if (spaceNames != u"full" && spaceNames != u"letter") {
+        return;
+    }
+    if (m_spaceNames != spaceNames) {
+        m_spaceNames = spaceNames;
+        emit spaceNamesChanged();
+    }
+    enqueue([this, spaceNames](const std::function<void()> &next) {
+        editLayout(spaceNamesFilter.arg(spaceNames), [this, next] {
+            shell(QStringLiteral("reloadConfig"));
+            next();
+        });
+    });
+}
+
+void OmarchyBarPlacement::readSpaceNames()
+{
+    const auto layout = QJsonDocument::fromJson(readFile(m_paths.shellConfig))
+                            .object()
+                            .value(QStringLiteral("bar"))
+                            .toObject()
+                            .value(QStringLiteral("layout"))
+                            .toObject();
+    auto read = QStringLiteral("full");
+    for (const auto &section : layout) {
+        for (const auto &entry : section.toArray()) {
+            const auto fields = entry.toObject();
+            if (fields.value(QStringLiteral("id")).toString()
+                    == QLatin1StringView(omarchyBarWidgetId)
+                && fields.value(QStringLiteral("role")).toString() == u"tabs"
+                && fields.value(QStringLiteral("spaceNames")).toString() == u"letter") {
+                read = QStringLiteral("letter");
+            }
+        }
+    }
+    if (m_spaceNames != read) {
+        m_spaceNames = read;
+        emit spaceNamesChanged();
+    }
 }
 
 void OmarchyBarPlacement::relink()

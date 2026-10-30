@@ -154,6 +154,7 @@ private slots:
     void startingPointsTheLinkAtThisBuildAndLeavesTheLayoutAlone();
     void theSettingIsOfferedOnlyWhileTheShellAnswers();
     void choosingTheBarAndBackAtOnceLeavesTheSidebarsLayout();
+    void spaceNamesAreTheTabsPlacementsOwnSetting();
 };
 
 void OmarchyBarTest::placingLinksTheShippedWidgetIntoThePlugins()
@@ -330,6 +331,39 @@ void OmarchyBarTest::choosingTheBarAndBackAtOnceLeavesTheSidebarsLayout()
             QStringLiteral("omarchy.media")}));
     QCOMPARE(
         section(layout, QStringLiteral("center")), QStringList {QStringLiteral("omarchy.clock")});
+}
+
+// Omaweb's Settings and the bar's own widget settings name the same value: the
+// `spaceNames` of the tabs' entry, which the Location's entry does not carry.
+void OmarchyBarTest::spaceNamesAreTheTabsPlacementsOwnSetting()
+{
+    Home home;
+    write(home.paths.shellConfig, readersLayout);
+    Desktop desktop;
+    OmarchyBarPlacement placement(home.paths, home.shipped, desktop.command());
+    placement.place();
+    QCOMPARE(placement.spaceNames(), QStringLiteral("full"));
+    QSignalSpy changed(&placement, &OmarchyBarPlacement::spaceNamesChanged);
+
+    placement.setSpaceNames(QStringLiteral("letter"));
+
+    QCOMPARE(placement.spaceNames(), QStringLiteral("letter"));
+    QCOMPARE(changed.count(), 1);
+    const auto layout = layoutIn(home.paths.shellConfig);
+    const auto tabs = layout.value(QStringLiteral("left")).toArray().at(2).toObject();
+    QCOMPARE(tabs.value(QStringLiteral("role")).toString(), QStringLiteral("tabs"));
+    QCOMPARE(tabs.value(QStringLiteral("spaceNames")).toString(), QStringLiteral("letter"));
+    const auto location = layout.value(QStringLiteral("center")).toArray().at(0).toObject();
+    QVERIFY(!location.contains(QStringLiteral("spaceNames")));
+    QCOMPARE(desktop.shellCalls.last(),
+        (QStringList {
+            QStringLiteral("-q"), QStringLiteral("shell"), QStringLiteral("reloadConfig")}));
+
+    // Set from the bar's side, it is read again when asked.
+    write(home.paths.shellConfig,
+        contentsOf(home.paths.shellConfig).replace("\"letter\"", "\"full\""));
+    placement.readSpaceNames();
+    QCOMPARE(placement.spaceNames(), QStringLiteral("full"));
 }
 
 QTEST_GUILESS_MAIN(OmarchyBarTest)

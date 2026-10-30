@@ -22,6 +22,9 @@ class BarTabs final : public QObject {
     // Whether the window should leave its sidebar away: the reader chose the
     // bar, and a widget is there or has not been gone for long.
     Q_PROPERTY(bool showsTabs READ showsTabs NOTIFY showsTabsChanged)
+    // How the bar's widget names a Space, "full" or "letter": the widget's
+    // own setting, which Settings shows and changes too.
+    Q_PROPERTY(QString spaceNames READ spaceNames NOTIFY spaceNamesChanged)
 
 public:
     BarTabs(QString socketPath, QString iconDirectory, QObject *parent = nullptr);
@@ -29,6 +32,9 @@ public:
     bool offered() const;
     void setOffered(bool offered);
     bool showsTabs() const;
+    QString spaceNames() const;
+    // What the bar's setting is, as read from it.
+    void showSpaceNames(const QString &spaceNames);
 
     void setOn(bool on);
     bool on() const;
@@ -38,6 +44,8 @@ public:
     Q_INVOKABLE void publish(const QVariantMap &state);
     // Asks again whether the shell answers, as Settings opening does.
     Q_INVOKABLE void checkOffered();
+    // The reader's choice, shown at once and handed on to change the bar.
+    Q_INVOKABLE void setSpaceNames(const QString &spaceNames);
     // Stands in for a widget connecting, for the interface's tests.
     Q_INVOKABLE void setShowsTabsForTests(bool shows);
 
@@ -45,6 +53,8 @@ signals:
     void offeredChanged();
     void showsTabsChanged();
     void offerCheckRequested();
+    void spaceNamesChanged();
+    void spaceNamesRequested(const QString &spaceNames);
     void actionRequested(const QString &action, const QVariantMap &arguments);
     // A state the window published, whether or not the bar is listening.
     void published(const QVariantMap &state);
@@ -56,6 +66,7 @@ private:
     bool m_on = false;
     bool m_offered = false;
     bool m_showsForTests = false;
+    QString m_spaceNames = QStringLiteral("full");
 };
 
 } // namespace omaweb

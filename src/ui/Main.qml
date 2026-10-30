@@ -5147,6 +5147,7 @@ ApplicationWindow {
                             sidebarSide: window.sidebarSide
                             tabsPlacement: window.tabsPlacement
                             tabsInBarOffered: !window.privateWindow && window.barTabs.offered
+                            barSpaceNames: window.barTabs.spaceNames
                             glanceEnabled: window.glanceEnabled
                             spaceColours: window.spaceColours
                             startPageScene: window.sceneSettingsWindow.startPageScene
@@ -5233,6 +5234,9 @@ ApplicationWindow {
                             }
                             onTabsPlacementChosen: function (placement) {
                                 window.setTabsPlacement(placement);
+                            }
+                            onBarSpaceNamesChosen: function (spaceNames) {
+                                window.barTabs.setSpaceNames(spaceNames);
                             }
                         }
                     }

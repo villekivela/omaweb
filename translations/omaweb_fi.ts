@@ -3705,6 +3705,24 @@ Päivitykset osoitteesta %3</translation>
         <translation>Omarchyn palkki</translation>
     </message>
     <message>
+        <source>Space names in the bar</source>
+        <translation>Tilojen nimet palkissa</translation>
+    </message>
+    <message>
+        <source>First letter shortens each Space to its first letter, so more tabs fit. The full name shows on hover.</source>
+        <translation>Alkukirjain lyhentää jokaisen tilan sen ensimmäiseen kirjaimeen, jotta välilehtiä mahtuu enemmän. Koko nimi näkyy, kun osoitin on sen päällä.</translation>
+    </message>
+    <message>
+        <source>Full name</source>
+        <comment>space names in the bar</comment>
+        <translation>Koko nimi</translation>
+    </message>
+    <message>
+        <source>First letter</source>
+        <comment>space names in the bar</comment>
+        <translation>Alkukirjain</translation>
+    </message>
+    <message>
         <source>Scene on the Start page</source>
         <translation>Aloitussivun maisema</translation>
     </message>
