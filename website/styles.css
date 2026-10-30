@@ -1682,10 +1682,6 @@ html.highway {
   line-height: 1.5;
 }
 
-.journey__title {
-  color: var(--fg);
-}
-
 .journey__controls {
   display: flex;
   gap: 14px;
@@ -1775,9 +1771,24 @@ html.highway {
   display: none;
 }
 
-.highway .card > h2,
 .highway .card > p {
   display: none;
+}
+
+/* A card's heading stands over it in the sky, as the Start page's title does, and rises and passes
+   with it. */
+.highway .card > h2.display {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  width: max-content;
+  max-width: 90vw;
+  margin: 0 0 28px;
+  padding: 0;
+  border: 0;
+  font-size: clamp(30px, min(4.2vw, 6.4svh), 58px);
+  text-align: center;
+  transform: translateX(-50%);
 }
 
 .highway .card {

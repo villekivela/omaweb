@@ -532,6 +532,8 @@ if (drive) {
       { once: true, passive: true },
     );
     for (const stop of stops) stop.classList.add("highway__stop");
+    // On the road each card's heading stands over it as the Start page's does, in the sky.
+    for (const card of cards) card.querySelector(":scope > h2")?.classList.add("display");
     throttle = 4;
 
     // One window's height of scroll to each stop, with a snap where it is read.
@@ -761,14 +763,14 @@ if (drive) {
     let timerStart = 0;
     const clock = () => (timed ? (performance.now() - timerStart) / 1000 : radio.currentTime);
 
-    // The journey box, at the foot of the drive the whole way: the words of the stop being read,
-    // as a film's subtitles, cruise control's play, resume and stop, and a line of the stops that
+    // The journey box, under the cards the whole way: the words of the stop being read, as a film's
+    // subtitles under its heading, cruise control's play, resume and stop, and a line of the stops that
     // is the page's scrollbar. A press on a stop's mark drives there; a press or a drag along the
     // line goes there at once.
     const box = document.createElement("div");
     box.className = "journey";
     box.innerHTML = `<div class="journey__words" aria-live="polite"
-        ><strong class="journey__title"></strong> <span class="journey__text"></span></div
+        ><span class="journey__text"></span></div
       ><div class="journey__controls"
         ><button class="journey__play" type="button">Drive</button
         ><button class="journey__resume" type="button">Resume cruise</button
@@ -777,7 +779,6 @@ if (drive) {
       ></div
       ><div class="journey__line"><span class="journey__fill" aria-hidden="true"></span></div>`;
     document.body.append(box);
-    const title = box.querySelector(".journey__title");
     const text = box.querySelector(".journey__text");
     const playButton = box.querySelector(".journey__play");
     const resumeButton = box.querySelector(".journey__resume");
@@ -809,7 +810,7 @@ if (drive) {
       box.style.setProperty("--journey", String(Math.min(1, Math.max(0, at / (stops.length - 1)))));
       if (index === said) return;
       said = index;
-      [title.textContent, text.innerHTML] = words[index];
+      text.innerHTML = words[index][1];
       line.querySelectorAll(".journey__mark").forEach((mark, place) => {
         mark.toggleAttribute("data-passed", place <= index);
       });
