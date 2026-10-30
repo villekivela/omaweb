@@ -10,8 +10,8 @@ export const BAR = 240 / 107.5;
 const INTRO_BARS = 8;
 const CARD_BARS = 4;
 
-// The hush in the last bar before the drop, 0 to 1: the world dims and stills and the engine is
-// cut, so the drop has something to break. It comes in over the first 30% of the bar, holds, and
+// The hush in the last bar before the drop, 0 to 1: the world stills, the engine holding at its
+// peak, so the drop has something to break. It comes in over the first 30% of the bar, holds, and
 // ends at the drop.
 export function quiet(time) {
   const drop = INTRO_BARS * BAR;
@@ -28,8 +28,8 @@ export function rising(time) {
   return SUN_FROM + (1 - SUN_FROM) * toward * toward * (3 - 2 * toward);
 }
 
-// How much the world dims in the hush, at its deepest: the scene's brightness falls by this much.
-export const HUSH_DIM = 0.4;
+// How much the sun flares in the hush, as brightness over the page's own: 0 holds it as it is.
+export const FLARE = 0;
 
 // How hard the resting engine ticks over, 0 to `BREATH` of the throttle: the sun's glow breathes in
 // and out once every `BREATH_EVERY` seconds while the page waits for the journey.
@@ -40,21 +40,21 @@ export function breath(time) {
 }
 
 // How dim the page rests while it waits for the journey, 0 to 1 of its brightness, and how dim it
-// is through the intro: the rest's dim lifts toward the last bar, where the hush dims it for the
-// drop, and the drop ends it.
+// is through the intro: the rest's dim lifts toward the last bar, where the hush can flare it
+// brighter (a dim below 0) for the drop, and the drop ends it.
 export const IDLE_DIM = 0.3;
 export function dimming(time) {
   const toward = Math.min(1, Math.max(0, time / ((INTRO_BARS - 1) * BAR)));
   const lifted = IDLE_DIM * (1 - toward * toward * (3 - 2 * toward));
-  return Math.max(lifted, HUSH_DIM * quiet(time));
+  return lifted - FLARE * quiet(time);
 }
 
 // How hard the engine revs while the road waits parked through the intro, 0 to 0.7 of the throttle:
-// a little at first and then more, to the drop where the beat comes in and the drive sets off. In
-// the hush before the drop it is cut.
+// a little at first and then more, to its peak a bar before the drop, where it holds through the
+// hush for the drop to release.
 export function revving(time) {
-  const toward = Math.min(1, Math.max(0, time / (INTRO_BARS * BAR)));
-  return 0.7 * toward ** 2 * (1 - quiet(time));
+  const toward = Math.min(1, Math.max(0, time / ((INTRO_BARS - 1) * BAR)));
+  return 0.7 * toward ** 2;
 }
 
 // The throw forward as the drive sets off at the drop, 0 to 1 over the first 45% of the first

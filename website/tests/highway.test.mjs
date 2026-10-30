@@ -186,11 +186,11 @@ test("reveal: the new theme opens from a slanted centre line and widens to cover
 
 // The intro builds to the drop: the road waits parked while the engine revs, a little at first and
 // then more, up to 0.7 of the throttle as the beat comes in at bar 8, and the drive sets off at it.
-test("revving: the intro builds slowly, then faster, to 0.7 at the drop", () => {
+test("revving: the intro builds slowly, then faster, to 0.7 a bar before the drop", () => {
   const drop = 8 * BAR;
   assert.equal(revving(0), 0);
-  assert.equal(revving(drop / 2), 0.175);
-  assert.equal(revving(drop), 0.7);
+  assert.ok(Math.abs(revving(3.5 * BAR) - 0.175) < 1e-9);
+  assert.equal(revving(drop - BAR), 0.7);
   assert.equal(revving(drop * 3), 0.7);
   assert.equal(revving(-1), 0);
 });
@@ -216,8 +216,8 @@ test("quiet: the last bar before the drop hushes the world, and the drop ends it
   assert.equal(quiet(drop - 0.01), 1);
   assert.equal(quiet(drop), 0);
   assert.equal(quiet(drop + 5), 0);
-  // The engine is cut in the hush, and a rev is not asked for in it.
-  assert.equal(revving(drop - 0.5), 0);
+  // In the hush the engine holds at its peak, for the drop to release.
+  assert.equal(revving(drop - 0.5), 0.7);
 });
 
 // Through the intro the sun climbs from 0.7 of its height to all of it at the drop, easing in and
@@ -231,15 +231,14 @@ test("rising: the sun climbs from 0.7 of its height to all of it at the drop", (
   assert.equal(rising(-1), 0.7);
 });
 
-// The page rests dimmed with the sun down, and the intro lifts the dim by the last bar, where the
-// hush dims it again for the drop, which ends it.
-test("dimming: dim at rest, lifted by the last bar, hushed in it, and gone at the drop", () => {
+// The page rests dimmed with the sun down, and the intro lifts the dim by the last bar.
+test("dimming: dim at rest, lifted by the last bar, and none in it", () => {
   const drop = 8 * BAR;
   assert.equal(IDLE_DIM, 0.3);
   assert.equal(dimming(0), 0.3);
   assert.ok(dimming(drop / 2) < 0.3 && dimming(drop / 2) > 0);
   assert.equal(dimming(drop - BAR), 0);
-  assert.equal(dimming(drop - 0.7 * BAR), 0.4);
+  assert.equal(dimming(drop - 0.7 * BAR), 0);
   assert.equal(dimming(drop), 0);
 });
 
