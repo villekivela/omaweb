@@ -798,6 +798,7 @@ if (drive) {
       mark.className = "journey__mark";
       mark.style.setProperty("--at", String(index / (stops.length - 1)));
       mark.setAttribute("aria-label", words[index][0]);
+      mark.dataset.name = words[index][0];
       mark.addEventListener("click", (event) => {
         event.stopPropagation();
         hold();
