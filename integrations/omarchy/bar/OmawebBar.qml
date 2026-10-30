@@ -196,7 +196,7 @@ BarWidget {
         spacing: Style.space(6)
         verticalItemAlignment: Grid.AlignVCenter
         horizontalItemAlignment: Grid.AlignHCenter
-        opacity: root.focused ? 1 : 0.5
+        opacity: root.focused ? 1 : 0.65
         Behavior on opacity {
             NumberAnimation {
                 duration: 160
