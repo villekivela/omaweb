@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "id": "omaweb.bar-prototype",
+  "name": "Omaweb bar (prototype)",
+  "version": "0.0.1",
+  "author": "Ville Kivelä",
+  "license": "MIT",
+  "description": "PROTOTYPE, throwaway: omaweb's tabs and navigation in the Omarchy bar, fed by fake-omaweb.py.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "Widget.qml"
+  },
+  "barWidget": {
+    "displayName": "Omaweb (prototype)",
+    "description": "Tabs, pins and spaces, or the navigation row, depending on role.",
+    "category": "Productivity",
+    "allowMultiple": true,
+    "defaultSection": "left",
+    "defaults": {
+      "role": "tabs",
+      "titleWidth": 200,
+      "maxWidthPercent": 40
+    },
+    "schema": [
+      {
+        "key": "role",
+        "type": "enum",
+        "label": "Role",
+        "options": ["tabs", "navigation"],
+        "defaultValue": "tabs"
+      },
+      {
+        "key": "titleWidth",
+        "type": "integer",
+        "label": "Active title width (px)",
+        "min": 80,
+        "max": 400,
+        "step": 10,
+        "defaultValue": 200
+      },
+      {
+        "key": "maxWidthPercent",
+        "type": "integer",
+        "label": "Widest share of the bar (%)",
+        "min": 10,
+        "max": 80,
+        "step": 5,
+        "defaultValue": 40
+      }
+    ]
+  }
+}
