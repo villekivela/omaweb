@@ -1684,6 +1684,7 @@ html.highway {
 
 .journey__controls {
   display: flex;
+  align-items: center;
   gap: 14px;
   white-space: nowrap;
 }
@@ -1701,10 +1702,8 @@ html.highway {
   color: var(--fg);
 }
 
-.journey__key {
-  margin-left: 4px;
-  color: var(--dim);
-  font-size: 11px;
+.journey__stop kbd {
+  margin-left: 6px;
 }
 
 /* The line of the stops: a mark for each, the passed ones lit, and the fill as far as the scroll

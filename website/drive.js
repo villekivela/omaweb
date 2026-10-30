@@ -775,7 +775,7 @@ if (drive) {
         ><button class="journey__play" type="button">Drive</button
         ><button class="journey__resume" type="button">Resume cruise</button
         ><button class="journey__stop" type="button"
-          >Stop <span class="journey__key">Esc</span></button
+          >Stop <kbd>Esc</kbd></button
       ></div
       ><div class="journey__line"><span class="journey__fill" aria-hidden="true"></span></div>`;
     document.body.append(box);
