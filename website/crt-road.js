@@ -104,7 +104,8 @@ export function createCrtRoad(p) {
     s.last = input.time;
     s.speed += (1 + m.navigatingSpeed * input.navigating - s.speed) * Math.min(1, step * m.ease);
     s.lit += (input.navigating - s.lit) * Math.min(1, step * m.lightEase);
-    s.travel += step * m.speed * m.pace * s.speed;
+    // A parked road keeps its place; the clock, and the sky with it, goes on.
+    if (!input.parked) s.travel += step * m.speed * m.pace * s.speed;
     return s;
   }
 
@@ -130,9 +131,11 @@ export function createCrtRoad(p) {
   }
 
   // The sun: a solid cap, then `bands` cuts that thicken toward the horizon.
-  function sun(context, g, c, bands) {
+  function sun(context, g, c, bands, rise) {
     const radius = g.h * p.sun.radius;
     context.save();
+    // Lowered behind the ridges and the desert, which are drawn over it.
+    context.translate(0, (1 - rise) * radius);
     context.beginPath();
     const solid = radius * p.sun.cap;
     context.rect(g.vx - radius, g.horizonY - radius, radius * 2, solid);
@@ -157,7 +160,7 @@ export function createCrtRoad(p) {
 
   // What does not move: the sky and its stars, the sunrise glow, the sun, the ridges, the desert
   // and the road on it.
-  function still(context, g, c, bands) {
+  function still(context, g, c, bands, rise, streak) {
     context.fillStyle = stops(context.createLinearGradient(0, 0, 0, g.horizonY), p.sky, c);
     context.fillRect(0, 0, g.w, g.horizonY + 1);
 
@@ -179,8 +182,20 @@ export function createCrtRoad(p) {
       const alpha = brightest
         ? 1
         : (st.alpha.base + st.alpha.range * bright) * (1 - high * st.alpha.horizonFade);
-      context.fillStyle = css(c.light, alpha);
-      context.fillRect(across * g.w, high * g.horizonY * st.reach, size, size);
+      const x = across * g.w;
+      const y = high * g.horizonY * st.reach;
+      if (streak > 0) {
+        // A speed line away from the vanishing point, longer the further out the star stands.
+        context.strokeStyle = css(c.light, alpha);
+        context.lineWidth = size;
+        context.beginPath();
+        context.moveTo(x, y);
+        context.lineTo(x + (x - g.vx) * streak * 0.35, y + (y - g.horizonY) * streak * 0.35);
+        context.stroke();
+      } else {
+        context.fillStyle = css(c.light, alpha);
+        context.fillRect(x, y, size, size);
+      }
     }
 
     const halo = context.createRadialGradient(
@@ -193,7 +208,7 @@ export function createCrtRoad(p) {
     );
     context.fillStyle = stops(halo, p.halo.stops, c);
     context.fillRect(0, 0, g.w, g.horizonY);
-    sun(context, g, c, bands);
+    sun(context, g, c, bands, rise);
 
     // The ridges as filled silhouettes, each a tone darker than the one behind it.
     for (const layer of p.ridges.layers) {
@@ -289,11 +304,14 @@ export function createCrtRoad(p) {
     }
 
     // A shooting star in some of its slots, for under a second.
+    // A first one can be asked for early, at `firstAt` seconds, before the slots' own.
     const star = p.shootingStar;
-    const slot = Math.floor(input.time / star.every);
-    const into = input.time - slot * star.every;
-    if (!input.reducedMotion && into < star.lasts && hash(slot) > star.chance) {
-      const length = g.w * star.length;
+    const early = input.time >= star.firstAt && input.time < star.firstAt + star.lasts;
+    const slot = early ? -1 : Math.floor(input.time / star.every);
+    const into = early ? input.time - star.firstAt : input.time - slot * star.every;
+    if (!input.reducedMotion && into < star.lasts && (early || hash(slot) > star.chance)) {
+      // Stretched into a longer streak as the drive sets off.
+      const length = g.w * star.length * (1 + 2 * input.streak);
       const run = into / star.lasts;
       const x = (star.across[0] + star.across[1] * hash(slot + 1)) * g.w + length * run;
       const y =
@@ -305,10 +323,12 @@ export function createCrtRoad(p) {
       trail.addColorStop(1, css(colourOf(star.colour, c), 1 - run * star.fade));
       context.strokeStyle = trail;
       context.lineWidth = star.width;
+      context.globalAlpha = 1 - input.hush;
       context.beginPath();
       context.moveTo(tailX, tailY);
       context.lineTo(x, y);
       context.stroke();
+      context.globalAlpha = 1;
     }
 
     // The dashed centre line, its marks stretching as the road speeds up and widening with it.
@@ -364,13 +384,19 @@ export function createCrtRoad(p) {
       const g = geometry(input.width * p.pitch, input.height * p.pitch, width, p.horizon.at);
       const c = colours(input, p.night);
       const s = input.state;
-      if (!s.still) {
-        s.still = document.createElement("canvas");
+      // The still layer is drawn again as the sun climbs, in two-hundredths of its height, so the
+      // climb is smooth rather than stepped.
+      const climb = Math.round(input.rise * 200);
+      const streak = Math.round(input.streak * 20);
+      if (!s.still || s.climb !== climb || s.streak !== streak) {
+        s.climb = climb;
+        s.streak = streak;
+        s.still ??= document.createElement("canvas");
         s.still.width = input.width;
         s.still.height = input.height;
         const layer = s.still.getContext("2d");
         layer.scale(1 / p.pitch, 1 / p.pitch);
-        still(layer, g, c, Number(input.options.bands));
+        still(layer, g, c, Number(input.options.bands), climb / 200, streak / 20);
       }
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.drawImage(s.still, 0, 0);

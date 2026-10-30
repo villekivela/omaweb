@@ -10,11 +10,94 @@ export const BAR = 240 / 107.5;
 const INTRO_BARS = 8;
 const CARD_BARS = 4;
 
+// The hush in the last bar before the drop, 0 to 1: the world stills, the engine holding at its
+// peak, so the drop has something to break. It comes in over the first 30% of the bar, holds, and
+// ends at the drop.
+export function quiet(time) {
+  const drop = INTRO_BARS * BAR;
+  if (time >= drop) return 0;
+  const into = Math.min(1, Math.max(0, (time - (drop - BAR)) / (0.3 * BAR)));
+  return into * into * (3 - 2 * into);
+}
+
+// How high the sun stands, 0 to 1 of its height, through the intro: it sits at `SUN_FROM` and
+// climbs, easing in and out, to all of it at the drop, so it is the last bright thing in the hush.
+export const SUN_FROM = 0.7;
+export function rising(time) {
+  const toward = Math.min(1, Math.max(0, time / (INTRO_BARS * BAR)));
+  return SUN_FROM + (1 - SUN_FROM) * toward * toward * (3 - 2 * toward);
+}
+
+// How far the stars streak into speed lines, 0 to 1: at once and fully at the drop, back to
+// points, slowly at the last, a second after.
+export function streaking(time) {
+  const after = time - INTRO_BARS * BAR;
+  return after < 0 ? 0 : Math.max(0, 1 - after) ** 2;
+}
+
+// The intro's bar at `time`, 0 to 7, and 8 from the drop on: the page steps its headlights and its
+// headline by it.
+export function introBar(time) {
+  return Math.min(INTRO_BARS, Math.max(0, Math.floor(time / BAR)));
+}
+
+// How the sun flares around the drop, as brightness over the page's own: through the last bar it
+// builds, slowly and then faster, to `FLARE`; at the drop it bursts to `FLARE + BURST` and fades
+// over `BURST_FADE` seconds rather than going out at once.
+export const FLARE = 0.2;
+export const BURST = 0.5;
+export const BURST_FADE = 1.2;
+export function glare(time) {
+  const drop = INTRO_BARS * BAR;
+  if (time < drop) return FLARE * Math.max(0, (time - (drop - BAR)) / BAR) ** 2;
+  return (FLARE + BURST) * Math.max(0, 1 - (time - drop) / BURST_FADE) ** 2;
+}
+
+// How hard the resting engine ticks over, 0 to `BREATH` of the throttle: the sun's glow breathes in
+// and out once every `BREATH_EVERY` seconds while the page waits for the journey.
+export const BREATH = 0.2;
+export const BREATH_EVERY = 6;
+export function breath(time) {
+  return (BREATH * (1 - Math.cos((2 * Math.PI * time) / BREATH_EVERY))) / 2;
+}
+
+// How dim the page rests while it waits for the journey, 0 to 1 of its brightness, and how dim it
+// is through the intro: the rest's dim lifts toward the last bar, where the sun's glare takes over
+// (a dim below 0).
+export const IDLE_DIM = 0.3;
+export function dimming(time) {
+  const toward = Math.min(1, Math.max(0, time / ((INTRO_BARS - 1) * BAR)));
+  const lifted = IDLE_DIM * (1 - toward * toward * (3 - 2 * toward));
+  return lifted - glare(time);
+}
+
+// How hard the engine revs while the road waits parked through the intro, 0 to 0.7 of the throttle:
+// a little at first and then more, to its peak a bar before the drop, where it holds through the
+// hush for the drop to release.
+export function revving(time) {
+  const toward = Math.min(1, Math.max(0, time / ((INTRO_BARS - 1) * BAR)));
+  return 0.7 * toward ** 2;
+}
+
+// The throw forward as the drive sets off at the drop, 0 to 1 over the first 45% of the first
+// glide (`t`, 0 to 1): full at once, falling away to nothing. The page scales it by `LAUNCH`.
+export const LAUNCH = 1;
+export function launch(t) {
+  return Math.max(0, 1 - t / 0.45) ** 2;
+}
+
 // When cruise control reaches each of `count` stops, in seconds into the song.
 export function cues(count) {
   return Array.from({ length: count }, (_, index) =>
     index === 0 ? 0 : (INTRO_BARS + CARD_BARS * (index - 1)) * BAR,
   );
+}
+
+// Where a press or a drag at `x` along the journey box's line, `{ left, width }`, puts the reader
+// on a road of `count` stops: in stops, held to the first and the last.
+export function journeyAt(x, { left, width }, count) {
+  if (!width) return 0;
+  return Math.min(1, Math.max(0, (x - left) / width)) * (count - 1);
 }
 
 // The stop the song has reached at `time`: the last whose cue has come.
@@ -65,6 +148,31 @@ export function wornAt(time, themes) {
   let worn;
   for (const [at, theme] of themes) if (at <= time) worn = theme;
   return worn;
+}
+
+// The reveal of a theme the film changes, as Omarchy's desktop draws it
+// (/usr/share/omarchy/shell/plugins/background/Background.qml): the new theme opens from a slanted
+// line through the middle of the viewport and widens to both edges. The band's edges lean by
+// `SLANT`, x moving that many px per px down, over `REVEAL_MS`, eased in and out as a cubic (the
+// standard `cubic-bezier` of ease-in-out cubic, which QML's `InOutCubic` is a close match for).
+const SLANT = -0.18;
+export const REVEAL_MS = 420;
+export const REVEAL_EASING = "cubic-bezier(0.65, 0, 0.35, 1)";
+
+// The `clip-path` of the new theme's view when the band has spread `spread` (0 to 1) of the way to
+// covering a `width` x `height` viewport.
+export function revealClip(spread, width, height) {
+  const lean = -SLANT * (height / 2);
+  const half = spread * (width / 2 + lean);
+  const edge = (centre, y) => `${centre}px ${y}px`;
+  const top = width / 2 + lean;
+  const bottom = width / 2 - lean;
+  return `polygon(${[
+    edge(top - half, 0),
+    edge(top + half, 0),
+    edge(bottom + half, height),
+    edge(bottom - half, height),
+  ].join(", ")})`;
 }
 
 // What a key the reader presses does to the drive: Esc stops it wherever their focus is, M is the

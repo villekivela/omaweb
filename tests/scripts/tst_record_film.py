@@ -1999,6 +1999,64 @@ class DesktopLastWord(unittest.TestCase):
         self.assertIn("put back by hand: omarchy-shell notifications setDnd off", said)
 
 
+class ThemeOnsets(unittest.TestCase):
+    """A theme change is marked when the recorder saw it, which is later than the recording shows
+    it: on the desktop, by some 2.7 s. The clips' times are read from the recording instead."""
+
+    THEMES = [[0.0, "nebula"], [5.9, "lumon"], [9.3, "nebula"]]
+
+    def test_each_change_takes_the_time_the_recording_first_shows_it(self):
+        # Quiet but for the two sweeps, each several frames long, and the beat's fade at its end.
+        shifts = [(0.5, 0.02), (3.18, 1.6), (3.22, 1.0), (3.5, 0.9), (4.0, 0.01),
+                  (6.55, 1.7), (6.6, 1.2), (6.9, 0.4), (10.88, 1.4)]
+        self.assertEqual(film.theme_onsets(self.THEMES, shifts, 10.7),
+                         [[0.0, "nebula"], [3.08, "lumon"], [6.45, "nebula"]])
+
+    def test_a_beat_with_a_different_number_of_changes_keeps_the_marked_times(self):
+        for shifts in ([], [(3.18, 1.6)], [(1.0, 1.6), (3.0, 1.6), (6.0, 1.6)]):
+            with self.subTest(shifts=shifts):
+                self.assertEqual(film.theme_onsets(self.THEMES, shifts, 10.7), self.THEMES)
+
+    def test_the_shifts_of_a_recording_are_read_from_its_frames(self):
+        with tempfile.TemporaryDirectory() as directory:
+            raw = Path(directory) / "raw.mkv"
+            colour = "color=c=0x{}:size=320x180:rate=30:duration={}"
+            subprocess.run(["ffmpeg", "-v", "error",
+                            "-f", "lavfi", "-i", colour.format("203040", 1.0),
+                            "-f", "lavfi", "-i", colour.format("603020", 1.5),
+                            "-f", "lavfi", "-i", colour.format("203040", 1.5),
+                            "-filter_complex", "[0:v][1:v][2:v]concat=n=3:v=1:a=0",
+                            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                            str(raw)], check=True)
+            shifts = film.chroma_shifts(raw, 0.0, 4.0)
+            self.assertEqual(film.theme_onsets([[0.0, "a"], [3.0, "b"], [3.5, "a"]], shifts, 4.0),
+                             [[0.0, "a"], [0.9, "b"], [2.4, "a"]])
+
+    def test_on_the_desktop_only_the_wallpaper_above_the_window_is_watched(self):
+        # The window repaints at once and the desktop's sweep follows, and the film's page changes
+        # with the sweep. Here the bottom half changes at 1.0 s and the top fifth at 2.0 s.
+        with tempfile.TemporaryDirectory() as directory:
+            raw = Path(directory) / "raw.mkv"
+            top, bottom = "0x203040", "0x603020"
+            subprocess.run(["ffmpeg", "-v", "error",
+                            "-f", "lavfi", "-i", f"color=c={top}:size=320x180:rate=30:duration=3",
+                            "-f", "lavfi", "-i", f"color=c={bottom}:size=320x90:rate=30:duration=1",
+                            "-f", "lavfi", "-i", f"color=c={top}:size=320x90:rate=30:duration=2",
+                            "-f", "lavfi", "-i", f"color=c={bottom}:size=320x36:rate=30:duration=1",
+                            "-filter_complex",
+                            "[1:v][2:v]concat=n=2:v=1:a=0[low];"
+                            "[0:v][low]overlay=0:90:eof_action=pass[a];"
+                            "[a][3:v]overlay=0:0:enable='gte(t,2)'",
+                            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                            str(raw)], check=True)
+            whole = film.chroma_shifts(raw, 0.0, 3.0)
+            self.assertEqual(film.theme_onsets([[0.0, "a"], [2.5, "b"], [2.9, "c"]], whole, 3.0),
+                             [[0.0, "a"], [0.9, "b"], [1.9, "c"]])
+            above = film.chroma_shifts(raw, 0.0, 3.0, 0.2)
+            self.assertEqual(film.theme_onsets([[0.0, "a"], [2.5, "b"]], above, 3.0),
+                             [[0.0, "a"], [1.9, "b"]])
+
+
 class RecordCleanup(unittest.TestCase):
     """The browser is stopped whatever stops the run, and a second Ctrl+C cannot keep it going."""
 

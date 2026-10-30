@@ -787,6 +787,8 @@ body:has(.drive) > .top {
 
 .film__frame[data-awake] .film__controls,
 .film__frame[data-paused] .film__controls,
+.card__shot[data-awake] .film__controls,
+.card__shot[data-paused] .film__controls,
 .film__controls:hover,
 .film__controls:focus-within {
   opacity: 1;
@@ -1106,25 +1108,6 @@ kbd {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-}
-
-/* f's link hints: a label at each link's corner, typed to follow it. */
-.hint {
-  position: absolute;
-  top: var(--y);
-  left: var(--x);
-  z-index: 10;
-  padding: 2px 4px;
-  background: var(--accent);
-  color: var(--bg);
-  font: 600 12px/1 var(--mono);
-  text-transform: uppercase;
-  pointer-events: none;
-}
-
-/* The card J and K last moved to. */
-.card[data-current] {
-  border-color: var(--accent);
 }
 
 /* On a phone, or with reduced motion, the road holds a still frame and the features are an
@@ -1536,8 +1519,12 @@ html.highway {
 
 /* A card as large as the window allows with its words under its capture, the Agents card laid out
    as the others, and the theme card, three captures across, a little wider for its picker. */
+.highway {
+  --card-width: min(980px, 86vw, (100vh - 250px) * 1.45);
+}
+
 .highway .card.highway__stop {
-  width: min(980px, 86vw, (100vh - 250px) * 1.45);
+  width: var(--card-width);
 }
 
 .highway #theme.highway__stop {
@@ -1643,52 +1630,47 @@ html.highway {
     color 0.2s;
 }
 
-/* Cruise control's place: the stop it is at and the way out, on a plate with one edge and the
-   song's progress filling along its foot. Nearly opaque rather than glass: a blur behind it would
-   be worked out again for every frame of the road. */
-.cruise {
+/* The journey box, at the foot of the drive the whole way (drive.js): the words of the stop being
+   read, as a film's subtitles, cruise control's buttons, and along its foot the line of the stops,
+   the page's scrollbar, lit as far as the reader has come. Nearly opaque rather than glass: a blur
+   behind it would be worked out again for every frame of the road. */
+/* It hangs just under a card, as wide as one: a card is its capture alone, 16:9, centred. */
+.journey {
   position: fixed;
-  right: 16px;
-  bottom: 16px;
+  top: calc(50% + var(--card-width) * 9 / 32 + 14px);
+  left: 50%;
   z-index: 300;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 18px;
-  max-width: calc(100vw - 32px);
-  padding: 10px 16px 12px;
-  overflow: hidden;
+  gap: 8px 18px;
+  width: var(--card-width);
+  padding: 12px 16px 0;
   border: 1px solid var(--edge);
   border-radius: 3px;
   background: color-mix(in srgb, var(--plate) 94%, transparent);
   font-size: 13px;
+  transform: translateX(-50%);
 }
 
-.cruise[hidden],
-.cruise [hidden] {
+.journey [hidden] {
   display: none;
 }
 
-.cruise__name {
-  min-width: 160px;
-  color: var(--fg);
-  font-weight: 700;
+.journey__words {
+  min-height: 3em;
+  color: var(--dim);
+  line-height: 1.5;
 }
 
-.cruise__song {
-  position: absolute;
-  inset: auto 0 0;
-  height: 2px;
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
+.journey__controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  white-space: nowrap;
 }
 
-.cruise__song i {
-  display: block;
-  width: calc(var(--song, 0) * 100%);
-  height: 100%;
-  background: var(--accent);
-}
-
-.cruise button {
+.journey button {
   padding: 0;
   border: 0;
   background: none;
@@ -1697,14 +1679,140 @@ html.highway {
   cursor: pointer;
 }
 
-.cruise button:hover {
+.journey button:hover {
   color: var(--fg);
 }
 
-.cruise__key {
-  margin-left: 4px;
-  color: var(--dim);
-  font-size: 11px;
+.journey__stop kbd {
+  margin-left: 6px;
+}
+
+/* The line of the stops: a mark for each, the passed ones lit, and the fill as far as the scroll
+   has come. A press or a drag along it goes there. */
+.journey__line {
+  position: relative;
+  grid-column: 1 / -1;
+  height: 30px;
+  margin-inline: 6px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.journey__line::before,
+.journey__fill {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 2px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  transform: translateY(-50%);
+}
+
+.journey__line::before {
+  right: 0;
+}
+
+.journey__fill {
+  width: calc(var(--journey, 0) * 100%);
+  background: var(--accent);
+}
+
+.journey .journey__mark {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--at) * 100%);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.journey__mark::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border: 1.5px solid var(--accent);
+  border-radius: 50%;
+  background: var(--plate);
+  transition: transform 0.15s;
+}
+
+.journey__mark:hover::after,
+.journey__mark:focus-visible::after {
+  transform: scale(1.3);
+}
+
+/* A stop's name over its mark while the pointer or the focus is on it. */
+.journey__mark::before {
+  content: attr(data-name);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  padding: 4px 8px;
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+  background: var(--plate);
+  color: var(--fg);
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 4px);
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
+}
+
+.journey__mark:hover::before,
+.journey__mark:focus-visible::before {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.journey__mark[data-passed]::after {
+  background: var(--accent);
+}
+
+/* On the drive the box is the scrollbar and holds the cards' words and the install's line, so
+   the cards show their pictures alone. */
+.highway {
+  scrollbar-width: none;
+}
+
+.highway::-webkit-scrollbar {
+  display: none;
+}
+
+/* Out of sight but read in place by a screen reader: the box shows a copy. */
+.highway .card > p,
+.highway .install__lede {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* A card's heading stands over it in the sky, as the Start page's title does, and rises and passes
+   with it. */
+.highway .card > h2.display {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  width: max-content;
+  max-width: 90vw;
+  margin: 0 0 44px;
+  padding: 0;
+  border: 0;
+  font-size: clamp(30px, min(4.2vw, 6.4svh), 58px);
+  text-align: center;
+  transform: translateX(-50%);
+}
+
+.highway .card {
+  padding: 0;
 }
 
 /* Footer */
@@ -1786,5 +1894,101 @@ html.highway {
 @media (max-width: 480px) {
   .film__time {
     display: none;
+  }
+}
+
+/* The Theme clip's change of theme (drive.js) opens as a band, not a cross-fade: the old view stays
+   and the new one is clipped by the animation the script gives it. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* Before the drop (drive.js). Resting, the ignition glows now and then as an invitation and the
+   horizon shimmers. Through the intro the Omnibar's headlights and the headline's glow step up bar
+   by bar (`--bar`, 0 to 7), and for the last two bars the header and the line under the Omnibar
+   step back. At the drop the headline flashes. */
+.highway[data-resting] .omnibar__ignite:not([hidden]) {
+  animation: ignite-invites 5s ease-in-out infinite;
+}
+
+@keyframes ignite-invites {
+  0%,
+  70%,
+  to {
+    box-shadow: 0 0 0 0 transparent;
+  }
+
+  85% {
+    box-shadow: 0 0 18px 4px color-mix(in srgb, var(--accent) 70%, transparent);
+  }
+}
+
+.highway[data-resting] .drive__scene::after,
+.highway[data-intro] .drive__scene::after {
+  content: "";
+  position: absolute;
+  inset: calc(50% - 8px) 0 auto;
+  height: 16px;
+  backdrop-filter: blur(0.8px);
+  pointer-events: none;
+  animation: horizon-shimmers 2.6s ease-in-out infinite alternate;
+}
+
+@keyframes horizon-shimmers {
+  from {
+    transform: translateY(-1px) scaleY(0.8);
+  }
+
+  to {
+    transform: translateY(1px) scaleY(1.2);
+  }
+}
+
+.highway .omnibar__glow,
+.highway .start__title,
+.highway body:has(.drive) > .top,
+.highway .start__below {
+  transition:
+    opacity 0.6s,
+    text-shadow 0.4s;
+}
+
+.highway[data-intro] .omnibar__glow {
+  opacity: calc(var(--scene-bloom, 0) + var(--bar) * 0.08);
+}
+
+.highway[data-intro] .start__title {
+  text-shadow: 0 0 calc(var(--bar) * 3px)
+    color-mix(in srgb, var(--accent) calc(var(--bar) * 10%), transparent);
+}
+
+.highway[data-late] body:has(.drive) > .top,
+.highway[data-late] .start__below {
+  opacity: 0.35;
+}
+
+.highway[data-drop] .start__title {
+  animation: headline-flashes 1.2s ease-out;
+}
+
+/* At the drop the camera is pulled back as the drive sets off, the horizon and the sun dipping
+   and settling again. */
+.highway[data-drop] .drive__scene {
+  transform-origin: 50% 100%;
+  animation: camera-pulls 1.2s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+@keyframes camera-pulls {
+  18% {
+    transform: translateY(14px) scale(1.03);
+  }
+}
+
+@keyframes headline-flashes {
+  from {
+    color: #fff;
+    text-shadow: 0 0 32px var(--accent);
   }
 }

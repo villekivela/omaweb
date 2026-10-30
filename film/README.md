@@ -248,11 +248,13 @@ or the fades, since the card's title says what the caption did and the drive mov
 itself. `CLIP_OF` in `scripts/record_film.py` names each beat's card.
 
 `clips.json` lists the cards with a clip and each clip's length. The Theme beat's entry also lists
-the theme the recording wears at each moment, as `[seconds into the clip, theme]`: the beat marks
-each theme from the first frame whose chrome shows it, so the website's page puts the same theme on
-at that frame. The website offers the themes it wears there: Retro 82 and Tokyo Night from the
-container, and on the desktop the desktop's own theme and Lumon, the theme the beat changes to,
-which `scripts/build_website_themes.py` builds for the page without a swatch. A recording changed to
+the theme the recording wears at each moment, as `[seconds into the clip, theme]`. The beat marks
+each change when the recorder saw it, which is late, so the clip's cut reads it from the recording
+instead: the first frame of the desktop's sweep in the wallpaper above the window (the whole frame
+in the container), less a tenth of a second, so the website's page changes with the sweep. The
+website offers the themes it wears there: Retro 82 and Tokyo Night from the container, and on the
+desktop the desktop's own theme and Lumon, the theme the beat changes to, which
+`scripts/build_website_themes.py` builds for the page without a swatch. A recording changed to
 another theme needs that theme added there too.
 
 The clips together stay under 4 MB, and the edit fails a recording whose clips do not.
