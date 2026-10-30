@@ -14,6 +14,16 @@ link=~/.config/omarchy/plugins/$id
 config=~/.config/omarchy/shell.json
 
 feed() {
+  # A shell started outside the session, such as Claude Code's, lacks these.
+  local run=${XDG_RUNTIME_DIR:-/run/user/$UID}
+  if [[ -z ${WAYLAND_DISPLAY:-} ]]; then
+    WAYLAND_DISPLAY=$(basename "$(ls "$run"/wayland-? | head -1)")
+    export WAYLAND_DISPLAY
+  fi
+  if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+    HYPRLAND_INSTANCE_SIGNATURE=$(ls -t "$run/hypr" | head -1)
+    export HYPRLAND_INSTANCE_SIGNATURE
+  fi
   omarchy-launch-tui --app-id=dev.omaweb.prototype python3 "$here/fake-omaweb.py" \
     >"${XDG_RUNTIME_DIR:-/tmp}/omaweb/feed-launch.log" 2>&1 &
 }
