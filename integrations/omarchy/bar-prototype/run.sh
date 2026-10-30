@@ -14,8 +14,8 @@ link=~/.config/omarchy/plugins/$id
 config=~/.config/omarchy/shell.json
 
 feed() {
-  setsid ghostty --class=dev.omaweb.prototype --title="Fake Omaweb" \
-    -e python3 "$here/fake-omaweb.py" >/dev/null 2>&1 &
+  omarchy-launch-tui --app-id=dev.omaweb.prototype python3 "$here/fake-omaweb.py" \
+    >"${XDG_RUNTIME_DIR:-/tmp}/omaweb/feed-launch.log" 2>&1 &
 }
 
 case "${1:-start}" in
