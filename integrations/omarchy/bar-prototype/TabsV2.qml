@@ -48,6 +48,9 @@ BarWidget {
     readonly property color popupFg: Commons.Color.popups.text
     readonly property string font: bar ? bar.fontFamily : Style.font.family
     readonly property int gap: Style.space(10)
+    // Capsule draws one level only: no frames, thin dividers between the
+    // Spaces, the pins and the tabs, and no titles in the tabs.
+    readonly property bool flat: variant === "capsule"
 
     // Which popup is open ("menu", "spaces", "status" or ""), and what it is for.
     property string popup: ""
@@ -110,7 +113,7 @@ BarWidget {
             return 0;
         var total = along(spacesGroup) + along(beforeRow) + along(spaceChip) + along(pinsGroup) + along(afterRow) + along(
                     statusMark) + gap * 4;
-        if (!vertical)
+        if (!vertical && !flat)
             total += Math.min(titleWidth, titleMetrics.advanceWidth) + 12;
         return total + iconLength + 8;
     }
@@ -150,6 +153,8 @@ BarWidget {
             hidden: tabs.length - shown.length
         };
     }
+
+    readonly property string activeTitle: titleMetrics.text
 
     TextMetrics {
         id: titleMetrics
@@ -236,6 +241,7 @@ BarWidget {
             Rectangle {
                 anchors.fill: parent
                 radius: 6
+                visible: !root.flat
                 color: Qt.alpha(root.fg, 0.05)
                 border.width: 1
                 border.color: Qt.alpha(root.fg, 0.12)
@@ -255,6 +261,10 @@ BarWidget {
                     }
                 }
             }
+        }
+
+        Divider {
+            visible: root.role === "tabs" && root.flat
         }
 
         Grid {
@@ -278,13 +288,13 @@ BarWidget {
             id: capsule
             visible: root.role === "tabs"
             implicitWidth: root.vertical ? root.barSize - 4 : capsuleRow.implicitWidth + Style.space(
-                                                                  root.variant === "labelled" ? 4 : 10)
+                                                                  root.variant === "spaces" ? 10 : 2)
             implicitHeight: root.vertical ? capsuleRow.implicitHeight + Style.space(10) : root.barSize - 6
 
             Rectangle {
                 anchors.fill: parent
                 radius: 6
-                visible: root.variant !== "labelled"
+                visible: root.variant === "spaces"
                 color: root.variant === "spaces" && root.space ? Qt.alpha(root.space.colour, 0.16) : Qt.alpha(
                                                                      root.fg, 0.07)
                 border.width: root.variant === "spaces" ? 1 : 0
@@ -292,7 +302,7 @@ BarWidget {
             }
             // Capsule: the Space's colour runs down its leading edge.
             Rectangle {
-                visible: root.variant === "capsule" && !!root.space
+                visible: false
                 width: root.vertical ? parent.width - 8 : 3
                 height: root.vertical ? 3 : parent.height - 8
                 x: root.vertical ? 4 : 0
@@ -325,6 +335,7 @@ BarWidget {
                     Rectangle {
                         anchors.fill: parent
                         radius: 4
+                        visible: !root.flat
                         color: Qt.alpha(root.fg, 0.09)
                         border.width: root.variant === "labelled" ? 1 : 0
                         border.color: Qt.alpha(root.fg, 0.18)
@@ -344,6 +355,11 @@ BarWidget {
                             }
                         }
                     }
+                }
+
+                Divider {
+                    visible: root.flat && !!root.space && root.space.pins.length > 0 && root.space.tabs.length
+                             > 0
                 }
 
                 Repeater {
@@ -401,6 +417,7 @@ BarWidget {
             Rectangle {
                 anchors.fill: parent
                 radius: 6
+                visible: !root.flat
                 color: Qt.alpha(root.fg, 0.07)
             }
             Grid {
@@ -433,8 +450,9 @@ BarWidget {
                                          })
                 }
                 BarText {
-                    text: "󰍉"
-                    tooltip: root.live ? "Omnibar: " + root.browser.nav.host : "Omnibar"
+                    text: root.flat && !root.vertical && root.live ? "󰌾  " + root.browser.nav.host : "󰍉"
+                    tooltip: root.live ? (root.flat ? root.activeTitle : "Omnibar: " + root.browser.nav.host) :
+                                         "Omnibar"
                     onClicked: root.send({
                                              do: "omnibar"
                                          })
@@ -444,6 +462,13 @@ BarWidget {
     }
 
     // ----- pieces
+
+    component Divider: Rectangle {
+        implicitWidth: root.vertical ? 12 : 1
+        implicitHeight: root.vertical ? 1 : 14
+        color: root.fg
+        opacity: 0.25
+    }
 
     component SiteIcon: Item {
         id: icon
@@ -506,8 +531,9 @@ BarWidget {
         property real pad: 3
         property bool pinned: false
         readonly property bool isActive: tab && root.activeId === tab.id
-        readonly property bool showTitle: !root.vertical && (isActive || (root.variant === "labelled"
-                                                                           && !pinned))
+        readonly property bool showTitle: !root.vertical && !root.flat && (isActive || (root.variant
+                                                                                         === "labelled"
+                                                                                         && !pinned))
         readonly property real titleCap: isActive ? root.titleWidth : root.shortTitleWidth
 
         implicitWidth: root.vertical ? root.barSize - 8 : site.implicitWidth + pad * 2 + (showTitle ? title.width
