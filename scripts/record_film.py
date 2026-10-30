@@ -994,8 +994,9 @@ def play_theme(beat: Beat, recorder: Recorder, worn: list[Theme], wear, mark) ->
     """The Theme beat: each of the `worn` themes after the first put on with `wear`, and the chrome
     checked to have repainted after each.
 
-    Each theme is marked with the moment, in seconds into the beat, of the first frame whose chrome
-    shows it, so the website's page can wear it on the frame its card's clip does. On the desktop,
+    Each theme is marked with the moment, in seconds into the beat, that the recorder saw its chrome
+    show it. That is later than the recording shows it, so `cut_clips` replaces it with the time
+    read from the recording (`theme_onsets`), which is what the website's page wears it at. On the desktop,
     where the whole monitor is recorded, the camera draws back to it for the switches and closes on
     the window again before the beat fades into the next.
     """
@@ -2324,6 +2325,55 @@ def framed(entry: dict, stage: Stage, drawn: Pointer, pointer_input: str | None,
     return chains
 
 
+# A frame whose chroma, averaged over the frame, moves this far from the one before it is a theme
+# showing: a sweep of the desktop or a repaint of the window. The beat is quiet otherwise. Frames of
+# one change are less than a half second apart, and the next change is further off.
+ONSET_SHIFT = 0.5
+ONSET_APART = 0.5
+
+
+def chroma_shifts(raw: Path, start: float, end: float) -> list[tuple[float, float]]:
+    """How far each frame of `raw` between `start` and `end` seconds moves the frame's mean chroma
+    from the frame before, as (seconds into that span, shift) pairs."""
+    answer = subprocess.run(
+        ["ffmpeg", "-v", "error", "-ss", f"{start:.3f}", "-t", f"{end - start:.3f}", "-i", str(raw),
+         "-vf", "scale=320:-2,signalstats,metadata=print:file=-", "-f", "null", "-"],
+        capture_output=True, text=True, check=True).stdout
+    shifts, at, mean, last = [], 0.0, None, None
+    for line in answer.splitlines():
+        if "pts_time:" in line:
+            at = float(line.split("pts_time:")[1])
+        elif "lavfi.signalstats.UAVG=" in line:
+            mean = float(line.split("=")[1])
+        elif "lavfi.signalstats.VAVG=" in line:
+            now = (mean, float(line.split("=")[1]))
+            if last is not None:
+                shifts.append((at, abs(now[0] - last[0]) + abs(now[1] - last[1])))
+            last = now
+    return shifts
+
+
+def theme_onsets(themes: list, shifts: list[tuple[float, float]], length: float) -> list:
+    """`themes` with each change after the first moved to when the recording first shows it.
+
+    The recorder marks a change when it saw it, which on the desktop is some 2.7 s after the
+    recording shows it, so each change takes the start of its own run of frames in `shifts`, in
+    order. A beat whose recording shows another number of changes keeps the times it was marked
+    with. The first theme is the beat's own, from its start.
+    """
+    runs: list[float] = []
+    previous = None
+    for at, shift in shifts:
+        if at > length or shift < ONSET_SHIFT:
+            continue
+        if previous is None or at - previous >= ONSET_APART:
+            runs.append(at)
+        previous = at
+    if len(runs) != len(themes) - 1:
+        return themes
+    return [themes[0]] + [[round(at, 3), name] for at, (_, name) in zip(runs, themes[1:])]
+
+
 def cut_clips(out: Path, marks: list[dict], stage: Stage, drawn: Pointer) -> None:
     """Each beat a card plays as a clip of its own, `clip-<card>`, in the page's two codecs with a
     poster of its first frame, and `clips.json`: each clip's length, and for the Theme beat the
@@ -2333,6 +2383,9 @@ def cut_clips(out: Path, marks: list[dict], stage: Stage, drawn: Pointer) -> Non
         card = CLIP_OF.get(entry["beat"])
         if card is None:
             continue
+        if "themes" in entry:
+            entry["themes"] = theme_onsets(entry["themes"], chroma_shifts(
+                out / "raw.mkv", entry["start"], entry["end"]), entry["end"] - entry["start"])
         drawn_input = ["-i", str(drawn.path)] if pointer(entry) else []
         chains = framed(entry, stage, drawn, "1:v" if drawn_input else None, "beat")
         chains.append(f"[beat]scale={CLIP_WIDTH}:-2,{COLOURS}[clip]")
