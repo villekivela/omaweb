@@ -9,6 +9,7 @@ import {
   BAR,
   Cruise,
   IDLE_DIM,
+  breath,
   cues,
   dimming,
   keyAnswer,
@@ -240,4 +241,13 @@ test("dimming: dim at rest, lifted by the last bar, hushed in it, and gone at th
   assert.equal(dimming(drop - BAR), 0);
   assert.equal(dimming(drop - 0.7 * BAR), 0.4);
   assert.equal(dimming(drop), 0);
+});
+
+// At rest the engine ticks over: the sun's glow breathes in and out once every 6 seconds, from
+// nothing to 0.2 of the throttle and back.
+test("breath: the resting engine breathes once every 6 seconds, up to 0.2", () => {
+  assert.equal(breath(0), 0);
+  assert.ok(Math.abs(breath(3) - 0.2) < 1e-9);
+  assert.ok(Math.abs(breath(1.5) - 0.1) < 1e-9);
+  assert.ok(Math.abs(breath(6)) < 1e-9);
 });

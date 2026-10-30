@@ -11,6 +11,7 @@ import {
   REVEAL_EASING,
   REVEAL_MS,
   SUN_FROM,
+  breath,
   cues,
   dimming,
   keyAnswer,
@@ -480,8 +481,37 @@ if (drive) {
       };
       waking = requestAnimationFrame(step);
     };
-    if (scrollY === 0) look(IDLE_DIM, SUN_FROM);
-    addEventListener("scroll", () => wake(), { once: true, passive: true });
+    // At rest the engine ticks over, the sun's glow breathing, until the reader scrolls or
+    // cruise control starts.
+    let breathing = 0;
+    const rest = () => {
+      const began = performance.now();
+      const step = (now) => {
+        cruising = breath((now - began) / 1000);
+        navigate();
+        breathing = requestAnimationFrame(step);
+      };
+      breathing = requestAnimationFrame(step);
+    };
+    const stir = () => {
+      if (!breathing) return;
+      cancelAnimationFrame(breathing);
+      breathing = 0;
+      cruising = 0;
+      navigate();
+    };
+    if (scrollY === 0) {
+      look(IDLE_DIM, SUN_FROM);
+      rest();
+    }
+    addEventListener(
+      "scroll",
+      () => {
+        stir();
+        wake();
+      },
+      { once: true, passive: true },
+    );
     for (const stop of stops) stop.classList.add("highway__stop");
     throttle = 4;
 
@@ -786,6 +816,7 @@ if (drive) {
     setInterval(() => cruise.state !== "off" && tick(), 100);
 
     const begin = (timer) => {
+      stir();
       leave();
       timed = timer;
       timerStart = performance.now();

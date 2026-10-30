@@ -31,6 +31,14 @@ export function rising(time) {
 // How much the world dims in the hush, at its deepest: the scene's brightness falls by this much.
 export const HUSH_DIM = 0.4;
 
+// How hard the resting engine ticks over, 0 to `BREATH` of the throttle: the sun's glow breathes in
+// and out once every `BREATH_EVERY` seconds while the page waits for the journey.
+export const BREATH = 0.2;
+export const BREATH_EVERY = 6;
+export function breath(time) {
+  return (BREATH * (1 - Math.cos((2 * Math.PI * time) / BREATH_EVERY))) / 2;
+}
+
 // How dim the page rests while it waits for the journey, 0 to 1 of its brightness, and how dim it
 // is through the intro: the rest's dim lifts toward the last bar, where the hush dims it for the
 // drop, and the drop ends it.
