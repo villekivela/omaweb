@@ -8,7 +8,7 @@
   "description": "PROTOTYPE, throwaway: omaweb's tabs and navigation in the Omarchy bar, fed by fake-omaweb.py.",
   "kinds": ["bar-widget"],
   "entryPoints": {
-    "barWidget": "Widget.qml"
+    "barWidget": "TabsV2.qml"
   },
   "barWidget": {
     "displayName": "Omaweb (prototype)",

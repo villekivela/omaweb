@@ -9,7 +9,12 @@ import qs.Ui
 // PROTOTYPE, throwaway: omaweb's tabs in the Omarchy bar, fed by
 // fake-omaweb.py over a Unix socket. Placed twice: role "tabs" shows the
 // Space, pins and tabs; role "navigation" shows back, forward, reload and
-// the host. It takes no room while nothing answers on the socket.
+// the address. It takes no room while nothing answers on the socket.
+//
+// Three variants, switched with `v` in the fake browser:
+//   capsule   the Space, its pins and tabs in one capsule; other Spaces outside
+//   labelled  every tab shows a short title; pins and other Spaces in pills
+//   spaces    every Space is a chip; the active one opens to show its tabs
 BarWidget {
     id: root
     moduleName: "omaweb.bar-prototype"
@@ -17,24 +22,32 @@ BarWidget {
     readonly property string role: setting("role", "tabs")
     readonly property string appId: setting("appId", "dev.omaweb.prototype")
     readonly property int titleWidth: Number(setting("titleWidth", 200))
+    readonly property int shortTitleWidth: 80
     readonly property real maxShare: Number(setting("maxWidthPercent", 40)) / 100
     readonly property string socketPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp")
                                          + "/omaweb/bar-prototype.sock"
 
     property var browser: null
     readonly property bool live: socket.connected && browser !== null
+    readonly property string variant: live && browser.variant ? browser.variant : setting("variant",
+                                                                                           "capsule")
     readonly property var toplevel: ToplevelManager.activeToplevel
     readonly property bool focused: toplevel !== null && toplevel.appId === appId
-    readonly property var space: live ? browser.spaces.find(s => s.id === browser.activeSpace) :
-                                        null
-    readonly property var others: live ? browser.spaces.filter(s => s.id !== browser.activeSpace) :
-                                         []
+    readonly property int activeIndex: live ? browser.spaces.findIndex(s => s.id === browser.activeSpace) :
+                                              -1
+    readonly property var space: activeIndex >= 0 ? browser.spaces[activeIndex] : null
+    readonly property var othersBefore: live && variant === "spaces" ? browser.spaces.slice(0,
+                                                                                             activeIndex) :
+                                                                       []
+    readonly property var othersAfter: live && variant === "spaces" ? browser.spaces.slice(activeIndex
+                                                                                            + 1) : []
     readonly property var activeId: space ? space.active : null
     readonly property var downloads: live ? browser.status.downloads : []
 
     readonly property color fg: bar ? bar.barForeground : Commons.Color.foreground
     readonly property color popupFg: Commons.Color.popups.text
     readonly property string font: bar ? bar.fontFamily : Style.font.family
+    readonly property int gap: Style.space(10)
 
     // Which popup is open ("menu", "spaces", "status" or ""), and what it is for.
     property string popup: ""
@@ -75,6 +88,10 @@ BarWidget {
         return Qt.hsla((hash % 360) / 360, 0.45, 0.42, 1);
     }
 
+    function along(item) {
+        return item && item.visible ? (vertical ? item.implicitHeight : item.implicitWidth) : 0;
+    }
+
     // --- overflow: pins and the active tab always show; the other tabs shrink
     // their spacing, then the ones furthest from the active tab go to "+N".
 
@@ -86,15 +103,15 @@ BarWidget {
     }
     readonly property real maxLength: barLength * maxShare
     readonly property real iconLength: 16
+    readonly property real tabExtra: variant === "labelled" && !vertical ? shortTitleWidth + Style.space(
+                                                                               6) : 0
     readonly property real fixedLength: {
         if (!live || role !== "tabs")
             return 0;
-        var along = item => item ? (vertical ? item.implicitHeight : item.implicitWidth) : 0;
-        var total = along(spaceChip) + along(othersRow) + along(statusMark) + grid.spacing * 6;
-        var pins = space.pins.length;
-        total += pins * (iconLength + 8) + (pins ? along(divider) : 0);
+        var total = along(spacesGroup) + along(beforeRow) + along(spaceChip) + along(pinsGroup) + along(afterRow) + along(
+                    statusMark) + gap * 4;
         if (!vertical)
-            total += Math.min(titleWidth, titleMetrics.advanceWidth) + 8;
+            total += Math.min(titleWidth, titleMetrics.advanceWidth) + 12;
         return total + iconLength + 8;
     }
     readonly property var tabLayout: {
@@ -107,28 +124,28 @@ BarWidget {
         var tabs = space.tabs;
         var rest = tabs.filter(t => t.id !== activeId).length;
         var room = maxLength - fixedLength;
-        var pads = [4, 3, 2, 1];
+        var pads = [4, 3, 2];
         for (var p = 0; p < pads.length; p++) {
-            if (rest * (iconLength + pads[p] * 2) <= room)
+            if (rest * (iconLength + tabExtra + pads[p] * 2) <= room)
                 return {
                     pad: pads[p],
                     tabs: tabs,
                     hidden: 0
                 };
         }
-        var fit = Math.max(0, Math.floor((room - 30) / (iconLength + 2)));
+        var fit = Math.max(0, Math.floor((room - 30) / (iconLength + tabExtra + 4)));
         var at = Math.max(0, tabs.findIndex(t => t.id === activeId));
         var ranked = tabs.map((t, i) => ({
-            t: t,
-            i: i
-        })).filter(x => x.t.id !== activeId).sort((a, b) => Math.abs(a.i - at) - Math.abs(b.i
-                                                                                          - at)).slice(
-                0, fit);
+                                             t: t,
+                                             i: i
+                                         })).filter(x => x.t.id !== activeId).sort((a, b) => Math.abs(
+                                                                                       a.i - at) - Math.abs(
+                                                                                       b.i - at)).slice(0, fit);
         var keep = {};
         ranked.forEach(x => keep[x.t.id] = true);
         var shown = tabs.filter(t => t.id === activeId || keep[t.id]);
         return {
-            pad: 1,
+            pad: 2,
             tabs: shown,
             hidden: tabs.length - shown.length
         };
@@ -148,8 +165,8 @@ BarWidget {
     }
 
     visible: live
-    implicitWidth: !live ? 0 : (vertical ? barSize : grid.implicitWidth + Style.space(8))
-    implicitHeight: !live ? 0 : (vertical ? grid.implicitHeight + Style.space(8) : barSize)
+    implicitWidth: !live ? 0 : (vertical ? barSize : grid.implicitWidth + gap * 2)
+    implicitHeight: !live ? 0 : (vertical ? grid.implicitHeight + gap * 2 : barSize)
 
     Socket {
         id: socket
@@ -198,7 +215,7 @@ BarWidget {
         id: grid
         anchors.centerIn: parent
         columns: root.vertical ? 1 : 100
-        spacing: 2
+        spacing: Style.space(6)
         verticalItemAlignment: Grid.AlignVCenter
         horizontalItemAlignment: Grid.AlignHCenter
         opacity: root.focused ? 1 : 0.5
@@ -210,56 +227,153 @@ BarWidget {
 
         // ----- role: tabs
 
-        SpaceChip {
-            id: spaceChip
-            visible: root.role === "tabs"
-            space: root.space
-            onClicked: root.openPopup("spaces", spaceChip)
-        }
-
-        Repeater {
-            model: root.role === "tabs" && root.space ? root.space.pins : []
-            TabCell {
-                required property var modelData
-                tab: modelData
-                pad: 4
+        // Capsule and labelled: every Space first, in a group of its own.
+        Item {
+            id: spacesGroup
+            visible: root.role === "tabs" && root.variant !== "spaces"
+            implicitWidth: root.vertical ? root.barSize - 4 : spacesRow.implicitWidth + 4
+            implicitHeight: root.vertical ? spacesRow.implicitHeight + 4 : root.barSize - 6
+            Rectangle {
+                anchors.fill: parent
+                radius: 6
+                color: Qt.alpha(root.fg, 0.05)
+                border.width: 1
+                border.color: Qt.alpha(root.fg, 0.12)
+            }
+            Grid {
+                id: spacesRow
+                anchors.centerIn: parent
+                columns: root.vertical ? 1 : 100
+                spacing: 2
+                verticalItemAlignment: Grid.AlignVCenter
+                horizontalItemAlignment: Grid.AlignHCenter
+                Repeater {
+                    model: root.live ? root.browser.spaces : []
+                    SpaceSwitch {
+                        required property var modelData
+                        space: modelData
+                    }
+                }
             }
         }
 
-        Rectangle {
-            id: divider
-            visible: root.role === "tabs" && root.space && root.space.pins.length > 0
-                     && root.space.tabs.length > 0
-            implicitWidth: root.vertical ? 12 : 1
-            implicitHeight: root.vertical ? 1 : 12
-            color: root.fg
-            opacity: 0.3
-        }
-
-        Repeater {
-            model: root.role === "tabs" ? root.tabLayout.tabs : []
-            TabCell {
-                required property var modelData
-                tab: modelData
-                pad: root.tabLayout.pad
-            }
-        }
-
-        BarText {
-            id: plusN
-            visible: root.role === "tabs" && root.tabLayout.hidden > 0
-            text: "+" + root.tabLayout.hidden
-            tooltip: root.tabLayout.hidden + " more tabs"
-            onClicked: root.openPopup("spaces", plusN)
-        }
-
-        Row {
-            id: othersRow
-            visible: root.role === "tabs" && root.others.length > 0
-            spacing: Style.space(8)
-            leftPadding: root.vertical ? 0 : Style.space(6)
+        Grid {
+            id: beforeRow
+            visible: root.role === "tabs" && root.othersBefore.length > 0
+            columns: root.vertical ? 1 : 100
+            spacing: Style.space(6)
+            verticalItemAlignment: Grid.AlignVCenter
+            horizontalItemAlignment: Grid.AlignHCenter
             Repeater {
-                model: root.others
+                model: root.othersBefore
+                OtherSpace {
+                    required property var modelData
+                    space: modelData
+                }
+            }
+        }
+
+        // The active Space: its name, pins and tabs, in one capsule.
+        Item {
+            id: capsule
+            visible: root.role === "tabs"
+            implicitWidth: root.vertical ? root.barSize - 4 : capsuleRow.implicitWidth + Style.space(
+                                                                  root.variant === "labelled" ? 4 : 10)
+            implicitHeight: root.vertical ? capsuleRow.implicitHeight + Style.space(10) : root.barSize - 6
+
+            Rectangle {
+                anchors.fill: parent
+                radius: 6
+                visible: root.variant !== "labelled"
+                color: root.variant === "spaces" && root.space ? Qt.alpha(root.space.colour, 0.16) : Qt.alpha(
+                                                                     root.fg, 0.07)
+                border.width: root.variant === "spaces" ? 1 : 0
+                border.color: root.space ? Qt.alpha(root.space.colour, 0.5) : "transparent"
+            }
+            // Capsule: the Space's colour runs down its leading edge.
+            Rectangle {
+                visible: root.variant === "capsule" && !!root.space
+                width: root.vertical ? parent.width - 8 : 3
+                height: root.vertical ? 3 : parent.height - 8
+                x: root.vertical ? 4 : 0
+                y: root.vertical ? 0 : 4
+                radius: 1.5
+                color: root.space ? root.space.colour : "transparent"
+            }
+
+            Grid {
+                id: capsuleRow
+                anchors.centerIn: parent
+                columns: root.vertical ? 1 : 100
+                spacing: Style.space(4)
+                verticalItemAlignment: Grid.AlignVCenter
+                horizontalItemAlignment: Grid.AlignHCenter
+
+                SpaceChip {
+                    id: spaceChip
+                    visible: root.variant === "spaces"
+                    space: root.space
+                    onClicked: root.openPopup("spaces", spaceChip)
+                }
+
+                // Pins in their own inner pill, icons only.
+                Item {
+                    id: pinsGroup
+                    visible: !!root.space && root.space.pins.length > 0
+                    implicitWidth: root.vertical ? root.barSize - 8 : pinsRow.implicitWidth + 6
+                    implicitHeight: root.vertical ? pinsRow.implicitHeight + 6 : root.barSize - 12
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: 4
+                        color: Qt.alpha(root.fg, 0.09)
+                        border.width: root.variant === "labelled" ? 1 : 0
+                        border.color: Qt.alpha(root.fg, 0.18)
+                    }
+                    Grid {
+                        id: pinsRow
+                        anchors.centerIn: parent
+                        columns: root.vertical ? 1 : 100
+                        spacing: 0
+                        Repeater {
+                            model: root.space ? root.space.pins : []
+                            TabCell {
+                                required property var modelData
+                                tab: modelData
+                                pad: 3
+                                pinned: true
+                            }
+                        }
+                    }
+                }
+
+                Repeater {
+                    model: root.role === "tabs" ? root.tabLayout.tabs : []
+                    TabCell {
+                        required property var modelData
+                        tab: modelData
+                        pad: root.tabLayout.pad
+                    }
+                }
+
+                BarText {
+                    id: plusN
+                    visible: root.tabLayout.hidden > 0
+                    text: "+" + root.tabLayout.hidden
+                    tooltip: root.tabLayout.hidden + " more tabs"
+                    onClicked: root.openPopup("spaces", plusN)
+                }
+            }
+        }
+
+        Grid {
+            id: afterRow
+            visible: root.role === "tabs" && root.othersAfter.length > 0
+            columns: root.vertical ? 1 : 100
+            spacing: Style.space(6)
+            verticalItemAlignment: Grid.AlignVCenter
+            horizontalItemAlignment: Grid.AlignHCenter
+            Repeater {
+                model: root.othersAfter
                 OtherSpace {
                     required property var modelData
                     space: modelData
@@ -278,41 +392,54 @@ BarWidget {
             onClicked: root.openPopup("status", statusMark)
         }
 
-        // ----- role: navigation
+        // ----- role: navigation, in a capsule of its own
 
-        BarText {
+        Item {
             visible: root.role === "navigation"
-            text: "󰁍"
-            dim: !(root.live && root.browser.nav.canBack)
-            tooltip: "Back"
-            onClicked: root.send({
-                                     do: "back"
-                                 })
-        }
-        BarText {
-            visible: root.role === "navigation"
-            text: "󰁔"
-            dim: !(root.live && root.browser.nav.canForward)
-            tooltip: "Forward"
-            onClicked: root.send({
-                                     do: "forward"
-                                 })
-        }
-        BarText {
-            visible: root.role === "navigation"
-            text: "󰑐"
-            tooltip: "Reload"
-            onClicked: root.send({
-                                     do: "reload"
-                                 })
-        }
-        BarText {
-            visible: root.role === "navigation"
-            text: root.vertical || !root.live ? "󰌾" : "󰌾  " + root.browser.nav.host
-            tooltip: "Open the Omnibar"
-            onClicked: root.send({
-                                     do: "omnibar"
-                                 })
+            implicitWidth: root.vertical ? root.barSize - 4 : navRow.implicitWidth + Style.space(6)
+            implicitHeight: root.vertical ? navRow.implicitHeight + Style.space(6) : root.barSize - 6
+            Rectangle {
+                anchors.fill: parent
+                radius: 6
+                color: Qt.alpha(root.fg, 0.07)
+            }
+            Grid {
+                id: navRow
+                anchors.centerIn: parent
+                columns: root.vertical ? 1 : 100
+                verticalItemAlignment: Grid.AlignVCenter
+                horizontalItemAlignment: Grid.AlignHCenter
+                BarText {
+                    text: "󰁍"
+                    dim: !(root.live && root.browser.nav.canBack)
+                    tooltip: "Back"
+                    onClicked: root.send({
+                                             do: "back"
+                                         })
+                }
+                BarText {
+                    text: "󰁔"
+                    dim: !(root.live && root.browser.nav.canForward)
+                    tooltip: "Forward"
+                    onClicked: root.send({
+                                             do: "forward"
+                                         })
+                }
+                BarText {
+                    text: "󰑐"
+                    tooltip: "Reload"
+                    onClicked: root.send({
+                                             do: "reload"
+                                         })
+                }
+                BarText {
+                    text: "󰍉"
+                    tooltip: root.live ? "Omnibar: " + root.browser.nav.host : "Omnibar"
+                    onClicked: root.send({
+                                             do: "omnibar"
+                                         })
+                }
+            }
         }
     }
 
@@ -361,8 +488,8 @@ BarWidget {
         // Sound or popped-out mark at the top right.
         Text {
             visible: icon.tab && (icon.tab.audio !== "" || icon.tab.poppedOut)
-            text: !icon.tab ? "" : icon.tab.audio === "playing" ? "󰕾" : icon.tab.audio === "muted"
-                                                                  ? "󰖁" : "󰁜"
+            text: !icon.tab ? "" : icon.tab.audio === "playing" ? "󰕾" : icon.tab.audio === "muted" ? "󰖁" :
+                                                                                                     "󰁜"
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.rightMargin: -6
@@ -377,29 +504,26 @@ BarWidget {
         id: cell
         property var tab
         property real pad: 3
+        property bool pinned: false
         readonly property bool isActive: tab && root.activeId === tab.id
-        readonly property bool showTitle: isActive && !root.vertical
+        readonly property bool showTitle: !root.vertical && (isActive || (root.variant === "labelled"
+                                                                           && !pinned))
+        readonly property real titleCap: isActive ? root.titleWidth : root.shortTitleWidth
 
-        implicitWidth: root.vertical ? root.barSize : site.implicitWidth + pad * 2 + (showTitle
-                                                                                      ? title.width
-                                                                                        + Style.space(
-                                                                                            6) : 0) + (
-                                           isActive ? 4 : 0)
-        implicitHeight: root.vertical ? site.implicitHeight + pad * 2 + 4 : root.barSize
+        implicitWidth: root.vertical ? root.barSize - 8 : site.implicitWidth + pad * 2 + (showTitle ? title.width
+                                                                                                     + Style.space(6)
+                                                                                                     + 4 : 0)
+        implicitHeight: root.vertical ? site.implicitHeight + pad * 2 + 4 : root.barSize - 12
 
         Rectangle {
             anchors.fill: parent
-            anchors.margins: root.vertical ? 2 : 0
-            anchors.topMargin: root.vertical ? 2 : 4
-            anchors.bottomMargin: root.vertical ? 2 : 4
             radius: 4
-            color: Qt.alpha(root.fg, 0.12)
-            visible: cell.isActive
+            color: Qt.alpha(root.fg, cell.isActive ? 0.2 : cellMouse.containsMouse ? 0.08 : 0)
         }
         SiteIcon {
             id: site
             tab: cell.tab
-            x: root.vertical ? (cell.width - width) / 2 : cell.pad + (cell.isActive ? 2 : 0)
+            x: root.vertical ? (cell.width - width) / 2 : cell.pad + (cell.showTitle ? 2 : 0)
             anchors.verticalCenter: parent.verticalCenter
         }
         Text {
@@ -408,15 +532,17 @@ BarWidget {
             anchors.left: site.right
             anchors.leftMargin: Style.space(6)
             anchors.verticalCenter: parent.verticalCenter
-            width: Math.min(root.titleWidth, implicitWidth)
+            width: Math.min(cell.titleCap, implicitWidth)
             text: cell.tab ? cell.tab.title : ""
             textFormat: Text.PlainText
             elide: Text.ElideRight
             color: root.fg
+            opacity: cell.isActive ? 1 : 0.7
             font.family: root.font
             font.pixelSize: Style.font.body
         }
         MouseArea {
+            id: cellMouse
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
@@ -436,9 +562,8 @@ BarWidget {
                               });
             }
             onEntered: if (root.bar)
-                           root.bar.showTooltip(cell, cell.tab.title + (cell.tab.agentAct
-                                                                        ? "\nAgent: "
-                                                                          + cell.tab.agentAct : ""))
+                           root.bar.showTooltip(cell, (cell.pinned ? "Pinned: " : "") + cell.tab.title + (
+                                                    cell.tab.agentAct ? "\nAgent: " + cell.tab.agentAct : ""))
             onExited: if (root.bar)
                           root.bar.hideTooltip(cell)
         }
@@ -448,14 +573,15 @@ BarWidget {
         id: chip
         property var space
         signal clicked
-        implicitWidth: root.vertical ? root.barSize : chipRow.implicitWidth + Style.space(8)
-        implicitHeight: root.vertical ? 20 : root.barSize
+        implicitWidth: root.vertical ? root.barSize - 8 : chipRow.implicitWidth + Style.space(8)
+        implicitHeight: root.vertical ? 20 : root.barSize - 6
 
         Row {
             id: chipRow
             anchors.centerIn: parent
             spacing: Style.space(6)
             Rectangle {
+                visible: root.variant !== "capsule" || root.vertical
                 anchors.verticalCenter: parent.verticalCenter
                 width: 9
                 height: 9
@@ -465,7 +591,7 @@ BarWidget {
             Text {
                 visible: !root.vertical
                 anchors.verticalCenter: parent.verticalCenter
-                text: chip.space ? chip.space.name : ""
+                text: chip.space ? chip.space.name + (root.variant === "labelled" ? "  ›" : "") : ""
                 color: chip.space ? chip.space.colour : root.fg
                 font.family: root.font
                 font.pixelSize: Style.font.body
@@ -479,19 +605,88 @@ BarWidget {
         }
     }
 
+    // One Space in the Spaces group. The active one is filled with its colour;
+    // clicking it opens the popup of every Space, clicking another switches.
+    component SpaceSwitch: Item {
+        id: sw
+        property var space
+        readonly property bool current: root.live && space.id === root.browser.activeSpace
+        implicitWidth: root.vertical ? root.barSize - 8 : swRow.implicitWidth + Style.space(12)
+        implicitHeight: root.vertical ? 18 : root.barSize - 10
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 4
+            color: sw.current ? Qt.alpha(sw.space.colour, 0.28) : Qt.alpha(root.fg, swMouse.containsMouse ? 0.1 :
+                                                                                                         0)
+        }
+        Row {
+            id: swRow
+            anchors.centerIn: parent
+            spacing: Style.space(5)
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 7
+                height: 7
+                radius: 2
+                color: sw.space.colour
+            }
+            Text {
+                visible: !root.vertical
+                anchors.verticalCenter: parent.verticalCenter
+                text: sw.space.name
+                color: sw.current ? sw.space.colour : root.fg
+                opacity: sw.current ? 1 : 0.7
+                font.family: root.font
+                font.pixelSize: Style.font.body
+                font.bold: sw.current
+            }
+            Text {
+                visible: !root.vertical && !sw.current
+                anchors.verticalCenter: parent.verticalCenter
+                text: sw.space.count
+                color: root.fg
+                opacity: 0.45
+                font.family: root.font
+                font.pixelSize: Style.font.body
+            }
+        }
+        MouseArea {
+            id: swMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: sw.current ? root.openPopup("spaces", sw) : root.send({
+                                                                                  do: "space",
+                                                                                  space: sw.space.id
+                                                                              })
+            onEntered: if (root.bar)
+                           root.bar.showTooltip(sw, sw.current ? "All Spaces and tabs" : "Switch to "
+                                                                + sw.space.name + " (" + sw.space.count + " tabs)")
+            onExited: if (root.bar)
+                          root.bar.hideTooltip(sw)
+        }
+    }
+
+    // Another Space: a pill with its colour, name and tab count.
     component OtherSpace: Item {
         id: other
         property var space
-        implicitWidth: root.vertical ? root.barSize : otherRow.implicitWidth
-        implicitHeight: root.vertical ? 14 : root.barSize
-        opacity: 0.75
+        implicitWidth: root.vertical ? root.barSize - 8 : otherRow.implicitWidth + Style.space(12)
+        implicitHeight: root.vertical ? 18 : root.barSize - 8
 
+        Rectangle {
+            anchors.fill: parent
+            radius: height / 2
+            color: Qt.alpha(root.fg, otherMouse.containsMouse ? 0.1 : 0)
+            border.width: 1
+            border.color: Qt.alpha(other.space.colour, 0.45)
+        }
         Row {
             id: otherRow
             anchors.centerIn: parent
-            spacing: Style.space(4)
+            spacing: Style.space(5)
             Rectangle {
-                visible: root.vertical
                 anchors.verticalCenter: parent.verticalCenter
                 width: 7
                 height: 7
@@ -500,27 +695,37 @@ BarWidget {
             }
             Text {
                 visible: !root.vertical
+                anchors.verticalCenter: parent.verticalCenter
                 text: other.space.name
-                color: other.space.colour
+                color: root.fg
+                opacity: 0.75
                 font.family: root.font
                 font.pixelSize: Style.font.body
             }
             Text {
                 visible: !root.vertical
+                anchors.verticalCenter: parent.verticalCenter
                 text: other.space.count
                 color: root.fg
-                opacity: 0.6
+                opacity: 0.45
                 font.family: root.font
                 font.pixelSize: Style.font.body
             }
         }
         MouseArea {
+            id: otherMouse
             anchors.fill: parent
+            hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: root.send({
                                      do: "space",
                                      space: other.space.id
                                  })
+            onEntered: if (root.bar)
+                           root.bar.showTooltip(other, "Switch to " + other.space.name + " (" + other.space.count
+                                                + " tabs)")
+            onExited: if (root.bar)
+                          root.bar.hideTooltip(other)
         }
     }
 
@@ -530,10 +735,15 @@ BarWidget {
         property string tooltip
         property bool dim: false
         signal clicked
-        implicitWidth: root.vertical ? root.barSize : glyph.implicitWidth + Style.space(10)
-        implicitHeight: root.vertical ? glyph.implicitHeight + Style.space(8) : root.barSize
+        implicitWidth: root.vertical ? root.barSize - 8 : glyph.implicitWidth + Style.space(10)
+        implicitHeight: root.vertical ? glyph.implicitHeight + Style.space(8) : root.barSize - 8
         opacity: dim ? 0.35 : 1
 
+        Rectangle {
+            anchors.fill: parent
+            radius: 4
+            color: Qt.alpha(root.fg, labelMouse.containsMouse ? 0.1 : 0)
+        }
         Text {
             id: glyph
             anchors.centerIn: parent
@@ -543,6 +753,7 @@ BarWidget {
             font.pixelSize: Style.font.body
         }
         MouseArea {
+            id: labelMouse
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
@@ -631,8 +842,7 @@ BarWidget {
         bar: root.bar
         owner: root
         open: root.popup !== ""
-        contentWidth: card.fittedContentWidth(root.popup === "menu" ? Style.space(200) : Style.space(
-                                                                          360))
+        contentWidth: card.fittedContentWidth(root.popup === "menu" ? Style.space(200) : Style.space(360))
         contentHeight: card.fittedContentHeight(body.item ? body.item.implicitHeight : 0)
 
         Flickable {
@@ -644,9 +854,11 @@ BarWidget {
             Loader {
                 id: body
                 width: parent.width
-                sourceComponent: root.popup === "menu" ? menuBody : root.popup === "spaces"
-                                                         ? spacesBody : root.popup === "status"
-                                                           ? statusBody : null
+                sourceComponent: root.popup === "menu" ? menuBody : root.popup === "spaces" ? spacesBody :
+                                                                                              root.popup
+                                                                                              === "status" ?
+                                                                                                  statusBody :
+                                                                                                  null
             }
         }
     }
@@ -656,8 +868,7 @@ BarWidget {
         Column {
             width: parent ? parent.width : 200
             readonly property var tab: root.menuTab
-            readonly property bool pinned: !!(tab && root.space && root.space.pins.some(p => p.id
-                                                                                             === tab.id))
+            readonly property bool pinned: !!(tab && root.space && root.space.pins.some(p => p.id === tab.id))
             PopupRow {
                 glyph: "󰐃"
                 label: parent.pinned ? "Unpin" : "Pin"
@@ -736,11 +947,11 @@ BarWidget {
                             indent: true
                             tab: modelData
                             label: modelData.title
-                            detail: modelData.agent ? "Agent: " + modelData.agentAct :
-                                                      modelData.poppedOut ? "In a Tab window" :
-                                                                            modelData.audio
-                                                                            ? "Sound "
-                                                                              + modelData.audio : ""
+                            detail: modelData.agent ? "Agent: " + modelData.agentAct : modelData.poppedOut ?
+                                                                                           "In a Tab window" :
+                                                                                           modelData.audio ? "Sound "
+                                                                                                             + modelData.audio :
+                                                                                                             ""
                             current: modelData.id === spaceBlock.modelData.active
                             onPicked: {
                                 root.send({

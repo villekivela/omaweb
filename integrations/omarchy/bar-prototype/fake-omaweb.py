@@ -6,8 +6,8 @@ actions, and draws its state in the terminal it runs in. That terminal
 stands in for the browser window: the widget counts it as omaweb being
 focused, and switching a tab from the bar raises it.
 
-Keys: n new tab, x close, a Agent, s sound, d download, o pop out,
-1-3 Space, q quit.
+Keys: v variant, n new tab, x close, a Agent, s sound, d download,
+o pop out, 1-3 Space, q quit.
 """
 
 import json
@@ -105,6 +105,8 @@ spaces = [
     },
 ]
 active_space = "work"
+VARIANTS = ["capsule", "labelled", "spaces"]
+variant = VARIANTS[0]
 active_tab = {s["id"]: (s["tabs"][0]["id"] if s["tabs"] else None) for s in spaces}
 downloads = []
 clients = {}
@@ -134,6 +136,7 @@ def snapshot():
     s, t = current()
     return {
         "type": "state",
+        "variant": variant,
         "activeSpace": active_space,
         "spaces": [
             {
@@ -271,11 +274,14 @@ def note(text):
 
 
 def key(ch):
-    global active_space
+    global active_space, variant
     s, t = current()
     if ch in ("q", ""):
         raise SystemExit
-    if ch == "n":
+    if ch == "v":
+        variant = VARIANTS[(VARIANTS.index(variant) + 1) % len(VARIANTS)]
+        note(f"key: variant {variant}")
+    elif ch == "n":
         host, title = random.choice(POOL)
         new = tab(host, title, back=0)
         s["tabs"].append(new)
@@ -378,9 +384,10 @@ def render():
             out.append(f"  {mark} \x1b[2m{label}\x1b[0m{x['title'][:70]}\x1b[2m{extra}\x1b[0m\n")
     if downloads:
         out.append("\n downloads: " + ", ".join(f"{d['name']} {d['progress']}%" for d in downloads) + "\n")
-    out.append(f"\n last   {last_action}\n")
+    out.append(f"\n variant \x1b[1m{variant}\x1b[0m  ({' · '.join(VARIANTS)}; v switches)\n")
+    out.append(f" last   {last_action}\n")
     out.append(f" bar    {len(clients)} widget(s) connected   \x1b[2m{SOCKET_PATH}\x1b[0m\n")
-    out.append("\n\x1b[2m n new tab · x close · a Agent · s sound · d download · o pop out · 1-3 Space · q quit\x1b[0m\n")
+    out.append("\n\x1b[2m v variant · n new tab · x close · a Agent · s sound · d download · o pop out · 1-3 Space · q quit\x1b[0m\n")
     sys.stdout.write("".join(out))
     sys.stdout.flush()
 
