@@ -24,6 +24,8 @@ BarWidget {
     readonly property string appId: setting("appId", "dev.omaweb.prototype")
     readonly property int titleWidth: Number(setting("titleWidth", 200))
     readonly property int addressWidth: Number(setting("addressWidth", 360))
+    // "full" or "letter": a Space shown by its first letter, upper case.
+    readonly property bool spaceLetters: setting("spaceNames", "full") === "letter"
     readonly property bool showNavigation: setting("navigation", true) !== false
     readonly property int shortTitleWidth: 80
     readonly property real maxShare: Number(setting("maxWidthPercent", 40)) / 100
@@ -748,7 +750,7 @@ BarWidget {
             Text {
                 visible: !root.vertical
                 anchors.verticalCenter: parent.verticalCenter
-                text: sw.space.name
+                text: root.spaceLetters ? sw.space.name.charAt(0).toUpperCase() : sw.space.name
                 color: sw.current ? sw.space.colour : root.fg
                 opacity: sw.current ? 1 : 0.7
                 font.family: root.font
@@ -774,7 +776,8 @@ BarWidget {
                                                                                   space: sw.space.id
                                                                               })
             onEntered: if (root.bar)
-                           root.bar.showTooltip(sw, sw.current ? "All Spaces and tabs" : "Switch to "
+                           root.bar.showTooltip(sw, sw.current ? sw.space.name + ": all Spaces and tabs" :
+                                                                 "Switch to "
                                                                 + sw.space.name + " (" + sw.space.count + " tabs)")
             onExited: if (root.bar)
                           root.bar.hideTooltip(sw)
