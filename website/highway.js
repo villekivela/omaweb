@@ -28,8 +28,17 @@ export function rising(time) {
   return SUN_FROM + (1 - SUN_FROM) * toward * toward * (3 - 2 * toward);
 }
 
-// How much the sun flares in the hush, as brightness over the page's own: 0 holds it as it is.
-export const FLARE = 0;
+// How the sun flares around the drop, as brightness over the page's own: through the last bar it
+// builds, slowly and then faster, to `FLARE`; at the drop it bursts to `FLARE + BURST` and fades
+// over `BURST_FADE` seconds rather than going out at once.
+export const FLARE = 0.2;
+export const BURST = 0.5;
+export const BURST_FADE = 1.2;
+export function glare(time) {
+  const drop = INTRO_BARS * BAR;
+  if (time < drop) return FLARE * Math.max(0, (time - (drop - BAR)) / BAR) ** 2;
+  return (FLARE + BURST) * Math.max(0, 1 - (time - drop) / BURST_FADE) ** 2;
+}
 
 // How hard the resting engine ticks over, 0 to `BREATH` of the throttle: the sun's glow breathes in
 // and out once every `BREATH_EVERY` seconds while the page waits for the journey.
@@ -40,13 +49,13 @@ export function breath(time) {
 }
 
 // How dim the page rests while it waits for the journey, 0 to 1 of its brightness, and how dim it
-// is through the intro: the rest's dim lifts toward the last bar, where the hush can flare it
-// brighter (a dim below 0) for the drop, and the drop ends it.
+// is through the intro: the rest's dim lifts toward the last bar, where the sun's glare takes over
+// (a dim below 0).
 export const IDLE_DIM = 0.3;
 export function dimming(time) {
   const toward = Math.min(1, Math.max(0, time / ((INTRO_BARS - 1) * BAR)));
   const lifted = IDLE_DIM * (1 - toward * toward * (3 - 2 * toward));
-  return lifted - FLARE * quiet(time);
+  return lifted - glare(time);
 }
 
 // How hard the engine revs while the road waits parked through the intro, 0 to 0.7 of the throttle:

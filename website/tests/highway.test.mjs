@@ -12,6 +12,7 @@ import {
   breath,
   cues,
   dimming,
+  glare,
   keyAnswer,
   launch,
   nearestStop,
@@ -231,15 +232,16 @@ test("rising: the sun climbs from 0.7 of its height to all of it at the drop", (
   assert.equal(rising(-1), 0.7);
 });
 
-// The page rests dimmed with the sun down, and the intro lifts the dim by the last bar.
-test("dimming: dim at rest, lifted by the last bar, and none in it", () => {
+// The page rests dimmed with the sun down, and the intro lifts the dim by the last bar, where the
+// glare brightens it instead.
+test("dimming: dim at rest, lifted by the last bar, and brighter in it", () => {
   const drop = 8 * BAR;
   assert.equal(IDLE_DIM, 0.3);
   assert.equal(dimming(0), 0.3);
   assert.ok(dimming(drop / 2) < 0.3 && dimming(drop / 2) > 0);
   assert.equal(dimming(drop - BAR), 0);
-  assert.equal(dimming(drop - 0.7 * BAR), 0);
-  assert.equal(dimming(drop), 0);
+  assert.ok(dimming(drop - 0.7 * BAR) < 0);
+  assert.ok(Math.abs(dimming(drop) + 0.7) < 1e-9);
 });
 
 // At rest the engine ticks over: the sun's glow breathes in and out once every 6 seconds, from
@@ -249,4 +251,20 @@ test("breath: the resting engine breathes once every 6 seconds, up to 0.2", () =
   assert.ok(Math.abs(breath(3) - 0.2) < 1e-9);
   assert.ok(Math.abs(breath(1.5) - 0.1) < 1e-9);
   assert.ok(Math.abs(breath(6)) < 1e-9);
+});
+
+// The sun flares through the last bar, slowly and then faster, to 0.2 over the page's brightness;
+// at the drop it bursts to 0.7 and fades over 1.2 seconds rather than going out at once.
+test("glare: builds through the last bar, bursts at the drop and fades", () => {
+  const drop = 8 * BAR;
+  assert.equal(glare(drop - 1.5 * BAR), 0);
+  assert.equal(glare(drop - BAR), 0);
+  assert.ok(Math.abs(glare(drop - 0.5 * BAR) - 0.05) < 1e-9);
+  assert.ok(glare(drop - 0.01) > 0.19 && glare(drop - 0.01) < 0.2);
+  assert.ok(Math.abs(glare(drop) - 0.7) < 1e-9);
+  assert.ok(Math.abs(glare(drop + 0.6) - 0.175) < 1e-9);
+  assert.ok(glare(drop + 1.2) < 1e-9);
+  assert.equal(glare(drop + 5), 0);
+  // The page's dim is the glare's opposite once the rest's dim has lifted.
+  assert.ok(Math.abs(dimming(drop - 0.5 * BAR) + 0.05) < 1e-9);
 });

@@ -14,6 +14,7 @@ import {
   breath,
   cues,
   dimming,
+  glare,
   keyAnswer,
   IDLE_DIM,
   LAUNCH,
@@ -464,6 +465,7 @@ if (drive) {
     let dimNow = 0;
     let sunNow = 1;
     let waking = 0;
+    let bursting = 0;
     const look = (dim, rise) => {
       dimNow = dim;
       sunNow = rise;
@@ -472,6 +474,8 @@ if (drive) {
       canvas.parentElement.style.filter = dim ? `brightness(${1 - dim})` : "";
     };
     const wake = (seconds = 0.6) => {
+      // The drop's burst fades on its own.
+      if (bursting) return;
       cancelAnimationFrame(waking);
       const [dim, rise, began] = [dimNow, sunNow, performance.now()];
       const step = (now) => {
@@ -803,7 +807,8 @@ if (drive) {
         // The drop ends the hush and the dim at once; the first tick, into the intro, does not.
         if (index > 0) {
           hush(0);
-          look(0, 1);
+          if (before === 0 && index === 1) burst();
+          else look(0, 1);
         }
         leave();
         glide(index, undefined, before === 0 && index === 1);
@@ -832,7 +837,19 @@ if (drive) {
       navigate();
       hush(0);
       cancelAnimationFrame(waking);
+      cancelAnimationFrame(bursting);
+      bursting = 0;
       look(0, 1);
+    };
+    // The drop: the sun's flare bursts and fades with the song, the sun at full height.
+    const burst = () => {
+      cancelAnimationFrame(waking);
+      const step = () => {
+        const bright = glare(clock());
+        look(-bright, 1);
+        bursting = bright > 0 ? requestAnimationFrame(step) : 0;
+      };
+      step();
     };
     const end = () => {
       leave();
