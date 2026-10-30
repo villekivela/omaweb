@@ -2396,9 +2396,14 @@ def cut_clips(out: Path, marks: list[dict], stage: Stage, drawn: Pointer) -> Non
             # Under cage the recording is the window, and its repaint is the change; on the desktop
             # the wallpaper above the window shows the desktop's sweep.
             above = 0.75 * stage.window[1] or 1.0
-            entry["themes"] = theme_onsets(entry["themes"], chroma_shifts(
+            onsets = theme_onsets(entry["themes"], chroma_shifts(
                 out / "raw.mkv", entry["start"], entry["end"], above),
                 entry["end"] - entry["start"])
+            if onsets is entry["themes"]:
+                print(f"{entry['beat']}: the recording shows another number of theme changes than"
+                      " were marked, so the clip keeps the marked times, which run late",
+                      file=sys.stderr)
+            entry["themes"] = onsets
         drawn_input = ["-i", str(drawn.path)] if pointer(entry) else []
         chains = framed(entry, stage, drawn, "1:v" if drawn_input else None, "beat")
         chains.append(f"[beat]scale={CLIP_WIDTH}:-2,{COLOURS}[clip]")

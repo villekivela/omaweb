@@ -204,23 +204,24 @@ Omnibar all start cruise control: the radio plays Night road from its start, wit
 the page drives to each stop on the song's cues. The Start page holds the eight bars before the beat
 comes in, each card four, and the install lands on the section at bar 40. A radio that does not play
 leaves the drive to a timer on the same cues. Anything the reader does takes the wheel: the drive
-lets go where it is, and the music plays on, on its loop. A chip in the corner names the stop, shows
-the song's progress, and offers Resume cruise, which carries on from the stop being read with the
-song sought to its cue, and Stop, which with `Esc` or the radio turned off ends the drive and the
-music. On the Start page the Omnibar types its way to a feature, and Keyboard first lights its keys.
-J and K glide to the next and the previous stop, and Return on a row to its card.
+lets go where it is, and the music plays on, on its loop. A journey box under the cards carries the
+words of the stop being read and offers Drive, Resume cruise, which carries on from the stop being
+read with the song sought to its cue, and Stop, which with `Esc` or the radio turned off ends the
+drive and the music; its line of the stops is the page's scrollbar. Keyboard first lights its keys,
+and Return on an Omnibar row drives to its card. The page keeps no keys of its own beyond `Esc` and
+`M`, so a browser's own, such as Omaweb's, reach it.
 
 `assets/film/clips.json` names the cards with a clip of the film, `clip-<card>.webm` and `.mp4` with
 `clip-<card>.webp`, its first frame. A card shows that frame from the horizon on, plays the clip
-from its start when it is read and holds its last frame; without `clips.json` the cards keep their
-captures. The Theme card's clip names the theme the recording wears at each moment, and the page
-wears each from its frame on, its picker naming it, and the reader's theme again when the card is no
-longer read. A change of theme, the clip's or the reader's from a swatch or `T`, opens with the
-desktop's diagonal reveal, a View Transition whose new view's `clip-path` grows from a slanted
-centre line to the viewport's edges (`revealClip` in `highway.js`); with reduced motion, or no View
-Transitions, it is at once. Leaving the card puts the reader's theme back at once. Lumon, which the
-desktop film changes to, is among the page's themes for that, with no swatch. Every card and the
-install catch the road's light as the Omnibar does.
+from its start when it is read and loops while it is, with the film's own controls; without
+`clips.json` the cards keep their captures. The Theme card's clip names the theme the recording
+wears at each moment, and the page wears each from its frame on, its picker naming it, and the
+reader's theme again when the card is no longer read. A change of theme, the clip's or the reader's
+from a swatch or `T`, opens with the desktop's diagonal reveal, a View Transition whose new view's
+`clip-path` grows from a slanted centre line to the viewport's edges (`revealClip` in `highway.js`);
+with reduced motion, or no View Transitions, it is at once. Leaving the card puts the reader's theme
+back at once. Lumon, which the desktop film changes to, is among the page's themes for that, with no
+swatch. Every card and the install catch the road's light as the Omnibar does.
 
 ## The release pages
 

@@ -79,7 +79,6 @@ function listenToRadio() {
 const drive = document.querySelector(".drive");
 if (drive) {
   const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const typing = (event) => event.target.closest("input, textarea, select, [contenteditable]");
   const canvas = drive.querySelector(".drive__scene canvas");
   const omnibar = drive.querySelector(".omnibar");
   // The Omnibar stands in front of the sun and catches its light at its rim.
@@ -352,7 +351,11 @@ if (drive) {
       for (const swatch of swatches) {
         const on = swatch.dataset.themeChoice === theme;
         swatch.setAttribute("aria-pressed", String(on));
-        if (on) picker.querySelector(".themes__name").textContent = swatch.dataset.name;
+        if (on) {
+          const name = picker.querySelector(".themes__name");
+          name.setAttribute("aria-live", "polite");
+          name.textContent = swatch.dataset.name;
+        }
       }
       for (const image of captures) {
         image.src = `assets/shots/${theme}/${image.dataset.shot}.webp`;
@@ -368,99 +371,7 @@ if (drive) {
   picker.hidden = false;
   paint(theme, false);
 
-  // J and K: the next and the previous card, as they move through a Space's tabs. The card in
-  // hand is the one last moved to while it is still on screen, else the one nearest the middle.
   const cards = [...drive.querySelectorAll(".card")];
-  let current = -1;
-  const step = (by) => {
-    if (highway) return highway.step(by);
-    const onScreen = (card) => {
-      const rect = card.getBoundingClientRect();
-      return rect.bottom > 0 && rect.top < innerHeight;
-    };
-    if (!cards[current] || !onScreen(cards[current])) {
-      const middle = innerHeight / 2;
-      const below = cards.findIndex((card) => card.getBoundingClientRect().top > middle);
-      current = below < 0 ? cards.length : below;
-      if (by > 0) current -= 1;
-    }
-    current = Math.max(0, Math.min(cards.length - 1, current + by));
-    for (const card of cards) card.toggleAttribute("data-current", card === cards[current]);
-    cards[current].scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "center" });
-  };
-
-  // f: link hints. Every link and button on screen takes a label; typing a label follows it, and
-  // any other key puts the hints away. The swatches are left to T, being too small to label.
-  const LETTERS = "asdfghjkl";
-  let hints = null;
-  const hideHints = () => {
-    for (const hint of hints || []) hint.label.remove();
-    hints = null;
-  };
-  const showHints = () => {
-    const targets = [...document.querySelectorAll("a[href], button:not(.swatch)")].filter(
-      (target) => {
-        const rect = target.getBoundingClientRect();
-        return (
-          rect.width && rect.height && rect.bottom > 0 && rect.top < innerHeight && rect.right > 0
-        );
-      },
-    );
-    const long = targets.length > LETTERS.length;
-    hints = targets.map((target, at) => {
-      const text = long
-        ? LETTERS[Math.floor(at / LETTERS.length)] + LETTERS[at % LETTERS.length]
-        : LETTERS[at];
-      const rect = target.getBoundingClientRect();
-      const label = document.createElement("span");
-      label.className = "hint";
-      label.textContent = text;
-      label.style.setProperty("--x", `${rect.left + scrollX}px`);
-      label.style.setProperty("--y", `${rect.top + scrollY}px`);
-      document.body.append(label);
-      return { target, text, label };
-    });
-  };
-  let typed = "";
-  const followHint = (key) => {
-    typed += key;
-    const left = hints.filter((hint) => hint.text.startsWith(typed));
-    for (const hint of hints) hint.label.hidden = !left.includes(hint);
-    if (left.length === 1 && left[0].text === typed) {
-      hideHints();
-      left[0].target.focus({ preventScroll: true });
-      left[0].target.click();
-    } else if (!left.length) {
-      hideHints();
-    }
-  };
-
-  // The browser's own keys: o to the Omnibar, f for link hints, J and K through the cards, T to the
-  // next theme and Shift+T to the one before.
-  addEventListener("keydown", (event) => {
-    if (typing(event) || event.ctrlKey || event.metaKey || event.altKey) return;
-    if (hints) {
-      event.preventDefault();
-      if (LETTERS.includes(event.key)) followHint(event.key);
-      else hideHints();
-    } else if (event.key === "f") {
-      event.preventDefault();
-      typed = "";
-      showHints();
-    } else if (event.key.toLowerCase() === "j" || event.key.toLowerCase() === "k") {
-      event.preventDefault();
-      step(event.key.toLowerCase() === "j" ? 1 : -1);
-    } else if (event.key === "o") {
-      event.preventDefault();
-      scrollTo({ top: 0, behavior: smooth ? "smooth" : "auto" });
-      input.focus({ preventScroll: true });
-    } else if (event.key.toLowerCase() === "t") {
-      const at = swatches.findIndex((swatch) => swatch.dataset.themeChoice === theme);
-      const by = event.shiftKey ? -1 : 1;
-      const next = swatches[(at + by + swatches.length) % swatches.length];
-      paint(next.dataset.themeChoice, true, true);
-    }
-  });
 
   // The drive, on a wide screen that allows motion: the page is the road (highway.js). Its stops
   // are the Start page, each card and the install; the page's height becomes a track to scroll,
@@ -570,7 +481,7 @@ if (drive) {
     }
 
     // The film, a clip to each card that has a beat of it (film/README.md): the clip's first frame
-    // from the horizon on, played from its start when the card is read, held on its last frame. A
+    // from the horizon on, played from its start when the card is read, looping while it is. A
     // clip that names the themes it was recorded in has the page wear each from its frame on, and
     // the page's own theme back when its card is no longer read. A theme the page has no rule for
     // is not worn. Without `clips.json` the cards keep their captures.
@@ -625,8 +536,10 @@ if (drive) {
       return getComputedStyle(probe).getPropertyValue("--bg").trim() !== "";
     };
     const named = picker.querySelector(".themes__name");
+    // The clip's own changes are not announced: the clip loops, and the reader's picks are.
     const dress = (worn) => {
       root.dataset.theme = worn;
+      named.setAttribute("aria-live", "off");
       const swatch = swatches.find((choice) => choice.dataset.themeChoice === worn);
       named.textContent =
         swatch?.dataset.name ??
@@ -634,13 +547,17 @@ if (drive) {
     };
     // The theme a reveal is on its way to: the page takes it a frame after the transition starts,
     // and until then `follow` would see the old theme and start the reveal again.
+    // A reveal's change comes a frame or more after it is asked for, so one asked for since
+    // (`wearing`), such as the reader's theme back as the card is left, is not undone by it.
     let revealing = "";
+    let wearing = 0;
     const wear = (worn, reveal = false) => {
       if (revealing === worn) return;
       revealing = "";
+      const ticket = ++wearing;
       if (!reveal) return dress(worn);
       revealing = worn;
-      withReveal(() => dress(worn)).finally(() => {
+      withReveal(() => ticket === wearing && dress(worn)).finally(() => {
         if (revealing === worn) revealing = "";
       });
     };
@@ -664,7 +581,7 @@ if (drive) {
         if (theme !== picked) return;
         const worn = wornAt(clip.video.currentTime, clip.themes);
         if (worn && root.dataset.theme !== worn) wear(worn, true);
-        following = clip.video.ended ? 0 : requestAnimationFrame(follow);
+        following = requestAnimationFrame(follow);
       };
       following = requestAnimationFrame(follow);
     };
@@ -757,7 +674,7 @@ if (drive) {
     const radio = document.querySelector(".radio");
     const radioButton = document.querySelector(".radio-toggle");
     const ignition = omnibar.querySelector(".omnibar__ignite");
-    if (!radio || !radioButton) return { goTo() {}, step() {}, ignite() {} };
+    if (!radio || !radioButton) return { goTo() {}, ignite() {} };
     const cruise = new Cruise(times);
     let timed = false;
     let timerStart = 0;
@@ -1033,9 +950,6 @@ if (drive) {
       goTo(card) {
         hold();
         glide(stops.indexOf(card), 2600);
-      },
-      step(by) {
-        glide(Math.max(0, Math.min(stops.length - 1, reading + by)), 1600);
       },
       ignite,
     };

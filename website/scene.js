@@ -43,11 +43,11 @@ export function sceneInput(scene, environment) {
     navigating: still ? 0 : Math.max(0, Math.min(1, environment.navigating || 0)),
     // The road stands still, as the hero's does until the journey starts; the sky carries on.
     parked: Boolean(environment.parked),
-    // The hush before the drop, 0 to 1: the sky stills with the road.
     // How high the sun stands, 0 to 1 of its height: the intro raises it.
     rise: still ? 1 : Math.max(0, Math.min(1, environment.rise ?? 1)),
     // How far the stars streak into speed lines, 0 to 1, as the drive sets off.
     streak: still ? 0 : Math.max(0, Math.min(1, environment.streak || 0)),
+    // The hush before the drop, 0 to 1: the sky stills with the road.
     hush: still ? 0 : Math.max(0, Math.min(1, environment.hush || 0)),
     beat: still ? 0 : Math.max(0, Math.min(1, environment.beat || 0)),
     reducedMotion: still,
