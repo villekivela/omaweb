@@ -787,6 +787,8 @@ body:has(.drive) > .top {
 
 .film__frame[data-awake] .film__controls,
 .film__frame[data-paused] .film__controls,
+.card__shot[data-awake] .film__controls,
+.card__shot[data-paused] .film__controls,
 .film__controls:hover,
 .film__controls:focus-within {
   opacity: 1;

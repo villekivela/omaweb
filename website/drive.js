@@ -99,28 +99,26 @@ if (drive) {
   addEventListener("scroll", scrolled, { passive: true });
   scrolled();
 
-  // The introduction plays muted while it is on screen and stops when it leaves, unless the reader
-  // paused it, which holds until they play it again. Under reduced motion it waits on its poster
-  // for the reader to press play. Its own controls stand in for the browser's.
-  const film = drive.querySelector(".film__video");
-  if (film) {
-    film.removeAttribute("controls");
-    const frame = film.closest(".film__frame");
-    const controls = frame.querySelector(".film__controls");
+  // A video's own controls stand in for the browser's: play and pause, a scrubber, the time. Idle
+  // they get out of the way; a pointer moving over the `frame`, or a tap on a touch screen, brings
+  // them back for a while. Hovering or focusing them keeps them, as does a pause. A pause the
+  // reader makes holds until they play it again (`held`). Returns `play` and `pause`, which keep
+  // that, and `held`.
+  const controlVideo = (film, frame, controls) => {
     const toggle = controls.querySelector(".film__toggle");
     const scrubber = controls.querySelector(".film__scrubber");
     const elapsed = controls.querySelector(".film__elapsed");
     const total = controls.querySelector(".film__total");
-    let held = false;
-    const play = () => {
-      held = false;
+    const control = { held: false };
+    control.play = () => {
+      control.held = false;
       film.play().catch(() => {});
     };
-    const pause = () => {
-      held = true;
+    control.pause = () => {
+      control.held = true;
       film.pause();
     };
-    const flip = () => (film.paused ? play() : pause());
+    const flip = () => (film.paused ? control.play() : control.pause());
     const show = () => {
       const state = filmState(film);
       toggle.setAttribute("aria-pressed", String(state.playing));
@@ -137,8 +135,6 @@ if (drive) {
     }
     show();
 
-    // Idle, the controls get out of the way; a pointer moving over the film, or a tap on a touch
-    // screen, brings them back for a while. Hovering or focusing them keeps them, as does a pause.
     let resting = 0;
     const wake = () => {
       frame.setAttribute("data-awake", "");
@@ -177,7 +173,7 @@ if (drive) {
       if (scrubber.hasPointerCapture(event.pointerId)) seek(event);
     });
 
-    // The keys are the film's while its controls have focus, before the page's own J, K and f.
+    // The keys are the video's while its controls have focus, before the page's own J, K and f.
     controls.addEventListener("keydown", (event) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       const action = filmKey(event.key, film);
@@ -192,13 +188,27 @@ if (drive) {
     controls.addEventListener("keyup", (event) => {
       if (event.key === " ") event.preventDefault();
     });
+    return control;
+  };
 
+  // The introduction plays muted while it is on screen and stops when it leaves, unless the reader
+  // paused it, which holds until they play it again. Under reduced motion it waits on its poster
+  // for the reader to press play.
+  const film = drive.querySelector(".film__video");
+  // The controls as the markup has them, for the clips' own.
+  const controlsMarkup = drive.querySelector(".film__controls").cloneNode(true);
+  if (film) {
+    film.removeAttribute("controls");
+    const frame = film.closest(".film__frame");
+    const controls = frame.querySelector(".film__controls");
+    const toggle = controls.querySelector(".film__toggle");
+    const hold = controlVideo(film, frame, controls);
     if (smooth) {
       controls.hidden = false;
       new IntersectionObserver(
         ([entry]) => {
           if (!entry.isIntersecting) film.pause();
-          else if (!held) film.play().catch(() => {});
+          else if (!hold.held) film.play().catch(() => {});
         },
         { threshold: 0.5 },
       ).observe(film);
@@ -208,7 +218,7 @@ if (drive) {
       start.addEventListener("click", () => {
         start.hidden = true;
         controls.hidden = false;
-        play();
+        hold.play();
         toggle.focus({ preventScroll: true });
       });
     }
@@ -484,6 +494,7 @@ if (drive) {
           const video = document.createElement("video");
           video.className = "card__clip";
           video.muted = true;
+          video.loop = true;
           video.playsInline = true;
           video.preload = "auto";
           video.poster = `assets/film/clip-${name}.webp`;
@@ -497,9 +508,13 @@ if (drive) {
             source.src = `assets/film/clip-${name}.${kind}`;
             video.append(source);
           }
-          card.querySelector(".card__shot").append(video);
+          const shot = card.querySelector(".card__shot");
+          const controls = controlsMarkup.cloneNode(true);
+          controls.hidden = false;
+          shot.append(video, controls);
           clips.set(card, {
             video,
+            hold: controlVideo(video, shot, controls),
             themes: (clip.themes || []).filter(([, worn]) => styled(worn)),
           });
         }
@@ -546,10 +561,12 @@ if (drive) {
       rolled = index;
       cancelAnimationFrame(following);
       if (root.dataset.theme !== theme) wear(theme);
+      // The clips loop, so the ones not being read stop.
+      for (const other of clips.values()) other.video.pause();
       const clip = clips.get(stops[index]);
       if (!clip) return;
       clip.video.currentTime = 0;
-      clip.video.play().catch(() => {});
+      clip.hold.play();
       if (!clip.themes.length) return;
       // A theme the reader picks while the clip plays is theirs, and the clip stops dressing the page.
       const picked = theme;
