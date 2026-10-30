@@ -639,14 +639,13 @@ BarWidget {
                 opacity: sw.current ? 1 : 0.7
                 font.family: root.font
                 font.pixelSize: Style.font.body
-                font.bold: sw.current
             }
             Text {
-                visible: !root.vertical && !sw.current
+                visible: !root.vertical
                 anchors.verticalCenter: parent.verticalCenter
                 text: sw.space.count
-                color: root.fg
-                opacity: 0.45
+                color: sw.current ? sw.space.colour : root.fg
+                opacity: sw.current ? 0.8 : 0.45
                 font.family: root.font
                 font.pixelSize: Style.font.body
             }
