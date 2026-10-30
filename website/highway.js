@@ -10,6 +10,13 @@ export const BAR = 240 / 107.5;
 const INTRO_BARS = 8;
 const CARD_BARS = 4;
 
+// How hard the engine revs while the road waits parked through the intro, 0 to 0.7 of the throttle:
+// a little at first and then more, to the drop where the beat comes in and the drive sets off.
+export function revving(time) {
+  const toward = Math.min(1, Math.max(0, time / (INTRO_BARS * BAR)));
+  return 0.7 * toward ** 2;
+}
+
 // When cruise control reaches each of `count` stops, in seconds into the song.
 export function cues(count) {
   return Array.from({ length: count }, (_, index) =>

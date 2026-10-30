@@ -12,6 +12,7 @@ import {
   keyAnswer,
   nearestStop,
   placement,
+  revving,
   revealClip,
   stopAt,
   wornAt,
@@ -175,4 +176,15 @@ test("reveal: the new theme opens from a slanted centre line and widens to cover
     "polygon(272.5px 0px, 817.5px 0px, 727.5px 500px, 182.5px 500px)",
   );
   assert.equal(revealClip(1, 1000, 500), "polygon(0px 0px, 1090px 0px, 1000px 500px, -90px 500px)");
+});
+
+// The intro builds to the drop: the road waits parked while the engine revs, a little at first and
+// then more, up to 0.7 of the throttle as the beat comes in at bar 8, and the drive sets off at it.
+test("revving: the intro builds slowly, then faster, to 0.7 at the drop", () => {
+  const drop = 8 * BAR;
+  assert.equal(revving(0), 0);
+  assert.equal(revving(drop / 2), 0.175);
+  assert.equal(revving(drop), 0.7);
+  assert.equal(revving(drop * 3), 0.7);
+  assert.equal(revving(-1), 0);
 });

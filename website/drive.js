@@ -15,6 +15,7 @@ import {
   nearestStop,
   placement,
   revealClip,
+  revving,
   wornAt,
 } from "./highway.js";
 import { STILL_MEDIA, SceneHost } from "./scene.js";
@@ -70,13 +71,11 @@ if (drive) {
   const host = crtRoad
     ? new SceneHost(canvas, crtRoad, { beat: listenToRadio(), lit: omnibar })
     : { setNavigating() {}, setParked() {}, lightUp() {} };
-  // On the Start page the road stands still, and the sky with its shooting stars goes on, until the
-  // journey starts: the reader scrolls, or plays the radio or the ignition. Then it runs for good.
-  const setOff = () => host.setParked(false);
+  // On the Start page the road stands still, and the sky with its shooting stars goes on, until
+  // the journey starts: the reader scrolls, or cruise control's first glide at the drop (the radio
+  // and the ignition first build to it, the engine revving). Then it runs for good.
   host.setParked(scrollY === 0);
-  addEventListener("scroll", setOff, { once: true, passive: true });
-  document.querySelector(".radio")?.addEventListener("play", setOff, { once: true });
-  drive.querySelector(".omnibar__ignite")?.addEventListener("click", setOff, { once: true });
+  addEventListener("scroll", () => host.setParked(false), { once: true, passive: true });
 
   // Past the Start page the road sinks under a scrim of the theme's ground so the cards read
   // against it, and the scroll's speed is how hard the reader is navigating: the road speeds up
@@ -703,29 +702,10 @@ if (drive) {
       song.style.setProperty("--song", Math.min(1, clock() / times[times.length - 1]).toFixed(3));
     };
 
-    // What a stop does as cruise control reaches it: the Omnibar types its way to a feature, and
-    // Keyboard first lights its keys. Each gives back how to undo it.
+    // What a stop does as cruise control reaches it: Keyboard first lights its keys. It gives back
+    // how to undo it.
     const later = (timers, seconds, action) => timers.push(setTimeout(action, seconds * 1000));
     const performs = new Map([
-      [
-        start,
-        () => {
-          const timers = [];
-          const type = (value) => {
-            input.value = value;
-            input.dispatchEvent(new Event("input"));
-          };
-          const query = "keyboard";
-          [...query].forEach((_, at) =>
-            later(timers, 2 + at * 0.18, () => type(query.slice(0, at + 1))),
-          );
-          later(timers, 2 + (times[1] - 2) * 0.6, () => type(""));
-          return () => {
-            timers.forEach(clearTimeout);
-            type("");
-          };
-        },
-      ],
       [
         drive.querySelector("#keyboard"),
         (card) => {
@@ -749,6 +729,11 @@ if (drive) {
 
     const tick = () => {
       const index = cruise.tick(clock());
+      // The road waits parked through the intro while the engine revs, to the drop.
+      if (cruise.state === "cruising" && cruise.current === 0 && !gliding) {
+        cruising = revving(clock());
+        navigate();
+      }
       if (index !== null) {
         leave();
         glide(index);
@@ -769,8 +754,13 @@ if (drive) {
       cruise.start();
       tick();
     };
+    const idle = () => {
+      cruising = 0;
+      navigate();
+    };
     const end = () => {
       leave();
+      idle();
       cruise.end();
       radio.loop = true;
       show();
@@ -781,6 +771,7 @@ if (drive) {
       if (gliding) letGo();
       if (!cruise.hold()) return;
       leave();
+      idle();
       radio.loop = true;
       show();
     };
