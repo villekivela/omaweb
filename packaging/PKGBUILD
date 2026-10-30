@@ -146,6 +146,10 @@ build() {
 
 package_omaweb-git() {
     depends+=("omaweb-cli=$pkgver")
+    # 6.11.3-2 is the first x86_64 engine linked at ThinLTO's --lto-O2, as
+    # Chrome's own targets are (#886). aarch64 builds with GCC and keeps the
+    # floor above. Here rather than beside it, so the client takes no engine.
+    depends_x86_64=('omaweb-qtwebengine>=6.11.3-2')
     provides=("$_pkgname=$pkgver")
     conflicts=("$_pkgname")
     # On removal, names the desktop entry the Theme app icon left in the
