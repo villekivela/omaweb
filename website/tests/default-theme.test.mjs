@@ -50,3 +50,12 @@ test("default theme: a picked theme still wins", () => {
   vm.runInNewContext(read("../theme.js"), { sessionStorage, document: { documentElement } });
   assert.equal(documentElement.dataset.theme, "nord");
 });
+
+// A change of theme changes the name's width, so the name comes after the swatches and leaves them
+// where they stand.
+test("theme strip: the name follows the swatches, so a new name does not move them", () => {
+  const strip = html.slice(html.indexOf('class="themes"'));
+  const at = (part) => strip.indexOf(part);
+  assert.ok(at('class="themes__label') < at('class="themes__row"'));
+  assert.ok(at('class="themes__row"') < at('class="themes__name"'));
+});

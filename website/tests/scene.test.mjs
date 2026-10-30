@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { createCrtRoad } from "../crt-road.js";
+
 import {
   STILL_MEDIA,
   SceneLight,
@@ -348,4 +350,95 @@ test("light: the lit element gets what changed, and nothing while it is off scre
   assert.deepEqual(written, []);
   light.setOnScreen(true);
   assert.deepEqual(written, [["--scene-glow", "0.80"]]);
+});
+
+// A context that accepts any drawing call, to run the road's frames without a canvas.
+const blank = () => {
+  const draws = new Proxy(function () {}, {
+    get: (_, name) => (name === "addColorStop" ? () => {} : draws),
+    set: () => true,
+    apply: () => draws,
+  });
+  return draws;
+};
+
+test("input: a parked road reaches the Scene as parked, and a held-still one never is", () => {
+  const environment = { palette: retro82, width: 10, height: 10 };
+  assert.equal(sceneInput(road, environment).parked, false);
+  assert.equal(sceneInput(road, { ...environment, parked: true }).parked, true);
+});
+
+// The hero's road stands still until the journey starts, while the sky carries on: a parked road
+// does not travel, whatever the clock says, and it sets off from where it stood.
+test("road: parked, it does not travel, and it sets off from where it stood", () => {
+  const parameters = JSON.parse(
+    readFileSync(new URL("../../share/scenes/crt-road.json", import.meta.url), "utf8"),
+  );
+  const scene = createCrtRoad(parameters);
+  const state = {};
+  const input = (time, parked) => ({
+    ...sceneInput(scene, { palette: retro82, width: 40, height: 40, time, parked }),
+    state,
+  });
+  // The road keeps a still picture of itself on a canvas of its own.
+  globalThis.document = { createElement: () => ({ getContext: blank }) };
+  scene.draw(blank(), input(0, true));
+  scene.draw(blank(), input(0.1, true));
+  scene.draw(blank(), input(0.2, true));
+  assert.equal(state.travel, 0);
+  scene.draw(blank(), input(0.3, false));
+  scene.draw(blank(), input(0.4, false));
+  assert.ok(state.travel > 0);
+  delete globalThis.document;
+});
+
+test("input: the hush before the drop reaches a moving Scene, 0 to 1, and a still one gets none", () => {
+  const moving = { palette: retro82, width: 10, height: 10 };
+  assert.equal(sceneInput(road, { ...moving, hush: 0.4 }).hush, 0.4);
+  assert.equal(sceneInput(road, { ...moving, hush: 3 }).hush, 1);
+  assert.equal(sceneInput(road, moving).hush, 0);
+  assert.equal(sceneInput(road, { ...moving, hush: 0.4, reducedMotion: true }).hush, 0);
+});
+
+test("input: the sun's rise is whole unless the page says otherwise, and held to 0 to 1", () => {
+  const moving = { palette: retro82, width: 10, height: 10 };
+  assert.equal(sceneInput(road, moving).rise, 1);
+  assert.equal(sceneInput(road, { ...moving, rise: 0.7 }).rise, 0.7);
+  assert.equal(sceneInput(road, { ...moving, rise: -2 }).rise, 0);
+  assert.equal(sceneInput(road, { ...moving, rise: 0.4, reducedMotion: true }).rise, 1);
+});
+
+// A shooting star can be asked for early, `firstAt` seconds in, so the resting sky shows one soon
+// rather than after its first slot; the slots go on as before.
+test("road: a first shooting star comes at firstAt, for as long as one lasts", () => {
+  const parameters = JSON.parse(
+    readFileSync(new URL("../../share/scenes/crt-road.json", import.meta.url), "utf8"),
+  );
+  const star = { ...parameters.shootingStar, every: 1000, chance: 1, firstAt: 2.5 };
+  const scene = createCrtRoad({ ...parameters, shootingStar: star });
+  globalThis.document = { createElement: () => ({ getContext: blank }) };
+  const strokes = (time) => {
+    let count = 0;
+    const counting = new Proxy(blank(), {
+      get: (target, name) => (name === "stroke" ? () => ++count : target[name]),
+      set: () => true,
+    });
+    scene.draw(counting, {
+      ...sceneInput(scene, { palette: retro82, width: 40, height: 40, time }),
+      state: {},
+    });
+    return count;
+  };
+  assert.equal(strokes(1), 0);
+  assert.equal(strokes(2.6), 1);
+  assert.equal(strokes(2.5 + star.lasts + 0.1), 0);
+  delete globalThis.document;
+});
+
+test("input: the stars' streak reaches a moving Scene, 0 to 1, and a still one gets none", () => {
+  const moving = { palette: retro82, width: 10, height: 10 };
+  assert.equal(sceneInput(road, moving).streak, 0);
+  assert.equal(sceneInput(road, { ...moving, streak: 0.5 }).streak, 0.5);
+  assert.equal(sceneInput(road, { ...moving, streak: 4 }).streak, 1);
+  assert.equal(sceneInput(road, { ...moving, streak: 0.5, reducedMotion: true }).streak, 0);
 });

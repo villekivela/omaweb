@@ -8,10 +8,23 @@ import test from "node:test";
 import {
   BAR,
   Cruise,
+  IDLE_DIM,
+  breath,
   cues,
+  dimming,
+  glare,
+  introBar,
+  journeyAt,
   keyAnswer,
+  launch,
   nearestStop,
   placement,
+  quiet,
+  revving,
+  rising,
+  settleTo,
+  streaking,
+  revealClip,
   stopAt,
   wornAt,
 } from "../highway.js";
@@ -162,4 +175,146 @@ test("keys: M is the radio's, a cruise control's own key is its, and any other t
   for (const key of ["j", "k", "ArrowDown", " ", "f", "o"]) {
     assert.equal(keyAnswer(key, false), "hold", key);
   }
+});
+
+// The new theme opens from a slanted line through the middle of the viewport, as Omarchy's desktop
+// does, its edges leaning 0.18 px left for every px down. On a 1000 x 500 viewport the line runs
+// from x 545 at the top to x 455 at the bottom.
+test("reveal: the new theme opens from a slanted centre line and widens to cover the viewport", () => {
+  assert.equal(revealClip(0, 1000, 500), "polygon(545px 0px, 545px 0px, 455px 500px, 455px 500px)");
+  assert.equal(
+    revealClip(0.5, 1000, 500),
+    "polygon(272.5px 0px, 817.5px 0px, 727.5px 500px, 182.5px 500px)",
+  );
+  assert.equal(revealClip(1, 1000, 500), "polygon(0px 0px, 1090px 0px, 1000px 500px, -90px 500px)");
+});
+
+// The intro builds to the drop: the road waits parked while the engine revs, a little at first and
+// then more, up to 0.7 of the throttle as the beat comes in at bar 8, and the drive sets off at it.
+test("revving: the intro builds slowly, then faster, to 0.7 a bar before the drop", () => {
+  const drop = 8 * BAR;
+  assert.equal(revving(0), 0);
+  assert.ok(Math.abs(revving(3.5 * BAR) - 0.175) < 1e-9);
+  assert.equal(revving(drop - BAR), 0.7);
+  assert.equal(revving(drop * 3), 0.7);
+  assert.equal(revving(-1), 0);
+});
+
+// At the drop the road does not ease into its speed: it starts at it, as a throw forward, and the
+// throw falls away over the first 45% of the glide, before the glide's own swell takes over.
+test("launch: full at the drop, falling away to nothing by 45% of the glide", () => {
+  assert.equal(launch(0), 1);
+  assert.equal(launch(0.225), 0.25);
+  assert.equal(launch(0.45), 0);
+  assert.equal(launch(1), 0);
+  assert.ok(launch(0.1) > launch(0.2));
+});
+
+// The last bar before the drop is a hush: the world dims and stills, the engine cut, so the drop
+// has something to break. It comes in over the first 30% of the bar, holds, and ends at the drop.
+test("quiet: the last bar before the drop hushes the world, and the drop ends it", () => {
+  const drop = 8 * BAR;
+  assert.equal(quiet(0), 0);
+  assert.equal(quiet(drop - 1.01 * BAR), 0);
+  assert.ok(Math.abs(quiet(drop - 0.85 * BAR) - 0.5) < 1e-9);
+  assert.equal(quiet(drop - 0.7 * BAR), 1);
+  assert.equal(quiet(drop - 0.01), 1);
+  assert.equal(quiet(drop), 0);
+  assert.equal(quiet(drop + 5), 0);
+  // In the hush the engine holds at its peak, for the drop to release.
+  assert.equal(revving(drop - 0.5), 0.7);
+});
+
+// Through the intro the sun climbs from 0.7 of its height to all of it at the drop, easing in and
+// out, so it is the last bright thing in the hush.
+test("rising: the sun climbs from 0.7 of its height to all of it at the drop", () => {
+  const drop = 8 * BAR;
+  assert.equal(rising(0), 0.7);
+  assert.ok(Math.abs(rising(drop / 2) - 0.85) < 1e-9);
+  assert.equal(rising(drop), 1);
+  assert.equal(rising(drop + 3), 1);
+  assert.equal(rising(-1), 0.7);
+});
+
+// The page rests dimmed with the sun down, and the intro lifts the dim by the last bar, where the
+// glare brightens it instead.
+test("dimming: dim at rest, lifted by the last bar, and brighter in it", () => {
+  const drop = 8 * BAR;
+  assert.equal(IDLE_DIM, 0.3);
+  assert.equal(dimming(0), 0.3);
+  assert.ok(dimming(drop / 2) < 0.3 && dimming(drop / 2) > 0);
+  assert.equal(dimming(drop - BAR), 0);
+  assert.ok(dimming(drop - 0.7 * BAR) < 0);
+  assert.ok(Math.abs(dimming(drop) + 0.7) < 1e-9);
+});
+
+// At rest the engine ticks over: the sun's glow breathes in and out once every 6 seconds, from
+// nothing to 0.2 of the throttle and back.
+test("breath: the resting engine breathes once every 6 seconds, up to 0.2", () => {
+  assert.equal(breath(0), 0);
+  assert.ok(Math.abs(breath(3) - 0.2) < 1e-9);
+  assert.ok(Math.abs(breath(1.5) - 0.1) < 1e-9);
+  assert.ok(Math.abs(breath(6)) < 1e-9);
+});
+
+// The sun flares through the last bar, slowly and then faster, to 0.2 over the page's brightness;
+// at the drop it bursts to 0.7 and fades over 1.2 seconds rather than going out at once.
+test("glare: builds through the last bar, bursts at the drop and fades", () => {
+  const drop = 8 * BAR;
+  assert.equal(glare(drop - 1.5 * BAR), 0);
+  assert.equal(glare(drop - BAR), 0);
+  assert.ok(Math.abs(glare(drop - 0.5 * BAR) - 0.05) < 1e-9);
+  assert.ok(glare(drop - 0.01) > 0.19 && glare(drop - 0.01) < 0.2);
+  assert.ok(Math.abs(glare(drop) - 0.7) < 1e-9);
+  assert.ok(Math.abs(glare(drop + 0.6) - 0.175) < 1e-9);
+  assert.ok(glare(drop + 1.2) < 1e-9);
+  assert.equal(glare(drop + 5), 0);
+  // The page's dim is the glare's opposite once the rest's dim has lifted.
+  assert.ok(Math.abs(dimming(drop - 0.5 * BAR) + 0.05) < 1e-9);
+});
+
+// The intro counts its bars, 0 to 7, for the page to step its headlights and headline by, and 8
+// from the drop on.
+test("introBar: the intro's bar, from 0 to the drop's 8", () => {
+  assert.equal(introBar(0), 0);
+  assert.equal(introBar(BAR - 0.01), 0);
+  assert.equal(introBar(BAR), 1);
+  assert.equal(introBar(7.5 * BAR), 7);
+  assert.equal(introBar(8 * BAR), 8);
+  assert.equal(introBar(20 * BAR), 8);
+  assert.equal(introBar(-1), 0);
+});
+
+// At the drop the stars streak into speed lines, at once and fully, and come back to points over
+// the next second.
+test("streaking: none before the drop, full at it, gone a second after", () => {
+  const drop = 8 * BAR;
+  assert.equal(streaking(drop - 0.01), 0);
+  assert.equal(streaking(drop), 1);
+  assert.ok(Math.abs(streaking(drop + 0.5) - 0.25) < 1e-9);
+  assert.equal(streaking(drop + 1), 0);
+  assert.equal(streaking(drop + 9), 0);
+});
+
+// The journey box's line is the page's scrollbar: a press or a drag at `x` along it is a place on
+// the road, in stops, the first at its left end and the install at its right.
+test("journeyAt: a place along the line is a place on the road, held to its ends", () => {
+  const line = { left: 100, width: 900 };
+  assert.equal(journeyAt(100, line, 10), 0);
+  assert.equal(journeyAt(1000, line, 10), 9);
+  assert.equal(journeyAt(550, line, 10), 4.5);
+  assert.equal(journeyAt(20, line, 10), 0);
+  assert.equal(journeyAt(4000, line, 10), 9);
+  assert.equal(journeyAt(500, { left: 0, width: 0 }, 10), 0);
+});
+
+// A scroll that has stopped close to a stop settles onto it; one that stopped on a stop, or well
+// between two, as a browser's half-page scroll leaves it, stays where it is.
+test("settleTo: a stop within a fifth of one, else nowhere", () => {
+  assert.equal(settleTo(2.1), 2);
+  assert.equal(settleTo(2.85), 3);
+  assert.equal(settleTo(2), null);
+  assert.equal(settleTo(2.001), null);
+  assert.equal(settleTo(2.5), null);
+  assert.equal(settleTo(2.3), null);
 });

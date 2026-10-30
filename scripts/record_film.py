@@ -363,32 +363,43 @@ def hover_point(beat: str, held: dict) -> tuple[float, float]:
             (held["y"] + held["height"] / 2) / held["windowHeight"])
 
 
-def expect_repainted(beat: str, before: tuple[int, int, int], after: tuple[int, int, int],
-                     old: tuple[int, int, int], new: tuple[int, int, int]) -> None:
-    """A sample of the chrome was nearer the old theme's colour and is now nearer the new one's.
+# How far the chrome's colour has to move, in 8-bit RGB, for a theme change to count as shown. The
+# selected tab row moved some 22 from Ethereal Nebula Silver to Lumon, with about 1 of noise.
+REPAINT_SHIFT = 8
 
-    Nearer rather than equal: the window is drawn at its theme's opacity over the compositor's
-    ground, so what reaches the frame is a blend of the colour the theme names.
+
+def shift(one: tuple[int, int, int], other: tuple[int, int, int]) -> float:
+    """How far apart two samples of the chrome are, in 8-bit RGB."""
+    return sum((x - y) ** 2 for x, y in zip(one, other)) ** 0.5
+
+
+def expect_repainted(beat: str, before: tuple[int, int, int],
+                     after: tuple[int, int, int]) -> None:
+    """A sample of the chrome moved when the theme was changed.
+
+    Moved rather than matched: the window is drawn at its theme's opacity over the compositor's
+    ground, and the selected tab row mixes the theme's accent into its background, so what reaches
+    the frame is no colour the theme names.
     """
-
-    def distance(a: tuple[int, int, int], b: tuple[int, int, int]) -> int:
-        return sum((x - y) ** 2 for x, y in zip(a, b))
-
-    if distance(before, old) >= distance(before, new):
-        raise BeatMissed(beat, f"the chrome was {before} before the change, not the old theme")
-    if distance(after, new) >= distance(after, old):
-        raise BeatMissed(beat, f"the chrome is {after} after the change, not the new theme")
+    if shift(before, after) < REPAINT_SHIFT:
+        raise BeatMissed(beat, f"the chrome stayed at {after} from {before} through the change")
 
 
-# Where the Theme beat samples the chrome, as a fraction of the frame: in the sidebar, which is the
-# theme's darkest background.
-CHROME_SAMPLE = (0.01, 0.5)
+# Where the Theme beat samples the chrome, as fractions of the frame: left, top, width and height of
+# a box in the sidebar's selected tab row, whose highlight is mixed from the theme's accent, so a
+# theme whose background is near the desktop's, as Retro 82's navy is Ethereal's, still shows.
+CHROME_SAMPLE = (0.03, 0.16, 0.15, 0.02)
 
 
 def chrome_sample(frame: bytes) -> tuple[int, int, int]:
-    """The chrome's colour in a frame, at the same place whatever size the frame was taken at."""
+    """The chrome's colour in a frame: the mean of the box `CHROME_SAMPLE` names, wherever the
+    frame was taken at any size."""
     width, height = (int(field) for field in frame.split(maxsplit=3)[1:3])
-    return pixel(frame, int(width * CHROME_SAMPLE[0]), int(height * CHROME_SAMPLE[1]))
+    left, top, wide, high = (round(fraction * side) for fraction, side in
+                             zip(CHROME_SAMPLE, (width, height, width, height)))
+    pixels = [pixel(frame, x, y) for y in range(top, top + high, 2)
+              for x in range(left, left + wide, 2)]
+    return tuple(round(sum(channel) / len(pixels)) for channel in zip(*pixels))
 
 
 def pixel(frame: bytes, x: int, y: int) -> tuple[int, int, int]:
@@ -610,8 +621,8 @@ DESKTOP_CURRENT = Path.home() / ".local" / "state" / "omarchy" / "current"
 # repaint check to tell them apart through the window's translucency.
 THEMES_APART = 12
 # The installed Omarchy theme the desktop's Theme beat changes to where none is named: the
-# maintainer's choice, a grey-blue with its own wallpaper, well apart from their dark navy.
-DEFAULT_CHANGE = "lumon"
+# maintainer's choice, Retro 82's warm orange, against the cool blue of their desktop's theme.
+DEFAULT_CHANGE = "retro-82"
 
 # The frame the recording is taken at, and the film's own. The window is drawn at one and a half
 # device pixels to the logical one, so the browser lays out at 1600 by 900 and a zoom-in has
@@ -790,7 +801,7 @@ def installed_themes(directories: tuple[Path, ...] = OMARCHY_THEMES) -> dict[str
 
 def change_theme(desktop: dict[str, str], name: str = DEFAULT_CHANGE,
                  directories: tuple[Path, ...] = OMARCHY_THEMES) -> Theme:
-    """The installed Omarchy theme the Theme beat switches the desktop to, Lumon unless another
+    """The installed Omarchy theme the Theme beat switches the desktop to, Retro 82 unless another
     is named. One too near the desktop's for the repaint check to tell the change stops the run
     before it changes anything, and names one that is far enough."""
     installed = installed_themes(directories)
@@ -978,13 +989,6 @@ def reported(server: FixtureServer, host: str, path: str, since: int = 0):
                     if report["host"] == host and report["path"] == path]
 
 
-def nearer(sample: tuple[int, int, int], one: tuple[int, int, int],
-           other: tuple[int, int, int]) -> bool:
-    """Whether a sample of the chrome is nearer the colour `one` than `other`."""
-    return (sum((x - y) ** 2 for x, y in zip(sample, one))
-            < sum((x - y) ** 2 for x, y in zip(sample, other)))
-
-
 # How long a theme has to show in the chrome once it is put on, and how often the beat looks.
 REPAINT_WITHIN = 3.0
 REPAINT_LOOK = 0.05
@@ -994,8 +998,9 @@ def play_theme(beat: Beat, recorder: Recorder, worn: list[Theme], wear, mark) ->
     """The Theme beat: each of the `worn` themes after the first put on with `wear`, and the chrome
     checked to have repainted after each.
 
-    Each theme is marked with the moment, in seconds into the beat, of the first frame whose chrome
-    shows it, so the website's page can wear it on the frame its card's clip does. On the desktop,
+    Each theme is marked with the moment, in seconds into the beat, that the recorder saw its chrome
+    show it. That is later than the recording shows it, so `cut_clips` replaces it with the time
+    read from the recording (`theme_onsets`), which the website's page wears it at. On the desktop,
     where the whole monitor is recorded, the camera draws back to it for the switches and closes on
     the window again before the beat fades into the next.
     """
@@ -1005,19 +1010,17 @@ def play_theme(beat: Beat, recorder: Recorder, worn: list[Theme], wear, mark) ->
     # Long enough to read the caption over the old theme, so the change it names comes after it,
     # on the same frame.
     time.sleep(THEME_HOLD)
-    for old, new in zip(worn, worn[1:]):
-        old_colour = theme_colour(old.colours, "dark_background")
-        new_colour = theme_colour(new.colours, "dark_background")
+    for new in worn[1:]:
         put_on = recorder.now()
         wear(new)
         while True:
             # The moment a frame is asked for is the moment it shows.
             at = recorder.now()
             now = chrome_sample(frame(recorder.geometry))
-            if nearer(now, new_colour, old_colour) or at - put_on >= REPAINT_WITHIN:
+            if shift(now, was) >= REPAINT_SHIFT or at - put_on >= REPAINT_WITHIN:
                 break
             time.sleep(REPAINT_LOOK)
-        expect_repainted(beat.name, was, now, old_colour, new_colour)
+        expect_repainted(beat.name, was, now)
         themes.append([round(at - start, 3), new.name])
         time.sleep(max(0.0, REPAINT_WITHIN - (recorder.now() - put_on)))
         was = now
@@ -2324,6 +2327,70 @@ def framed(entry: dict, stage: Stage, drawn: Pointer, pointer_input: str | None,
     return chains
 
 
+# A frame whose chroma, averaged over what is watched, moves this far from the one before it is a
+# theme showing: a sweep of the desktop or a repaint of the window. The beat is quiet otherwise.
+# Frames of one change are less than a half second apart, and the next change is further off.
+ONSET_SHIFT = 0.1
+ONSET_APART = 0.5
+# A change is timed from the first frame of its run at this share of the run's strongest: a sweep
+# can show as a thin band for a third of a second before it widens, as Retro 82's does.
+ONSET_SHARE = 0.25
+# The page's change starts this far ahead of the sweep's first frame, which is what reads as in step
+# with it once the page has drawn its own (found by eye against the film, #903).
+ONSET_LEAD = 0.1
+
+
+def chroma_shifts(raw: Path, start: float, end: float,
+                  above: float = 1.0) -> list[tuple[float, float]]:
+    """How far each frame of `raw` between `start` and `end` seconds moves the mean chroma of its
+    top `above` (a fraction of its height) from the frame before, as (seconds into that span, shift)
+    pairs."""
+    answer = subprocess.run(
+        ["ffmpeg", "-v", "error", "-ss", f"{start:.3f}", "-t", f"{end - start:.3f}", "-i", str(raw),
+         "-vf", f"crop=iw:ih*{above}:0:0,scale=320:-2,signalstats,metadata=print:file=-",
+         "-f", "null", "-"],
+        capture_output=True, text=True, check=True).stdout
+    shifts, at, mean, last = [], 0.0, None, None
+    for line in answer.splitlines():
+        if "pts_time:" in line:
+            at = float(line.split("pts_time:")[1])
+        elif "lavfi.signalstats.UAVG=" in line:
+            mean = float(line.split("=")[1])
+        elif "lavfi.signalstats.VAVG=" in line:
+            now = (mean, float(line.split("=")[1]))
+            if last is not None:
+                shifts.append((at, abs(now[0] - last[0]) + abs(now[1] - last[1])))
+            last = now
+    return shifts
+
+
+def theme_onsets(themes: list, shifts: list[tuple[float, float]], length: float) -> list:
+    """`themes` with each change after the first moved to when the recording first shows it.
+
+    The recorder marks a change when it saw it, which on the desktop is some 2.7 s after the
+    recording shows it, so each change takes its own run of frames in `shifts`, in order, from the
+    first at `ONSET_SHARE` of the run's strongest, less `ONSET_LEAD`. On the desktop the window repaints at once and the desktop's sweep
+    follows, and the page's reveal is the sweep's, so `shifts` come from the wallpaper above the
+    window. A beat whose recording shows another number of changes keeps the times it was marked
+    with. The first theme is the beat's own, from its start.
+    """
+    runs: list[list[tuple[float, float]]] = []
+    previous = None
+    for at, moved in shifts:
+        if at > length or moved < ONSET_SHIFT:
+            continue
+        if previous is None or at - previous >= ONSET_APART:
+            runs.append([])
+        runs[-1].append((at, moved))
+        previous = at
+    if len(runs) != len(themes) - 1:
+        return themes
+    starts = [next(at for at, moved in run if moved >= ONSET_SHARE * max(m for _, m in run))
+              for run in runs]
+    return [themes[0]] + [[round(at - ONSET_LEAD, 3), name]
+                          for at, (_, name) in zip(starts, themes[1:])]
+
+
 def cut_clips(out: Path, marks: list[dict], stage: Stage, drawn: Pointer) -> None:
     """Each beat a card plays as a clip of its own, `clip-<card>`, in the page's two codecs with a
     poster of its first frame, and `clips.json`: each clip's length, and for the Theme beat the
@@ -2333,6 +2400,18 @@ def cut_clips(out: Path, marks: list[dict], stage: Stage, drawn: Pointer) -> Non
         card = CLIP_OF.get(entry["beat"])
         if card is None:
             continue
+        if "themes" in entry:
+            # Under cage the recording is the window, and its repaint is the change; on the desktop
+            # the wallpaper above the window shows the desktop's sweep.
+            above = 0.75 * stage.window[1] if stage.window[1] > 0 else 1.0
+            onsets = theme_onsets(entry["themes"], chroma_shifts(
+                out / "raw.mkv", entry["start"], entry["end"], above),
+                entry["end"] - entry["start"])
+            if onsets is entry["themes"]:
+                print(f"{entry['beat']}: the recording shows another number of theme changes than"
+                      " were marked, so the clip keeps the marked times, which run late",
+                      file=sys.stderr)
+            entry["themes"] = onsets
         drawn_input = ["-i", str(drawn.path)] if pointer(entry) else []
         chains = framed(entry, stage, drawn, "1:v" if drawn_input else None, "beat")
         chains.append(f"[beat]scale={CLIP_WIDTH}:-2,{COLOURS}[clip]")

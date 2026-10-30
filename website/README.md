@@ -191,32 +191,57 @@ of main thread a frame.
 On a wide screen that allows motion, the landing page is a road, and the scroll is the throttle.
 `drive.js` decides it once, as the page opens, by the same query `scene.js` holds the road still
 under; a phone or a reader who asked for less motion keeps the stacked page. The page's height
-becomes a track of one window's height to each stop, with a snap where each is read, and each stop
-(the Start page, each card and the install) a layer over the road. `highway.js` places it by the
-scroll: past the horizon, risen from the sun and growing, held while it is read, then growing on,
-dropping below the camera and fading as the next one arrives. The install is where the road ends,
-and holds. The road runs faster with the scroll than on the stacked page, and at speed through a
-glide between stops. The scrim stands aside, the header stays in view, and the film has no stop of
-its own: each card plays its own beat of it instead.
+becomes a track of one window's height to each stop, a scroll that stops near one settling onto it
+(`settleTo`, not a CSS snap, which would pull a browser's own scroll keys back), and each stop (the
+Start page, each card and the install) a layer over the road. `highway.js` places it by the scroll:
+past the horizon, risen from the sun and growing, held while it is read, then growing on, dropping
+below the camera and fading as the next one arrives. The install is where the road ends, and holds.
+The road runs faster with the scroll than on the stacked page, and at speed through a glide between
+stops. The scrim stands aside, the header stays in view, and the film has no stop of its own: each
+card plays its own beat of it instead.
 
 Ignite, the play button at the Omnibar's end, Radio in the header, `M` and Return on the empty
 Omnibar all start cruise control: the radio plays Night road from its start, without its loop, and
 the page drives to each stop on the song's cues. The Start page holds the eight bars before the beat
 comes in, each card four, and the install lands on the section at bar 40. A radio that does not play
 leaves the drive to a timer on the same cues. Anything the reader does takes the wheel: the drive
-lets go where it is, and the music plays on, on its loop. A chip in the corner names the stop, shows
-the song's progress, and offers Resume cruise, which carries on from the stop being read with the
-song sought to its cue, and Stop, which with `Esc` or the radio turned off ends the drive and the
-music. On the Start page the Omnibar types its way to a feature, and Keyboard first lights its keys.
-J and K glide to the next and the previous stop, and Return on a row to its card.
+lets go where it is, and the music plays on, on its loop. A journey box under the cards carries the
+words of the stop being read and offers Drive, Resume cruise, which carries on from the stop being
+read with the song sought to its cue, and Stop, which with `Esc` or the radio turned off ends the
+drive and the music; its line of the stops is the page's scrollbar. Keyboard first lights its keys,
+and Return on an Omnibar row drives to its card. The page keeps no keys of its own beyond `Esc` and
+`M`, so a browser's own, such as Omaweb's, reach it.
+
+On the road a card is its capture alone: its heading stands over it in the sky in the Start page's
+display face, and its text is the journey box's, under it, as a film's subtitles, the paragraph kept
+in place for a screen reader. The box's line has a mark for each stop, which names it under the
+pointer and drives there when pressed; a press or a drag along the line goes there at once, and the
+browser's own scrollbar is hidden.
+
+The Start page builds to the drop. At rest, with cruise control off, the road is parked, the page
+dimmed and the sun low; the engine ticks over, the sun's glow breathing; the ignition glows now and
+then, the horizon shimmers, and a first shooting star comes soon after the page opens. A scroll
+wakes it, and a return to the top puts it to rest again. Through the intro the road stays parked:
+the engine revs, the dim lifts, the sun climbs, and the Omnibar's headlights and the headline's glow
+step up bar by bar (`introBar`), the header and the line under the Omnibar stepping back for the
+last two. In the last bar the engine holds at its peak, the shooting stars fade and the sun flares.
+At the drop the road is thrown forward (`launch`), the flare bursts and fades (`glare`), the stars
+streak into speed lines (`streaking`), the camera is pulled back and the headline flashes. The
+timings are the song's, in `highway.js`, and the website's road has more shooting stars than the
+shared file asks the browser's for.
 
 `assets/film/clips.json` names the cards with a clip of the film, `clip-<card>.webm` and `.mp4` with
 `clip-<card>.webp`, its first frame. A card shows that frame from the horizon on, plays the clip
-from its start when it is read and holds its last frame; without `clips.json` the cards keep their
-captures. The Theme card's clip names the theme the recording wears at each moment, and the page
-wears each from its frame on, its picker naming it, and the reader's theme again when the card is no
-longer read. Lumon, which the desktop film changes to, is among the page's themes for that, with no
-swatch. Every card and the install catch the road's light as the Omnibar does.
+from its start when it is read and loops while it is, with the film's own controls; without
+`clips.json` the cards keep their captures. The Theme card's clip names the theme the recording
+wears at each moment, and the page wears each from its frame on, its picker naming it, and the
+reader's theme again when the card is no longer read. A change of theme, the clip's or the reader's
+from a swatch, opens with the desktop's diagonal reveal, a View Transition whose new view's
+`clip-path` grows from a slanted centre line to the viewport's edges (`revealClip` in `highway.js`);
+with reduced motion, or no View Transitions, it is at once. Leaving the card puts the reader's theme
+back at once. The desktop film changes to Retro 82, a swatch; Lumon, which earlier films changed to,
+stays among the page's themes, with no swatch, until the published film is a newer one. Every card
+and the install catch the road's light as the Omnibar does.
 
 ## The release pages
 

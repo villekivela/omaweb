@@ -6,14 +6,43 @@
 
 import { createCrtRoad } from "./crt-road.js";
 import { filmKey, filmState, seekAt } from "./film.js";
-import { Cruise, cues, keyAnswer, nearestStop, placement, wornAt } from "./highway.js";
+import {
+  Cruise,
+  REVEAL_EASING,
+  REVEAL_MS,
+  SUN_FROM,
+  breath,
+  cues,
+  dimming,
+  glare,
+  introBar,
+  journeyAt,
+  keyAnswer,
+  IDLE_DIM,
+  LAUNCH,
+  launch,
+  nearestStop,
+  placement,
+  quiet,
+  revealClip,
+  revving,
+  rising,
+  settleTo,
+  streaking,
+  wornAt,
+} from "./highway.js";
 import { STILL_MEDIA, SceneHost } from "./scene.js";
 
 // The road's parameters, shared with the browser's own road and served beside this script. A
 // page that cannot fetch them keeps the gradient the road would have stood on.
 const crtRoad = await fetch(new URL("crt-road.json", import.meta.url))
   .then((response) => (response.ok ? response.json() : Promise.reject(response.status)))
-  .then(createCrtRoad)
+  // The shared file's shooting stars are rare for a road read in passing; the hero's, which stands
+  // still till the journey starts, shows more of them, the first soon after the page opens (the
+  // browser's own road keeps the file's).
+  .then((scene) =>
+    createCrtRoad({ ...scene, shootingStar: { ...scene.shootingStar, every: 9, firstAt: 2.5 } }),
+  )
   .catch(() => null);
 
 // The radio's beat, 0 to 1, read for each frame of the road: how far the song's bass rises over
@@ -51,13 +80,24 @@ function listenToRadio() {
 const drive = document.querySelector(".drive");
 if (drive) {
   const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const typing = (event) => event.target.closest("input, textarea, select, [contenteditable]");
   const canvas = drive.querySelector(".drive__scene canvas");
   const omnibar = drive.querySelector(".omnibar");
   // The Omnibar stands in front of the sun and catches its light at its rim.
   const host = crtRoad
     ? new SceneHost(canvas, crtRoad, { beat: listenToRadio(), lit: omnibar })
-    : { setNavigating() {}, lightUp() {} };
+    : {
+        setNavigating() {},
+        setParked() {},
+        setHush() {},
+        setRise() {},
+        setStreak() {},
+        lightUp() {},
+      };
+  // On the Start page the road stands still, and the sky with its shooting stars goes on, until
+  // the journey starts: the reader scrolls, or cruise control's first glide at the drop (the radio
+  // and the ignition first build to it, the engine revving). Then it runs for good.
+  host.setParked(scrollY === 0);
+  addEventListener("scroll", () => host.setParked(false), { once: true, passive: true });
 
   // Past the Start page the road sinks under a scrim of the theme's ground so the cards read
   // against it, and the scroll's speed is how hard the reader is navigating: the road speeds up
@@ -89,28 +129,26 @@ if (drive) {
   addEventListener("scroll", scrolled, { passive: true });
   scrolled();
 
-  // The introduction plays muted while it is on screen and stops when it leaves, unless the reader
-  // paused it, which holds until they play it again. Under reduced motion it waits on its poster
-  // for the reader to press play. Its own controls stand in for the browser's.
-  const film = drive.querySelector(".film__video");
-  if (film) {
-    film.removeAttribute("controls");
-    const frame = film.closest(".film__frame");
-    const controls = frame.querySelector(".film__controls");
+  // A video's own controls stand in for the browser's: play and pause, a scrubber, the time. Idle
+  // they get out of the way; a pointer moving over the `frame`, or a tap on a touch screen, brings
+  // them back for a while. Hovering or focusing them keeps them, as does a pause. A pause the
+  // reader makes holds until they play it again (`held`). Returns `play` and `pause`, which keep
+  // that, and `held`.
+  const controlVideo = (film, frame, controls) => {
     const toggle = controls.querySelector(".film__toggle");
     const scrubber = controls.querySelector(".film__scrubber");
     const elapsed = controls.querySelector(".film__elapsed");
     const total = controls.querySelector(".film__total");
-    let held = false;
-    const play = () => {
-      held = false;
+    const control = { held: false };
+    control.play = () => {
+      control.held = false;
       film.play().catch(() => {});
     };
-    const pause = () => {
-      held = true;
+    control.pause = () => {
+      control.held = true;
       film.pause();
     };
-    const flip = () => (film.paused ? play() : pause());
+    const flip = () => (film.paused ? control.play() : control.pause());
     const show = () => {
       const state = filmState(film);
       toggle.setAttribute("aria-pressed", String(state.playing));
@@ -127,8 +165,6 @@ if (drive) {
     }
     show();
 
-    // Idle, the controls get out of the way; a pointer moving over the film, or a tap on a touch
-    // screen, brings them back for a while. Hovering or focusing them keeps them, as does a pause.
     let resting = 0;
     const wake = () => {
       frame.setAttribute("data-awake", "");
@@ -167,7 +203,7 @@ if (drive) {
       if (scrubber.hasPointerCapture(event.pointerId)) seek(event);
     });
 
-    // The keys are the film's while its controls have focus, before the page's own J, K and f.
+    // The keys are the video's while its controls have focus.
     controls.addEventListener("keydown", (event) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       const action = filmKey(event.key, film);
@@ -182,13 +218,27 @@ if (drive) {
     controls.addEventListener("keyup", (event) => {
       if (event.key === " ") event.preventDefault();
     });
+    return control;
+  };
 
+  // The introduction plays muted while it is on screen and stops when it leaves, unless the reader
+  // paused it, which holds until they play it again. Under reduced motion it waits on its poster
+  // for the reader to press play.
+  const film = drive.querySelector(".film__video");
+  // The controls as the markup has them, for the clips' own.
+  const controlsMarkup = drive.querySelector(".film__controls")?.cloneNode(true);
+  if (film) {
+    film.removeAttribute("controls");
+    const frame = film.closest(".film__frame");
+    const controls = frame.querySelector(".film__controls");
+    const toggle = controls.querySelector(".film__toggle");
+    const hold = controlVideo(film, frame, controls);
     if (smooth) {
       controls.hidden = false;
       new IntersectionObserver(
         ([entry]) => {
           if (!entry.isIntersecting) film.pause();
-          else if (!held) film.play().catch(() => {});
+          else if (!hold.held) film.play().catch(() => {});
         },
         { threshold: 0.5 },
       ).observe(film);
@@ -198,7 +248,7 @@ if (drive) {
       start.addEventListener("click", () => {
         start.hidden = true;
         controls.hidden = false;
-        play();
+        hold.play();
         toggle.focus({ preventScroll: true });
       });
     }
@@ -263,11 +313,33 @@ if (drive) {
   let theme = document.documentElement.dataset.theme;
   const picker = drive.querySelector(".themes");
   const swatches = [...picker.querySelectorAll("[data-theme-choice]")];
+  // A change of theme opens with the desktop's diagonal reveal, a View Transition whose new view
+  // grows from a slanted line through the viewport's middle: the film's, and the reader's own. With
+  // reduced motion, or no View Transitions, `update` runs at once. Resolves when it is over.
+  const still = matchMedia("(prefers-reduced-motion: reduce)");
+  const withReveal = async (update) => {
+    if (still.matches || !document.startViewTransition) return update();
+    const transition = document.startViewTransition(update);
+    transition.ready
+      .then(() => {
+        const { innerWidth: width, innerHeight: height } = window;
+        document.documentElement.animate(
+          { clipPath: [revealClip(0, width, height), revealClip(1, width, height)] },
+          {
+            duration: REVEAL_MS,
+            easing: REVEAL_EASING,
+            fill: "forwards",
+            pseudoElement: "::view-transition-new(root)",
+          },
+        );
+      })
+      .catch(() => {});
+    await transition.finished.catch(() => {});
+  };
   // The pick lasts the visit, so the release pages open in it, and a new visit opens in the
   // markup's theme again; theme.js applies it.
-  const paint = (next, remember = true) => {
+  const paint = (next, remember = true, reveal = false) => {
     theme = next;
-    document.documentElement.dataset.theme = theme;
     if (remember) {
       try {
         sessionStorage.setItem("omaweb-theme", theme);
@@ -275,113 +347,32 @@ if (drive) {
         // Storage can be blocked; the pick then lasts as long as the page.
       }
     }
-    for (const swatch of swatches) {
-      const on = swatch.dataset.themeChoice === theme;
-      swatch.setAttribute("aria-pressed", String(on));
-      if (on) picker.querySelector(".themes__name").textContent = swatch.dataset.name;
-    }
-    for (const image of captures) {
-      image.src = `assets/shots/${theme}/${image.dataset.shot}.webp`;
-    }
+    const dress = () => {
+      document.documentElement.dataset.theme = theme;
+      for (const swatch of swatches) {
+        const on = swatch.dataset.themeChoice === theme;
+        swatch.setAttribute("aria-pressed", String(on));
+        if (on) {
+          const name = picker.querySelector(".themes__name");
+          name.setAttribute("aria-live", "polite");
+          name.textContent = swatch.dataset.name;
+        }
+      }
+      for (const image of captures) {
+        image.src = `assets/shots/${theme}/${image.dataset.shot}.webp`;
+      }
+      // The reveal waits for the new captures, so it does not open on empty frames.
+      return Promise.all(captures.map((image) => image.decode().catch(() => {})));
+    };
+    return reveal ? withReveal(dress) : dress();
   };
   for (const swatch of swatches) {
-    swatch.addEventListener("click", () => paint(swatch.dataset.themeChoice));
+    swatch.addEventListener("click", () => paint(swatch.dataset.themeChoice, true, true));
   }
   picker.hidden = false;
   paint(theme, false);
 
-  // J and K: the next and the previous card, as they move through a Space's tabs. The card in
-  // hand is the one last moved to while it is still on screen, else the one nearest the middle.
   const cards = [...drive.querySelectorAll(".card")];
-  let current = -1;
-  const step = (by) => {
-    if (highway) return highway.step(by);
-    const onScreen = (card) => {
-      const rect = card.getBoundingClientRect();
-      return rect.bottom > 0 && rect.top < innerHeight;
-    };
-    if (!cards[current] || !onScreen(cards[current])) {
-      const middle = innerHeight / 2;
-      const below = cards.findIndex((card) => card.getBoundingClientRect().top > middle);
-      current = below < 0 ? cards.length : below;
-      if (by > 0) current -= 1;
-    }
-    current = Math.max(0, Math.min(cards.length - 1, current + by));
-    for (const card of cards) card.toggleAttribute("data-current", card === cards[current]);
-    cards[current].scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "center" });
-  };
-
-  // f: link hints. Every link and button on screen takes a label; typing a label follows it, and
-  // any other key puts the hints away. The swatches are left to T, being too small to label.
-  const LETTERS = "asdfghjkl";
-  let hints = null;
-  const hideHints = () => {
-    for (const hint of hints || []) hint.label.remove();
-    hints = null;
-  };
-  const showHints = () => {
-    const targets = [...document.querySelectorAll("a[href], button:not(.swatch)")].filter(
-      (target) => {
-        const rect = target.getBoundingClientRect();
-        return (
-          rect.width && rect.height && rect.bottom > 0 && rect.top < innerHeight && rect.right > 0
-        );
-      },
-    );
-    const long = targets.length > LETTERS.length;
-    hints = targets.map((target, at) => {
-      const text = long
-        ? LETTERS[Math.floor(at / LETTERS.length)] + LETTERS[at % LETTERS.length]
-        : LETTERS[at];
-      const rect = target.getBoundingClientRect();
-      const label = document.createElement("span");
-      label.className = "hint";
-      label.textContent = text;
-      label.style.setProperty("--x", `${rect.left + scrollX}px`);
-      label.style.setProperty("--y", `${rect.top + scrollY}px`);
-      document.body.append(label);
-      return { target, text, label };
-    });
-  };
-  let typed = "";
-  const followHint = (key) => {
-    typed += key;
-    const left = hints.filter((hint) => hint.text.startsWith(typed));
-    for (const hint of hints) hint.label.hidden = !left.includes(hint);
-    if (left.length === 1 && left[0].text === typed) {
-      hideHints();
-      left[0].target.focus({ preventScroll: true });
-      left[0].target.click();
-    } else if (!left.length) {
-      hideHints();
-    }
-  };
-
-  // The browser's own keys: o to the Omnibar, f for link hints, J and K through the cards, T to the
-  // next theme and Shift+T to the one before.
-  addEventListener("keydown", (event) => {
-    if (typing(event) || event.ctrlKey || event.metaKey || event.altKey) return;
-    if (hints) {
-      event.preventDefault();
-      if (LETTERS.includes(event.key)) followHint(event.key);
-      else hideHints();
-    } else if (event.key === "f") {
-      event.preventDefault();
-      typed = "";
-      showHints();
-    } else if (event.key.toLowerCase() === "j" || event.key.toLowerCase() === "k") {
-      event.preventDefault();
-      step(event.key.toLowerCase() === "j" ? 1 : -1);
-    } else if (event.key === "o") {
-      event.preventDefault();
-      scrollTo({ top: 0, behavior: smooth ? "smooth" : "auto" });
-      input.focus({ preventScroll: true });
-    } else if (event.key.toLowerCase() === "t") {
-      const at = swatches.findIndex((swatch) => swatch.dataset.themeChoice === theme);
-      const by = event.shiftKey ? -1 : 1;
-      paint(swatches[(at + by + swatches.length) % swatches.length].dataset.themeChoice);
-    }
-  });
 
   // The drive, on a wide screen that allows motion: the page is the road (highway.js). Its stops
   // are the Start page, each card and the install; the page's height becomes a track to scroll,
@@ -394,10 +385,83 @@ if (drive) {
     const stops = [start, ...cards, drive.querySelector(".install")];
     const times = cues(stops.length);
     root.classList.add("highway");
+    // How the scene looks: it rests dimmed with the sun down on the Start page, the intro lifts
+    // both, the hush dims it for the drop and the drop ends it. The first scroll wakes it, eased.
+    let dimNow = 0;
+    let sunNow = 1;
+    let waking = 0;
+    let bursting = 0;
+    const look = (dim, rise) => {
+      dimNow = dim;
+      sunNow = rise;
+      host.setRise(rise);
+      // On the scene's wrapper: the glass lifts the canvas by a filter of its own.
+      canvas.parentElement.style.filter = dim ? `brightness(${1 - dim})` : "";
+    };
+    // An eased change of the look, to `dim` and `rise` over `seconds`.
+    const ease = (dim, rise, seconds) => {
+      cancelAnimationFrame(waking);
+      const [fromDim, fromRise, began] = [dimNow, sunNow, performance.now()];
+      const step = (now) => {
+        const t = Math.min(1, (now - began) / (seconds * 1000));
+        look(fromDim + (dim - fromDim) * t, fromRise + (rise - fromRise) * t);
+        if (t < 1) waking = requestAnimationFrame(step);
+      };
+      waking = requestAnimationFrame(step);
+    };
+    // The drop's burst fades on its own.
+    const wake = () => !bursting && ease(0, 1, 0.6);
+    // At rest, on the Start page with cruise control off, the road is parked, the page dimmed with
+    // the sun down, and the engine ticks over, the sun's glow breathing. A scroll wakes it, and a
+    // return to the top or a stop there puts it to rest again.
+    let breathing = 0;
+    let driving = () => false;
+    const rest = (eased) => {
+      if (breathing) return;
+      host.setParked(true);
+      if (eased) ease(IDLE_DIM, SUN_FROM, 1.2);
+      else look(IDLE_DIM, SUN_FROM);
+      root.toggleAttribute("data-resting", true);
+      const began = performance.now();
+      const step = (now) => {
+        cruising = breath((now - began) / 1000);
+        navigate();
+        breathing = requestAnimationFrame(step);
+      };
+      breathing = requestAnimationFrame(step);
+    };
+    const stir = () => {
+      root.removeAttribute("data-resting");
+      if (!breathing) return;
+      cancelAnimationFrame(breathing);
+      breathing = 0;
+      cruising = 0;
+      navigate();
+    };
+    if (scrollY === 0) rest(false);
+    addEventListener(
+      "scroll",
+      () => {
+        if (scrollY > 0) {
+          host.setParked(false);
+          if (breathing) {
+            stir();
+            wake();
+          }
+        } else if (!driving()) {
+          rest(true);
+        }
+      },
+      { passive: true },
+    );
     for (const stop of stops) stop.classList.add("highway__stop");
+    // On the road each card's heading stands over it as the Start page's does, in the sky.
+    for (const card of cards) card.querySelector(":scope > h2")?.classList.add("display");
     throttle = 4;
 
-    // One window's height of scroll to each stop, with a snap where it is read.
+    // One window's height of scroll to each stop. A scroll that stops close to one settles onto it
+    // (`settleTo`), rather than a CSS snap, which pulls back a browser's own scroll keys, such as
+    // Omaweb's, step by step, and ends their run.
     const track = document.createElement("div");
     track.className = "highway__track";
     track.setAttribute("aria-hidden", "true");
@@ -407,13 +471,6 @@ if (drive) {
     const measure = () => {
       length = innerHeight;
       track.style.height = `${(stops.length - 1) * length + innerHeight}px`;
-      track.replaceChildren(
-        ...stops.map((_, index) => {
-          const mark = document.createElement("i");
-          mark.style.top = `${index * length}px`;
-          return mark;
-        }),
-      );
       base = track.getBoundingClientRect().top + scrollY;
     };
     const progress = () => (scrollY - base) / length;
@@ -431,7 +488,7 @@ if (drive) {
     }
 
     // The film, a clip to each card that has a beat of it (film/README.md): the clip's first frame
-    // from the horizon on, played from its start when the card is read, held on its last frame. A
+    // from the horizon on, played from its start when the card is read, looping while it is. A
     // clip that names the themes it was recorded in has the page wear each from its frame on, and
     // the page's own theme back when its card is no longer read. A theme the page has no rule for
     // is not worn. Without `clips.json` the cards keep their captures.
@@ -445,6 +502,7 @@ if (drive) {
           const video = document.createElement("video");
           video.className = "card__clip";
           video.muted = true;
+          video.loop = true;
           video.playsInline = true;
           video.preload = "auto";
           video.poster = `assets/film/clip-${name}.webp`;
@@ -458,9 +516,21 @@ if (drive) {
             source.src = `assets/film/clip-${name}.${kind}`;
             video.append(source);
           }
-          card.querySelector(".card__shot").append(video);
+          const shot = card.querySelector(".card__shot");
+          shot.append(video);
+          let hold = { play: () => video.play().catch(() => {}) };
+          if (controlsMarkup) {
+            const controls = controlsMarkup.cloneNode(true);
+            controls.hidden = false;
+            controls
+              .querySelector(".film__scrubber")
+              .setAttribute("aria-label", `Position in the ${name} clip`);
+            shot.append(controls);
+            hold = controlVideo(video, shot, controls);
+          }
           clips.set(card, {
             video,
+            hold,
             themes: (clip.themes || []).filter(([, worn]) => styled(worn)),
           });
         }
@@ -468,21 +538,43 @@ if (drive) {
         render();
       })
       .catch(() => {});
+    // Whether the page has a rule for a theme: its ground on a probe that inherits none, so that
+    // the theme the page already wears, which the probe would inherit, still counts as styled.
+    const bare = document.createElement("i");
+    bare.hidden = true;
+    bare.style.setProperty("--bg", "initial");
     const probe = document.createElement("i");
-    probe.hidden = true;
-    drive.append(probe);
-    const ground = (worn) => {
+    bare.append(probe);
+    drive.append(bare);
+    const styled = (worn) => {
       probe.dataset.theme = worn;
-      return getComputedStyle(probe).getPropertyValue("--bg").trim();
+      return getComputedStyle(probe).getPropertyValue("--bg").trim() !== "";
     };
-    const styled = (worn) => ground(worn) !== ground("");
     const named = picker.querySelector(".themes__name");
-    const wear = (worn) => {
+    // The clip's own changes are not announced: the clip loops, and the reader's picks are.
+    const dress = (worn) => {
       root.dataset.theme = worn;
+      named.setAttribute("aria-live", "off");
       const swatch = swatches.find((choice) => choice.dataset.themeChoice === worn);
       named.textContent =
         swatch?.dataset.name ??
         worn.replace(/(^|-)([a-z])/g, (_, gap, letter) => (gap ? " " : "") + letter.toUpperCase());
+    };
+    // The theme a reveal is on its way to: the page takes it a frame after the transition starts,
+    // and until then `follow` would see the old theme and start the reveal again.
+    // A reveal's change comes a frame or more after it is asked for, so one asked for since
+    // (`wearing`), such as the reader's theme back as the card is left, is not undone by it.
+    let revealing = "";
+    let wearing = 0;
+    const wear = (worn, reveal = false) => {
+      if (revealing === worn) return;
+      revealing = "";
+      const ticket = ++wearing;
+      if (!reveal) return dress(worn);
+      revealing = worn;
+      withReveal(() => ticket === wearing && dress(worn)).finally(() => {
+        if (revealing === worn) revealing = "";
+      });
     };
     let following = 0;
     let rolled = -1;
@@ -490,24 +582,28 @@ if (drive) {
       if (index === rolled) return;
       rolled = index;
       cancelAnimationFrame(following);
-      if (root.dataset.theme !== theme) wear(theme);
+      if (root.dataset.theme !== theme || revealing) wear(theme);
+      // The clips loop, so the ones not being read stop.
+      for (const other of clips.values()) other.video.pause();
       const clip = clips.get(stops[index]);
       if (!clip) return;
       clip.video.currentTime = 0;
-      clip.video.play().catch(() => {});
+      clip.hold.play();
       if (!clip.themes.length) return;
       // A theme the reader picks while the clip plays is theirs, and the clip stops dressing the page.
       const picked = theme;
       const follow = () => {
         if (theme !== picked) return;
         const worn = wornAt(clip.video.currentTime, clip.themes);
-        if (worn && root.dataset.theme !== worn) wear(worn);
-        following = clip.video.ended ? 0 : requestAnimationFrame(follow);
+        if (worn && root.dataset.theme !== worn) wear(worn, true);
+        following = requestAnimationFrame(follow);
       };
       following = requestAnimationFrame(follow);
     };
 
     let reading = 0;
+    // The journey box follows the scroll: set once the box is made, below.
+    let follow = () => {};
     const render = () => {
       const at = progress();
       stops.forEach((stop, index) => {
@@ -525,13 +621,21 @@ if (drive) {
         if (place.reading) reading = index;
       });
       roll(reading);
+      follow(at, reading);
     };
     let frame = 0;
+    let settling = 0;
+    let scrubbing = false;
     addEventListener(
       "scroll",
       () => {
         if (!frame) frame = requestAnimationFrame(() => ((frame = 0), render()));
         if (resting !== null && !gliding && Math.abs(scrollY - resting) > 8) takeWheel();
+        clearTimeout(settling);
+        settling = setTimeout(() => {
+          const stop = gliding || scrubbing ? null : settleTo(progress());
+          if (stop !== null) glide(stop, 500);
+        }, 200);
       },
       { passive: true },
     );
@@ -543,7 +647,7 @@ if (drive) {
     measure();
     render();
 
-    // A glide to a stop, as cruise control, the Omnibar or J and K drive: eased, the road at
+    // A glide to a stop, as cruise control, the Omnibar or the journey box drive: eased, the road at
     // speed, and the snap let go until it lands.
     let gliding = 0;
     // Where a glide left the scroll, while cruise control rests there: a scroll away from it that
@@ -556,21 +660,20 @@ if (drive) {
       gliding = 0;
       cruising = 0;
       resting = null;
-      root.style.scrollSnapType = "";
     };
-    const glide = (index, duration = 2200) => {
+    const glide = (index, duration = 2200, thrown = false) => {
       cancelAnimationFrame(gliding);
       const from = scrollY;
       const to = base + index * length;
       const began = performance.now();
-      root.style.scrollSnapType = "none";
       let placed = from;
       const move = (now) => {
         // The scrollbar dragged, or any scroll the glide did not make, is the reader's hand.
         if (Math.abs(scrollY - placed) > 2) return takeWheel();
         const t = Math.min(1, (now - began) / duration);
         const eased = t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
-        cruising = Math.sin(Math.PI * t);
+        // The first glide, at the drop, starts at speed: the engine's rev is thrown forward.
+        cruising = Math.max(Math.sin(Math.PI * t), thrown ? LAUNCH * launch(t) : 0);
         placed = Math.round(from + (to - from) * eased);
         scrollTo({ top: placed, behavior: "instant" });
         if (t < 1) gliding = requestAnimationFrame(move);
@@ -591,60 +694,96 @@ if (drive) {
     const radio = document.querySelector(".radio");
     const radioButton = document.querySelector(".radio-toggle");
     const ignition = omnibar.querySelector(".omnibar__ignite");
-    if (!radio || !radioButton) return { goTo() {}, step() {}, ignite() {} };
+    if (!radio || !radioButton) return { goTo() {}, ignite() {} };
     const cruise = new Cruise(times);
+    driving = () => cruise.state !== "off";
     let timed = false;
     let timerStart = 0;
     const clock = () => (timed ? (performance.now() - timerStart) / 1000 : radio.currentTime);
 
-    const chip = document.createElement("div");
-    chip.className = "cruise";
-    chip.hidden = true;
-    chip.innerHTML = `<span class="cruise__name"></span
-      ><button class="cruise__resume" type="button">Resume cruise</button
-      ><button class="cruise__stop" type="button">Stop <span class="cruise__key">Esc</span></button
-      ><span class="cruise__song" aria-hidden="true"><i></i></span>`;
-    document.body.append(chip);
-    const where = chip.querySelector(".cruise__name");
-    const song = chip.querySelector(".cruise__song");
-    const resumeButton = chip.querySelector(".cruise__resume");
-    const nameOf = (index) =>
-      index === 0 ? "Start" : stops[index].querySelector("h2").textContent.replace(/\.$/, "");
-    const show = () => {
-      chip.hidden = cruise.state === "off";
-      resumeButton.hidden = cruise.state !== "held";
-      where.textContent =
-        cruise.state === "held"
-          ? "You have the wheel"
-          : cruise.state === "parked"
-            ? "End of the road"
-            : nameOf(Math.max(0, cruise.current));
-      song.style.setProperty("--song", Math.min(1, clock() / times[times.length - 1]).toFixed(3));
+    // The journey box, under the cards the whole way: the words of the stop being read, as a film's
+    // subtitles under its heading, cruise control's play, resume and stop, and a line of the stops that
+    // is the page's scrollbar. A press on a stop's mark drives there; a press or a drag along the
+    // line goes there at once.
+    const box = document.createElement("div");
+    box.className = "journey";
+    box.innerHTML = `<div class="journey__words" aria-hidden="true"
+        ><span class="journey__text"></span></div
+      ><div class="journey__controls"
+        ><button class="journey__play" type="button">Drive</button
+        ><button class="journey__resume" type="button">Resume cruise</button
+        ><button class="journey__stop" type="button"
+          >Stop <kbd>Esc</kbd></button
+      ></div
+      ><div class="journey__line"><span class="journey__fill" aria-hidden="true"></span></div>`;
+    document.body.append(box);
+    const text = box.querySelector(".journey__text");
+    const playButton = box.querySelector(".journey__play");
+    const resumeButton = box.querySelector(".journey__resume");
+    const stopButton = box.querySelector(".journey__stop");
+    const line = box.querySelector(".journey__line");
+    // Each stop's words: the Start page's way in, each card's title and text, the install's.
+    const words = stops.map((stop, index) => {
+      if (index === 0) return ["Start", "Drive through Omaweb with the radio on, or scroll."];
+      const heading = stop.querySelector("h2");
+      const body = stop.querySelector(":scope > p, .install__lede");
+      return [heading.textContent.replace(/\.$/, ""), body?.innerHTML.trim() ?? ""];
+    });
+    stops.forEach((stop, index) => {
+      const mark = document.createElement("button");
+      mark.type = "button";
+      mark.className = "journey__mark";
+      mark.style.setProperty("--at", String(index / (stops.length - 1)));
+      mark.setAttribute("aria-label", words[index][0]);
+      mark.dataset.name = words[index][0];
+      mark.addEventListener("click", () => {
+        hold();
+        glide(index, 1600);
+      });
+      line.append(mark);
+    });
+    let said = -1;
+    follow = (at, index) => {
+      box.style.setProperty("--journey", String(Math.min(1, Math.max(0, at / (stops.length - 1)))));
+      if (index === said) return;
+      said = index;
+      // A copy of words a screen reader finds in place, so it is hidden from one, links and all.
+      text.innerHTML = words[index][1];
+      for (const link of text.querySelectorAll("a, button")) link.tabIndex = -1;
+      line.querySelectorAll(".journey__mark").forEach((mark, place) => {
+        mark.toggleAttribute("data-passed", place <= index);
+      });
     };
+    follow(progress(), reading);
+    // A press or a drag along the line puts the reader there at once.
+    const scrub = (event) => {
+      const place = journeyAt(event.clientX, line.getBoundingClientRect(), stops.length);
+      scrollTo({ top: base + place * length, behavior: "instant" });
+    };
+    line.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || event.target.closest(".journey__mark")) return;
+      line.setPointerCapture(event.pointerId);
+      hold();
+      scrubbing = true;
+      scrub(event);
+    });
+    line.addEventListener("pointermove", (event) => {
+      if (line.hasPointerCapture(event.pointerId)) scrub(event);
+    });
+    line.addEventListener("lostpointercapture", () => {
+      scrubbing = false;
+    });
+    const show = () => {
+      playButton.hidden = cruise.state !== "off";
+      resumeButton.hidden = cruise.state !== "held";
+      stopButton.hidden = cruise.state === "off";
+    };
+    show();
 
-    // What a stop does as cruise control reaches it: the Omnibar types its way to a feature, and
-    // Keyboard first lights its keys. Each gives back how to undo it.
+    // What a stop does as cruise control reaches it: Keyboard first lights its keys. It gives back
+    // how to undo it.
     const later = (timers, seconds, action) => timers.push(setTimeout(action, seconds * 1000));
     const performs = new Map([
-      [
-        start,
-        () => {
-          const timers = [];
-          const type = (value) => {
-            input.value = value;
-            input.dispatchEvent(new Event("input"));
-          };
-          const query = "keyboard";
-          [...query].forEach((_, at) =>
-            later(timers, 2 + at * 0.18, () => type(query.slice(0, at + 1))),
-          );
-          later(timers, 2 + (times[1] - 2) * 0.6, () => type(""));
-          return () => {
-            timers.forEach(clearTimeout);
-            type("");
-          };
-        },
-      ],
       [
         drive.querySelector("#keyboard"),
         (card) => {
@@ -667,10 +806,28 @@ if (drive) {
     };
 
     const tick = () => {
+      const before = cruise.current;
       const index = cruise.tick(clock());
+      // The road waits parked through the intro while the engine revs, to the drop.
+      if (cruise.state === "cruising" && cruise.current === 0 && !gliding) {
+        host.setParked(true);
+        cruising = revving(clock());
+        navigate();
+        hush(quiet(clock()));
+        look(dimming(clock()), sunNow + (rising(clock()) - sunNow) * 0.3);
+        countBars(introBar(clock()));
+      }
       if (index !== null) {
+        // The drop ends the hush and the dim at once; the first tick, into the intro, does not.
+        if (index > 0) {
+          hush(0);
+          host.setParked(false);
+          countBars(null, before === 0 && index === 1);
+          if (before === 0 && index === 1) burst();
+          else look(0, 1);
+        }
         leave();
-        glide(index);
+        glide(index, undefined, before === 0 && index === 1);
         undo = performs.get(stops[index])?.(stops[index]) ?? (() => {});
         if (cruise.state === "parked" && timed)
           setTimeout(() => cruise.state === "parked" && end(), 4000);
@@ -680,6 +837,7 @@ if (drive) {
     setInterval(() => cruise.state !== "off" && tick(), 100);
 
     const begin = (timer) => {
+      stir();
       leave();
       timed = timer;
       timerStart = performance.now();
@@ -688,11 +846,53 @@ if (drive) {
       cruise.start();
       tick();
     };
+    // The hush before the drop: the shooting stars fade.
+    const hush = (depth) => host.setHush(depth);
+    const idle = () => {
+      cruising = 0;
+      navigate();
+      hush(0);
+      cancelAnimationFrame(waking);
+      cancelAnimationFrame(bursting);
+      bursting = 0;
+      host.setStreak(0);
+      look(0, 1);
+      countBars(null);
+    };
+    // The intro's bar on the page, for its headlights and headline to step by, the chrome stepping
+    // back for the last two; null ends the intro, and the drop flashes the headline.
+    let dropping = 0;
+    const countBars = (bar, drop = false) => {
+      root.toggleAttribute("data-intro", bar !== null);
+      root.toggleAttribute("data-late", bar !== null && bar >= 6);
+      if (bar !== null) root.style.setProperty("--bar", String(bar));
+      else root.style.removeProperty("--bar");
+      if (drop) {
+        clearTimeout(dropping);
+        root.toggleAttribute("data-drop", true);
+        dropping = setTimeout(() => root.removeAttribute("data-drop"), 1200);
+      }
+    };
+    // The drop: the sun's flare bursts and fades with the song, the sun at full height, and the
+    // stars streak into speed lines and come back.
+    const burst = () => {
+      cancelAnimationFrame(waking);
+      const step = () => {
+        const bright = glare(clock());
+        const streak = streaking(clock());
+        look(-bright, 1);
+        host.setStreak(streak);
+        bursting = bright > 0 || streak > 0 ? requestAnimationFrame(step) : 0;
+      };
+      step();
+    };
     const end = () => {
       leave();
+      idle();
       cruise.end();
       radio.loop = true;
       show();
+      if (scrollY === 0) rest(true);
     };
     // A glide in flight lets go whatever cruise control's state, as on the way to the install,
     // where it has already parked.
@@ -700,6 +900,7 @@ if (drive) {
       if (gliding) letGo();
       if (!cruise.hold()) return;
       leave();
+      idle();
       radio.loop = true;
       show();
     };
@@ -740,13 +941,14 @@ if (drive) {
     ignition.hidden = false;
     ignition.addEventListener("click", ignite);
     resumeButton.addEventListener("click", resume);
-    chip.querySelector(".cruise__stop").addEventListener("click", stopAll);
+    stopButton.addEventListener("click", stopAll);
+    playButton.addEventListener("click", ignite);
 
-    // The reader's own hand, before the page's keys act on it. The ignition, the chip, the radio
-    // and the Omnibar's rows are cruise control's own controls or drive to a stop themselves.
+    // The reader's own hand, before the page's keys act on it. The ignition, the journey box, the
+    // radio and the Omnibar's rows are cruise control's own controls or drive to a stop themselves.
     const own = (target) =>
       target instanceof Element &&
-      target.closest(".omnibar__ignite, .cruise, .radio-toggle, .omnibar__rows");
+      target.closest(".omnibar__ignite, .journey, .radio-toggle, .omnibar__rows");
     for (const type of ["wheel", "touchstart", "pointerdown"]) {
       addEventListener(type, (event) => event.isTrusted && !own(event.target) && hold(), {
         capture: true,
@@ -772,9 +974,6 @@ if (drive) {
       goTo(card) {
         hold();
         glide(stops.indexOf(card), 2600);
-      },
-      step(by) {
-        glide(Math.max(0, Math.min(stops.length - 1, reading + by)), 1600);
       },
       ignite,
     };

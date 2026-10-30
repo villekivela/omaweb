@@ -22,10 +22,10 @@ claims. In order:
    closes on the card, whose list of refused requests names the ad network and the tracker, and
    holds it long enough to read. Neither is ever reached.
 1. A theme change on one Start page, across the whole browser: from Retro 82 to Tokyo Night in the
-   container, and on the desktop the desktop's own theme switched to Lumon and back. On the desktop,
-   once the caption is read, the camera draws back from the window to the whole monitor, holds there
-   while the wallpaper, the bar, the borders and the browser change together, and closes on the
-   window again before the next beat. Every other beat is framed on the window.
+   container, and on the desktop the desktop's own theme switched to Retro 82 and back. On the
+   desktop, once the caption is read, the camera draws back from the window to the whole monitor,
+   holds there while the wallpaper, the bar, the borders and the browser change together, and closes
+   on the window again before the next beat. Every other beat is framed on the window.
 1. An Agent at work in a Space of its own. Each command it runs, `omaweb space new`, `open`, `look`
    and one batched `do`, takes the caption's place as it runs, its tab's row in the sidebar names
    its last act after each, and the invoice is sent. The camera then closes on the row, the pointer
@@ -84,10 +84,12 @@ says the same. The container film keeps its own themes.
 The desktop film wears the reader's theme: the one the desktop is wearing when the run starts. The
 film's browser finds Omarchy's `~/.local/state/omarchy/current` through its own home and follows it
 as the reader's Omaweb does. The Theme beat switches the desktop's theme, as a reader does, with
-`omarchy-theme-set lumon`, then switches it back to the theme the run started with, so the beat
+`omarchy-theme-set retro-82`, then switches it back to the theme the run started with, so the beat
 shows the real switch, wallpaper and blur included, and most of the film is in the reader's theme.
-Notifications are already held, so the switch raises none on camera. The beat checks the chrome
-against each theme's `colors.toml`.
+Notifications are already held, so the switch raises none on camera. The beat checks that the
+chrome's colour moved with each switch, in the sidebar's selected tab row, whose highlight is mixed
+from the theme's accent: a theme whose background is near the desktop's, as Retro 82's navy is
+Ethereal's, still shows there.
 
 ```sh
 scripts/record_film.py desktop --change-to gruvbox
@@ -248,12 +250,16 @@ or the fades, since the card's title says what the caption did and the drive mov
 itself. `CLIP_OF` in `scripts/record_film.py` names each beat's card.
 
 `clips.json` lists the cards with a clip and each clip's length. The Theme beat's entry also lists
-the theme the recording wears at each moment, as `[seconds into the clip, theme]`: the beat marks
-each theme from the first frame whose chrome shows it, so the website's page puts the same theme on
-at that frame. The website offers the themes it wears there: Retro 82 and Tokyo Night from the
-container, and on the desktop the desktop's own theme and Lumon, the theme the beat changes to,
-which `scripts/build_website_themes.py` builds for the page without a swatch. A recording changed to
-another theme needs that theme added there too.
+the theme the recording wears at each moment, as `[seconds into the clip, theme]`. The beat marks
+each change when the recorder saw it, which is late, so the clip's cut reads it from the recording
+instead: the desktop's sweep in the wallpaper above the window (the whole frame in the container),
+from its first frame at a quarter of its strongest, since a sweep can show as a thin band before it
+widens, less a tenth of a second, so the website's page changes with the sweep. The website offers
+the themes it wears there: Retro 82 and Tokyo Night from the container, and on the desktop the
+desktop's own theme and Retro 82, the theme the beat changes to, which has a swatch. The page keeps
+Lumon, which films before Retro 82 changed to, without a swatch, until the published film is one
+that changes to Retro 82. A recording changed to another theme needs that theme added to
+`scripts/build_website_themes.py` too.
 
 The clips together stay under 4 MB, and the edit fails a recording whose clips do not.
 

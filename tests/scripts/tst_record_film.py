@@ -378,17 +378,11 @@ class BeatChecks(unittest.TestCase):
                           ("adsprout.test",))
 
     def test_a_theme_change_moves_the_chrome_to_the_new_theme(self):
-        retro, tokyo = (3, 18, 34), (19, 20, 28)
-        film.expect_repainted("Theme", (4, 18, 33), (19, 21, 29), retro, tokyo)
+        # The selected tab row, tinted by Ethereal's violet and then Retro 82's orange.
+        film.expect_repainted("Theme", (64, 67, 88), (120, 82, 70))
 
     def test_chrome_that_kept_its_colour_misses_the_theme_beat(self):
-        retro, tokyo = (3, 18, 34), (19, 20, 28)
-        self.assertMissed("Theme", film.expect_repainted, (4, 18, 33), (4, 18, 33), retro, tokyo)
-
-    def test_chrome_that_was_never_in_the_first_theme_misses_the_theme_beat(self):
-        retro, tokyo = (3, 18, 34), (19, 20, 28)
-        self.assertMissed("Theme", film.expect_repainted, (200, 200, 200), (19, 21, 29),
-                          retro, tokyo)
+        self.assertMissed("Theme", film.expect_repainted, (64, 67, 88), (66, 68, 90))
 
     def test_link_hints_are_a_page_that_reported_its_hints_on_show(self):
         reports = [{"host": "quillstack.test", "path": "/docs/tracing/", "hints": 0},
@@ -1128,11 +1122,11 @@ class FakeDesktop:
 
     def options(self, **overrides):
         """What a `Desktop` is made with against this stand-in: its commands, and an Omarchy of
-        its own whose desktop wears Ethereal Nebula Silver and which has Lumon installed."""
+        its own whose desktop wears Ethereal Nebula Silver and which has Retro 82 installed."""
         if not hasattr(self, "_omarchy"):
             self._omarchy = tempfile.TemporaryDirectory()
             root = Path(self._omarchy.name)
-            for theme, colour in (("current/theme", "#050718"), ("themes/lumon", "#101b21")):
+            for theme, colour in (("current/theme", "#050718"), ("themes/retro-82", "#101b21")):
                 (root / theme).mkdir(parents=True)
                 (root / theme / "colors.toml").write_text(
                     f'mode = "dark"\ndark_background = "{colour}"\n', encoding="utf-8")
@@ -1454,16 +1448,24 @@ class DesktopRecording(unittest.TestCase):
         self.assertEqual(film.frame_command(self.FRAME),
                          ["grim", "-g", "480,283 1600x900", "-t", "ppm", "-"])
 
-    def test_the_chrome_is_sampled_at_the_same_place_in_a_frame_of_any_size(self):
-        def ppm(width, height, at):
+    def test_the_chrome_is_sampled_across_the_selected_tab_row_in_a_frame_of_any_size(self):
+        def ppm(width, height):
+            """A frame black but for the selected tab row's box, half of it one colour and half
+            another."""
             pixels = bytearray(width * height * 3)
-            start = (at[1] * width + at[0]) * 3
-            pixels[start:start + 3] = bytes((10, 20, 30))
+            left, top, wide, high = (round(f * side) for f, side in
+                                     zip(film.CHROME_SAMPLE, (width, height, width, height)))
+            for y in range(top, top + high):
+                for x in range(left, left + wide):
+                    colour = (10, 20, 30) if x < left + wide // 2 else (30, 40, 50)
+                    pixels[(y * width + x) * 3:(y * width + x) * 3 + 3] = bytes(colour)
             return f"P6 {width} {height} 255\n".encode() + bytes(pixels)
 
-        # A hundredth of the way in and half way down: 24, 675 of the cage's 2400 by 1350.
-        self.assertEqual(film.chrome_sample(ppm(2400, 1350, (24, 675))), (10, 20, 30))
-        self.assertEqual(film.chrome_sample(ppm(1600, 900, (16, 450))), (10, 20, 30))
+        for width, height in ((2400, 1350), (1600, 900)):
+            with self.subTest(size=(width, height)):
+                sampled = film.chrome_sample(ppm(width, height))
+                for got, mean in zip(sampled, (20, 30, 40)):
+                    self.assertAlmostEqual(got, mean, delta=1)
 
     def test_a_recording_at_the_films_size_is_cut_as_it_is(self):
         self.assertEqual(film.staging(film.OUTPUT_MODE),
@@ -1612,13 +1614,13 @@ class DesktopRun(unittest.TestCase):
             shlex.join(command).replace("0x5566bb", "<film window>")
             for command in PLACE] + [
             shlex.join(film.recorder_command(self.out / "raw.mkv", "DP-1")),
-            "omarchy-theme-set lumon", "omarchy-theme-set ethereal-nebula-silver"] + [
+            "omarchy-theme-set retro-82", "omarchy-theme-set ethereal-nebula-silver"] + [
             shlex.join(command) for command in GIVE_BACK]
         self.assertEqual(printed, expected)
         film.compose.assert_not_called()
 
     def test_the_command_line_names_the_theme_the_beat_changes_to(self):
-        for arguments, named in (([], "lumon"), (["--change-to", "gruvbox"], "gruvbox")):
+        for arguments, named in (([], "retro-82"), (["--change-to", "gruvbox"], "gruvbox")):
             with mock.patch.object(film, "Desktop", return_value=self.desktop) as made, \
                     mock.patch.object(film, "record_on_desktop"), \
                     mock.patch.object(sys, "argv", ["record_film.py", "desktop", *arguments]):
@@ -1749,10 +1751,10 @@ class DesktopTheme(unittest.TestCase):
         changes = [theme.name for theme in film.theme_changes(mine, named)]
         self.assertEqual(changes, ["ethereal-nebula-silver", "gruvbox", "ethereal-nebula-silver"])
 
-    def test_without_a_theme_named_the_beat_changes_to_lumon(self):
+    def test_without_a_theme_named_the_beat_changes_to_retro_82(self):
         directories = self.installed(**{"retro-82": (1, "#031222"), "lumon": (1, "#101b21")})
         change = film.change_theme({"dark_background": "#3b2a40"}, directories=directories)
-        self.assertEqual((change.name, change.colours["dark_background"]), ("lumon", "#101b21"))
+        self.assertEqual((change.name, change.colours["dark_background"]), ("retro-82", "#031222"))
 
     def test_a_theme_named_is_read_from_the_readers_themes_before_the_systems(self):
         directories = self.installed(gruvbox=(1, "#1d2021"))
@@ -1766,19 +1768,19 @@ class DesktopTheme(unittest.TestCase):
         with self.assertRaisesRegex(film.BeatMissed, "no Omarchy theme called sepia"):
             film.change_theme({"dark_background": "#050718"}, "sepia", self.installed())
 
-    def test_a_theme_too_near_the_desktops_is_refused_with_lumon_suggested(self):
-        # Navy is nearer the desktop's than Lumon and far enough too, so Lumon is named as the
-        # default rather than as the nearest.
+    def test_a_theme_too_near_the_desktops_is_refused_with_retro_82_suggested(self):
+        # Lumon is nearer the desktop's than Retro 82 and far enough too, so Retro 82 is named as
+        # the default rather than as the nearest.
         directories = self.installed(**{"retro-82": (1, "#031222"), "lumon": (1, "#101b21"),
-                                        "navy": (1, "#0d1a2e")})
-        with self.assertRaisesRegex(film.BeatMissed, "too near.*--change-to lumon"):
-            film.change_theme({"dark_background": "#041325"}, "retro-82", directories)
+                                        "plum": (1, "#3a2a41")})
+        with self.assertRaisesRegex(film.BeatMissed, "too near.*--change-to retro-82"):
+            film.change_theme({"dark_background": "#3b2a40"}, "plum", directories)
 
-    def test_lumon_too_near_the_desktops_suggests_the_nearest_theme_far_enough(self):
-        directories = self.installed(**{"teal": (1, "#121d24"), "slate": (1, "#2a2f3a"),
-                                        "white": (1, "#ffffff"), "lumon": (1, "#101b21")})
+    def test_retro_82_too_near_the_desktops_suggests_the_nearest_theme_far_enough(self):
+        directories = self.installed(**{"teal": (1, "#051424"), "slate": (1, "#2a2f3a"),
+                                        "white": (1, "#ffffff"), "retro-82": (1, "#031222")})
         with self.assertRaisesRegex(film.BeatMissed, "too near.*--change-to slate"):
-            film.change_theme({"dark_background": "#101b22"}, directories=directories)
+            film.change_theme({"dark_background": "#031223"}, directories=directories)
 
     def test_a_refused_theme_stops_the_run_before_it_changes_anything(self):
         fake = FakeDesktop()
@@ -1999,6 +2001,74 @@ class DesktopLastWord(unittest.TestCase):
         self.assertIn("put back by hand: omarchy-shell notifications setDnd off", said)
 
 
+class ThemeOnsets(unittest.TestCase):
+    """A theme change is marked when the recorder saw it, which is later than the recording shows
+    it: on the desktop, by some 2.7 s. The clips' times are read from the recording instead."""
+
+    THEMES = [[0.0, "nebula"], [5.9, "lumon"], [9.3, "nebula"]]
+
+    def test_each_change_takes_the_time_the_recording_first_shows_it(self):
+        # Quiet but for the two sweeps, each several frames long, and the beat's fade at its end.
+        shifts = [(0.5, 0.02), (3.18, 1.6), (3.22, 1.0), (3.5, 0.9), (4.0, 0.01),
+                  (6.55, 1.7), (6.6, 1.2), (6.9, 0.4), (10.88, 1.4)]
+        self.assertEqual(film.theme_onsets(self.THEMES, shifts, 10.7),
+                         [[0.0, "nebula"], [3.08, "lumon"], [6.45, "nebula"]])
+
+    def test_a_sweep_that_starts_as_a_thin_band_is_timed_from_where_it_gets_going(self):
+        # Retro 82's sweep shows as a thin band for a third of a second before it widens: the
+        # change is timed from its first frame at a quarter of its strongest, not from the band.
+        shifts = [(3.95, 0.25), (3.99, 0.4), (4.29, 0.9), (4.32, 3.6), (4.35, 6.6), (4.42, 13.5),
+                  (4.49, 5.7), (9.79, 35.0), (9.82, 10.0)]
+        self.assertEqual(film.theme_onsets(self.THEMES, shifts, 10.7),
+                         [[0.0, "nebula"], [4.22, "lumon"], [9.69, "nebula"]])
+
+    def test_a_beat_with_a_different_number_of_changes_keeps_the_marked_times(self):
+        for shifts in ([], [(3.18, 1.6)], [(1.0, 1.6), (3.0, 1.6), (6.0, 1.6)]):
+            with self.subTest(shifts=shifts):
+                self.assertEqual(film.theme_onsets(self.THEMES, shifts, 10.7), self.THEMES)
+
+    @unittest.skipUnless(ffmpeg_can_read_brightness(), "this ffmpeg cannot read brightness")
+    def test_the_shifts_of_a_recording_are_read_from_its_frames(self):
+        with tempfile.TemporaryDirectory() as directory:
+            raw = Path(directory) / "raw.mkv"
+            colour = "color=c=0x{}:size=320x180:rate=30:duration={}"
+            subprocess.run(["ffmpeg", "-v", "error",
+                            "-f", "lavfi", "-i", colour.format("203040", 1.0),
+                            "-f", "lavfi", "-i", colour.format("603020", 1.5),
+                            "-f", "lavfi", "-i", colour.format("203040", 1.5),
+                            "-filter_complex", "[0:v][1:v][2:v]concat=n=3:v=1:a=0",
+                            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                            str(raw)], check=True)
+            shifts = film.chroma_shifts(raw, 0.0, 4.0)
+            self.assertEqual(film.theme_onsets([[0.0, "a"], [3.0, "b"], [3.5, "a"]], shifts, 4.0),
+                             [[0.0, "a"], [0.9, "b"], [2.4, "a"]])
+
+    @unittest.skipUnless(ffmpeg_can_read_brightness(), "this ffmpeg cannot read brightness")
+    def test_on_the_desktop_only_the_wallpaper_above_the_window_is_watched(self):
+        # The window repaints at once and the desktop's sweep follows, and the film's page changes
+        # with the sweep. Here the bottom half changes at 1.0 s and the top fifth at 2.0 s.
+        with tempfile.TemporaryDirectory() as directory:
+            raw = Path(directory) / "raw.mkv"
+            top, bottom = "0x203040", "0x603020"
+            subprocess.run(["ffmpeg", "-v", "error",
+                            "-f", "lavfi", "-i", f"color=c={top}:size=320x180:rate=30:duration=3",
+                            "-f", "lavfi", "-i", f"color=c={bottom}:size=320x90:rate=30:duration=1",
+                            "-f", "lavfi", "-i", f"color=c={top}:size=320x90:rate=30:duration=2",
+                            "-f", "lavfi", "-i", f"color=c={bottom}:size=320x36:rate=30:duration=1",
+                            "-filter_complex",
+                            "[1:v][2:v]concat=n=2:v=1:a=0[low];"
+                            "[0:v][low]overlay=0:90:eof_action=pass[a];"
+                            "[a][3:v]overlay=0:0:enable='gte(t,2)'",
+                            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                            str(raw)], check=True)
+            whole = film.chroma_shifts(raw, 0.0, 3.0)
+            self.assertEqual(film.theme_onsets([[0.0, "a"], [2.5, "b"], [2.9, "c"]], whole, 3.0),
+                             [[0.0, "a"], [0.9, "b"], [1.9, "c"]])
+            above = film.chroma_shifts(raw, 0.0, 3.0, 0.2)
+            self.assertEqual(film.theme_onsets([[0.0, "a"], [2.5, "b"]], above, 3.0),
+                             [[0.0, "a"], [1.9, "b"]])
+
+
 class RecordCleanup(unittest.TestCase):
     """The browser is stopped whatever stops the run, and a second Ctrl+C cannot keep it going."""
 
@@ -2142,7 +2212,7 @@ class DesktopLedger(unittest.TestCase):
     BACK_TO_NEBULA = ["omarchy-theme-set", "ethereal-nebula-silver"]
 
     def switched(self, fake, stop=None):
-        """A run that switches the desktop to Lumon for its Theme beat, then ends by `stop`."""
+        """A run that switches the desktop to Retro 82 for its Theme beat, then ends by `stop`."""
         desktop = self.desktop(fake)
         desktop.survey()
         with desktop.taken():
@@ -2156,7 +2226,7 @@ class DesktopLedger(unittest.TestCase):
         fake = FakeDesktop()
         self.switched(fake)
         self.assertEqual(self.noted["theme"], "ethereal-nebula-silver")
-        self.assertEqual(fake.acted[len(TAKE)], ["omarchy-theme-set", "lumon"])
+        self.assertEqual(fake.acted[len(TAKE)], ["omarchy-theme-set", "retro-82"])
 
     def test_a_run_that_ends_on_the_theme_it_switched_to_puts_the_desktops_back_first(self):
         fake = FakeDesktop()
@@ -2181,7 +2251,7 @@ class DesktopLedger(unittest.TestCase):
 
     def test_the_next_run_puts_back_the_theme_a_killed_run_switched_from(self):
         fake = FakeDesktop()
-        (fake.options()["current"] / "theme.name").write_text("lumon\n")
+        (fake.options()["current"] / "theme.name").write_text("retro-82\n")
         self.left(theme="ethereal-nebula-silver")
         with mock.patch("sys.stdout", new_callable=io.StringIO):
             self.desktop(fake).recover()
