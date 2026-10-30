@@ -13,6 +13,7 @@ import {
   launch,
   nearestStop,
   placement,
+  quiet,
   revving,
   revealClip,
   stopAt,
@@ -198,4 +199,19 @@ test("launch: full at the drop, falling away to nothing by 45% of the glide", ()
   assert.equal(launch(0.45), 0);
   assert.equal(launch(1), 0);
   assert.ok(launch(0.1) > launch(0.2));
+});
+
+// The last bar before the drop is a hush: the world dims and stills, the engine cut, so the drop
+// has something to break. It comes in over the first 30% of the bar, holds, and ends at the drop.
+test("quiet: the last bar before the drop hushes the world, and the drop ends it", () => {
+  const drop = 8 * BAR;
+  assert.equal(quiet(0), 0);
+  assert.equal(quiet(drop - 1.01 * BAR), 0);
+  assert.ok(Math.abs(quiet(drop - 0.85 * BAR) - 0.5) < 1e-9);
+  assert.equal(quiet(drop - 0.7 * BAR), 1);
+  assert.equal(quiet(drop - 0.01), 1);
+  assert.equal(quiet(drop), 0);
+  assert.equal(quiet(drop + 5), 0);
+  // The engine is cut in the hush, and a rev is not asked for in it.
+  assert.equal(revving(drop - 0.5), 0);
 });

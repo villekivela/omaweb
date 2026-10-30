@@ -43,6 +43,8 @@ export function sceneInput(scene, environment) {
     navigating: still ? 0 : Math.max(0, Math.min(1, environment.navigating || 0)),
     // The road stands still, as the hero's does until the journey starts; the sky carries on.
     parked: Boolean(environment.parked),
+    // The hush before the drop, 0 to 1: the sky stills with the road.
+    hush: still ? 0 : Math.max(0, Math.min(1, environment.hush || 0)),
     beat: still ? 0 : Math.max(0, Math.min(1, environment.beat || 0)),
     reducedMotion: still,
     palette,
@@ -157,6 +159,7 @@ export class SceneHost {
     this.time = 0;
     this.navigating = 0;
     this.parked = false;
+    this.hush = 0;
     this.state = {};
     this.frame = 0;
     this.last = -Infinity;
@@ -206,6 +209,7 @@ export class SceneHost {
       time: this.time,
       navigating: this.navigating,
       parked: this.parked,
+      hush: this.hush,
       beat: this.beat(),
       reducedMotion: this.reduced.matches,
       phone: this.phone.matches,
@@ -237,6 +241,11 @@ export class SceneHost {
   // Start page until the journey starts.
   setParked(value) {
     this.parked = value;
+  }
+
+  // The hush before the drop, 0 to 1, in which the shooting stars fade.
+  setHush(value) {
+    this.hush = value;
   }
 
   // How hard the reader is navigating, 0 to 1: the page sets it from the scroll's speed.

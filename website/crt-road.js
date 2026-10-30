@@ -306,10 +306,12 @@ export function createCrtRoad(p) {
       trail.addColorStop(1, css(colourOf(star.colour, c), 1 - run * star.fade));
       context.strokeStyle = trail;
       context.lineWidth = star.width;
+      context.globalAlpha = 1 - input.hush;
       context.beginPath();
       context.moveTo(tailX, tailY);
       context.lineTo(x, y);
       context.stroke();
+      context.globalAlpha = 1;
     }
 
     // The dashed centre line, its marks stretching as the road speeds up and widening with it.

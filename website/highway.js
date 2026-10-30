@@ -10,11 +10,25 @@ export const BAR = 240 / 107.5;
 const INTRO_BARS = 8;
 const CARD_BARS = 4;
 
+// The hush in the last bar before the drop, 0 to 1: the world dims and stills and the engine is
+// cut, so the drop has something to break. It comes in over the first 30% of the bar, holds, and
+// ends at the drop.
+export function quiet(time) {
+  const drop = INTRO_BARS * BAR;
+  if (time >= drop) return 0;
+  const into = Math.min(1, Math.max(0, (time - (drop - BAR)) / (0.3 * BAR)));
+  return into * into * (3 - 2 * into);
+}
+
+// How much the world dims in the hush, at its deepest: the scene's brightness falls by this much.
+export const HUSH_DIM = 0.4;
+
 // How hard the engine revs while the road waits parked through the intro, 0 to 0.7 of the throttle:
-// a little at first and then more, to the drop where the beat comes in and the drive sets off.
+// a little at first and then more, to the drop where the beat comes in and the drive sets off. In
+// the hush before the drop it is cut.
 export function revving(time) {
   const toward = Math.min(1, Math.max(0, time / (INTRO_BARS * BAR)));
-  return 0.7 * toward ** 2;
+  return 0.7 * toward ** 2 * (1 - quiet(time));
 }
 
 // The throw forward as the drive sets off at the drop, 0 to 1 over the first 45% of the first

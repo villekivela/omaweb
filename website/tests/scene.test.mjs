@@ -391,3 +391,11 @@ test("road: parked, it does not travel, and it sets off from where it stood", ()
   assert.ok(state.travel > 0);
   delete globalThis.document;
 });
+
+test("input: the hush before the drop reaches a moving Scene, 0 to 1, and a still one gets none", () => {
+  const moving = { palette: retro82, width: 10, height: 10 };
+  assert.equal(sceneInput(road, { ...moving, hush: 0.4 }).hush, 0.4);
+  assert.equal(sceneInput(road, { ...moving, hush: 3 }).hush, 1);
+  assert.equal(sceneInput(road, moving).hush, 0);
+  assert.equal(sceneInput(road, { ...moving, hush: 0.4, reducedMotion: true }).hush, 0);
+});

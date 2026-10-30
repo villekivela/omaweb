@@ -12,10 +12,12 @@ import {
   REVEAL_MS,
   cues,
   keyAnswer,
+  HUSH_DIM,
   LAUNCH,
   launch,
   nearestStop,
   placement,
+  quiet,
   revealClip,
   revving,
   wornAt,
@@ -72,7 +74,7 @@ if (drive) {
   // The Omnibar stands in front of the sun and catches its light at its rim.
   const host = crtRoad
     ? new SceneHost(canvas, crtRoad, { beat: listenToRadio(), lit: omnibar })
-    : { setNavigating() {}, setParked() {}, lightUp() {} };
+    : { setNavigating() {}, setParked() {}, setHush() {}, lightUp() {} };
   // On the Start page the road stands still, and the sky with its shooting stars goes on, until
   // the journey starts: the reader scrolls, or cruise control's first glide at the drop (the radio
   // and the ignition first build to it, the engine revving). Then it runs for good.
@@ -737,8 +739,10 @@ if (drive) {
       if (cruise.state === "cruising" && cruise.current === 0 && !gliding) {
         cruising = revving(clock());
         navigate();
+        hush(quiet(clock()));
       }
       if (index !== null) {
+        hush(0);
         leave();
         glide(index, undefined, before === 0 && index === 1);
         undo = performs.get(stops[index])?.(stops[index]) ?? (() => {});
@@ -758,9 +762,15 @@ if (drive) {
       cruise.start();
       tick();
     };
+    // The hush before the drop: the scene dims and the shooting stars fade.
+    const hush = (depth) => {
+      host.setHush(depth);
+      canvas.style.filter = depth ? `brightness(${1 - HUSH_DIM * depth})` : "";
+    };
     const idle = () => {
       cruising = 0;
       navigate();
+      hush(0);
     };
     const end = () => {
       leave();
