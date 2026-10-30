@@ -191,13 +191,14 @@ of main thread a frame.
 On a wide screen that allows motion, the landing page is a road, and the scroll is the throttle.
 `drive.js` decides it once, as the page opens, by the same query `scene.js` holds the road still
 under; a phone or a reader who asked for less motion keeps the stacked page. The page's height
-becomes a track of one window's height to each stop, with a snap where each is read, and each stop
-(the Start page, each card and the install) a layer over the road. `highway.js` places it by the
-scroll: past the horizon, risen from the sun and growing, held while it is read, then growing on,
-dropping below the camera and fading as the next one arrives. The install is where the road ends,
-and holds. The road runs faster with the scroll than on the stacked page, and at speed through a
-glide between stops. The scrim stands aside, the header stays in view, and the film has no stop of
-its own: each card plays its own beat of it instead.
+becomes a track of one window's height to each stop, a scroll that stops near one settling onto it
+(`settleTo`, not a CSS snap, which would pull a browser's own scroll keys back), and each stop (the
+Start page, each card and the install) a layer over the road. `highway.js` places it by the scroll:
+past the horizon, risen from the sun and growing, held while it is read, then growing on, dropping
+below the camera and fading as the next one arrives. The install is where the road ends, and holds.
+The road runs faster with the scroll than on the stacked page, and at speed through a glide between
+stops. The scrim stands aside, the header stays in view, and the film has no stop of its own: each
+card plays its own beat of it instead.
 
 Ignite, the play button at the Omnibar's end, Radio in the header, `M` and Return on the empty
 Omnibar all start cruise control: the radio plays Night road from its start, without its loop, and

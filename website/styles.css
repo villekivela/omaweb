@@ -1467,23 +1467,12 @@ kbd {
 }
 
 /* The drive: on a wide screen that allows motion, the page is a road (highway.js). The page's
-   height is a track for the scroll with a snap at each stop, and each stop is a layer over the road
-   that drive.js places by the scroll: risen from the sun, read, then passed. */
-
-html.highway {
-  scroll-snap-type: y proximity;
-}
+   height is a track for the scroll, and each stop is a layer over the road that drive.js places by
+   the scroll: risen from the sun, read, then passed. A scroll that stops near a stop settles onto
+   it (drive.js), with no CSS snap, which would pull a browser's own scroll keys back. */
 
 .highway__track {
   position: relative;
-}
-
-.highway__track i {
-  position: absolute;
-  left: 0;
-  width: 1px;
-  height: 1px;
-  scroll-snap-align: start;
 }
 
 /* The road stands clear, and the header stays in view with Radio, the ignition, in it. */

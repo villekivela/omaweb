@@ -100,6 +100,15 @@ export function journeyAt(x, { left, width }, count) {
   return Math.min(1, Math.max(0, (x - left) / width)) * (count - 1);
 }
 
+// The stop a scroll that has stopped at `at`, in stops, settles onto: one within a fifth of a stop,
+// unless it already stands on it. A scroll left well between two, as a browser's half-page scroll
+// leaves it, stays where it is.
+export function settleTo(at) {
+  const near = Math.round(at);
+  const off = Math.abs(at - near);
+  return off > 0.002 && off <= 0.2 ? near : null;
+}
+
 // The stop the song has reached at `time`: the last whose cue has come.
 export function stopAt(time, times) {
   let index = 0;

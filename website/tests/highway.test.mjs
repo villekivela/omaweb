@@ -22,6 +22,7 @@ import {
   quiet,
   revving,
   rising,
+  settleTo,
   streaking,
   revealClip,
   stopAt,
@@ -305,4 +306,15 @@ test("journeyAt: a place along the line is a place on the road, held to its ends
   assert.equal(journeyAt(20, line, 10), 0);
   assert.equal(journeyAt(4000, line, 10), 9);
   assert.equal(journeyAt(500, { left: 0, width: 0 }, 10), 0);
+});
+
+// A scroll that has stopped close to a stop settles onto it; one that stopped on a stop, or well
+// between two, as a browser's half-page scroll leaves it, stays where it is.
+test("settleTo: a stop within a fifth of one, else nowhere", () => {
+  assert.equal(settleTo(2.1), 2);
+  assert.equal(settleTo(2.85), 3);
+  assert.equal(settleTo(2), null);
+  assert.equal(settleTo(2.001), null);
+  assert.equal(settleTo(2.5), null);
+  assert.equal(settleTo(2.3), null);
 });

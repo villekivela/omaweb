@@ -27,6 +27,7 @@ import {
   revealClip,
   revving,
   rising,
+  settleTo,
   streaking,
   wornAt,
 } from "./highway.js";
@@ -458,7 +459,9 @@ if (drive) {
     for (const card of cards) card.querySelector(":scope > h2")?.classList.add("display");
     throttle = 4;
 
-    // One window's height of scroll to each stop, with a snap where it is read.
+    // One window's height of scroll to each stop. A scroll that stops close to one settles onto it
+    // (`settleTo`), rather than a CSS snap, which pulls back a browser's own scroll keys, such as
+    // Omaweb's, step by step, and ends their run.
     const track = document.createElement("div");
     track.className = "highway__track";
     track.setAttribute("aria-hidden", "true");
@@ -468,13 +471,6 @@ if (drive) {
     const measure = () => {
       length = innerHeight;
       track.style.height = `${(stops.length - 1) * length + innerHeight}px`;
-      track.replaceChildren(
-        ...stops.map((_, index) => {
-          const mark = document.createElement("i");
-          mark.style.top = `${index * length}px`;
-          return mark;
-        }),
-      );
       base = track.getBoundingClientRect().top + scrollY;
     };
     const progress = () => (scrollY - base) / length;
@@ -628,11 +624,18 @@ if (drive) {
       follow(at, reading);
     };
     let frame = 0;
+    let settling = 0;
+    let scrubbing = false;
     addEventListener(
       "scroll",
       () => {
         if (!frame) frame = requestAnimationFrame(() => ((frame = 0), render()));
         if (resting !== null && !gliding && Math.abs(scrollY - resting) > 8) takeWheel();
+        clearTimeout(settling);
+        settling = setTimeout(() => {
+          const stop = gliding || scrubbing ? null : settleTo(progress());
+          if (stop !== null) glide(stop, 500);
+        }, 200);
       },
       { passive: true },
     );
@@ -657,14 +660,12 @@ if (drive) {
       gliding = 0;
       cruising = 0;
       resting = null;
-      root.style.scrollSnapType = "";
     };
     const glide = (index, duration = 2200, thrown = false) => {
       cancelAnimationFrame(gliding);
       const from = scrollY;
       const to = base + index * length;
       const began = performance.now();
-      root.style.scrollSnapType = "none";
       let placed = from;
       const move = (now) => {
         // The scrollbar dragged, or any scroll the glide did not make, is the reader's hand.
@@ -763,14 +764,14 @@ if (drive) {
       if (event.button !== 0 || event.target.closest(".journey__mark")) return;
       line.setPointerCapture(event.pointerId);
       hold();
-      root.style.scrollSnapType = "none";
+      scrubbing = true;
       scrub(event);
     });
     line.addEventListener("pointermove", (event) => {
       if (line.hasPointerCapture(event.pointerId)) scrub(event);
     });
     line.addEventListener("lostpointercapture", () => {
-      root.style.scrollSnapType = "";
+      scrubbing = false;
     });
     const show = () => {
       playButton.hidden = cruise.state !== "off";
