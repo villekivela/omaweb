@@ -112,8 +112,9 @@ letter with the full name on hover. It is the widget's own `spaceNames` setting 
 Settings and the bar's widget settings change the same value.
 
 The Tab switcher opens with `omarchy-shell shell toggle omaweb.bar`, which a key in Hyprland can run
-too. It shows every Space as a column, Pinned tabs as favicons above the tabs. The arrows and typing
-move only the card; Enter switches the browser to the tab, Ctrl+W closes it and Ctrl+M mutes it.
+too. It shows every Space as a column, Pinned tabs as favicons above the tabs. h, j, k and l or the
+arrows move around it as a grid, and `/` starts a search of every Space that Esc leaves. Moving
+changes only the card; Enter switches the browser to the tab, Ctrl+W closes it and Ctrl+M mutes it.
 
 Quickshell keeps a plugin's files from its first scan. A release that changes the widget shows after
 `omarchy-restart-shell`.

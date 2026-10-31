@@ -39,20 +39,43 @@ export function board(state, filter) {
   return { columns, column, row: words.length === 0 && shown >= 0 ? shown : 0 };
 }
 
-// Where the cursor lands moving `dx` Spaces sideways or `dy` tabs up or down
-// from (`column`, `row`). Sideways passes a Space with nothing open, wraps at
-// either end and keeps the row where the Space has one; up and down stop at
-// the ends of the column.
-export function moveOnBoard(columns, column, row, dx, dy) {
+// Where the cursor lands moving `dx` sideways or `dy` up or down from
+// (`column`, `row`), with the pins `perLine` tiles to a line above the rows.
+// The pins move as a grid; sideways off the end of a line or a row goes to
+// the next Space with anything open, wrapping at either end, onto the same
+// line where it has one. Up and down stop at the ends of the column.
+export function moveOnBoard(columns, column, row, dx, dy, perLine = 1) {
+  const pinsIn = (index) => columns[index].tabs.filter((entry) => entry.pinned).length;
+  const linesIn = (index) =>
+    Math.ceil(pinsIn(index) / perLine) + columns[index].tabs.length - pinsIn(index);
+  const placeOf = (index, at) => {
+    const pins = pinsIn(index);
+    return at < pins
+      ? { line: Math.floor(at / perLine), slot: at % perLine }
+      : { line: Math.ceil(pins / perLine) + at - pins, slot: 0 };
+  };
+  // The tab at `slot` on `line`, or the last on a shorter line.
+  const rowAt = (index, line, slot) => {
+    const pins = pinsIn(index);
+    const pinLines = Math.ceil(pins / perLine);
+    return line < pinLines ? Math.min(line * perLine + slot, pins - 1) : pins + line - pinLines;
+  };
+  const here = placeOf(column, row);
   if (dx !== 0) {
+    const along = here.slot + Math.sign(dx);
+    if (row < pinsIn(column) && along >= 0 && along < perLine) {
+      const next = rowAt(column, here.line, along);
+      if (next !== row && placeOf(column, next).line === here.line) return { column, row: next };
+    }
     const count = columns.length;
     let next = column;
     for (let step = 0; step < count; ++step) {
       next = (next + Math.sign(dx) + count) % count;
       if (columns[next].tabs.length > 0) break;
     }
-    return { column: next, row: Math.min(row, columns[next].tabs.length - 1) };
+    const line = Math.min(here.line, linesIn(next) - 1);
+    return { column: next, row: rowAt(next, line, dx > 0 ? 0 : perLine - 1) };
   }
-  const last = columns[column].tabs.length - 1;
-  return { column, row: Math.max(0, Math.min(last, row + dy)) };
+  const line = Math.max(0, Math.min(linesIn(column) - 1, here.line + dy));
+  return { column, row: rowAt(column, line, here.slot) };
 }

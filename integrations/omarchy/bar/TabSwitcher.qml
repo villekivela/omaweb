@@ -15,6 +15,9 @@ BorderSurface {
     signal dismissed
 
     property string filter: ""
+    // The card opens for moving, h, j, k and l as the arrows; / starts a
+    // search, where letters are the search's until Esc.
+    property bool searching: false
     // The tab the reader moved to, kept by its Space and id so a new state
     // from the browser leaves the cursor on it. Until they move, or once it
     // is gone, the board's own choice holds.
@@ -74,6 +77,7 @@ BorderSurface {
     padding: Style.spacing.panelPadding
 
     function reset() {
+        searching = false;
         filter = "";
         chosenSpace = "";
         chosenTab = "";
@@ -97,7 +101,8 @@ BorderSurface {
     function move(dx, dy) {
         if (cursor.column < 0)
             return;
-        const next = BarModel.moveOnBoard(board.columns, cursor.column, cursor.row, dx, dy);
+        const next = BarModel.moveOnBoard(board.columns, cursor.column, cursor.row, dx, dy,
+                                          pinsPerLine);
         choose(next.column, next.row);
     }
 
@@ -147,20 +152,31 @@ BorderSurface {
         Keys.priority: Keys.BeforeItem
         Keys.onPressed: function (event) {
             const control = event.modifiers & Qt.ControlModifier;
+            const letter = !control && event.text && event.text.length === 1 && event.text.charCodeAt(
+                      0) >= 32 && event.text.charCodeAt(0) !== 127 ? event.text : "";
+            const vim = card.searching ? "" : letter;
             if (event.key === Qt.Key_Escape) {
-                if (card.filter)
+                // Out of the search keeps its matches to move among; then
+                // all the tabs again; then the card goes.
+                if (card.searching)
+                    card.searching = false;
+                else if (card.filter)
                     card.setFilter("");
                 else
                     card.dismissed();
-            } else if (Util.editsFilter(event, card.filter)) {
+            } else if (card.searching && event.key === Qt.Key_Backspace && !card.filter) {
+                card.searching = false;
+            } else if (card.searching && Util.editsFilter(event, card.filter)) {
                 card.setFilter(Util.editedFilter(event, card.filter));
-            } else if (event.key === Qt.Key_Up || (control && event.key === Qt.Key_P)) {
+            } else if (event.key === Qt.Key_Up || vim === "k" || (control && event.key
+                                                                  === Qt.Key_P)) {
                 card.move(0, -1);
-            } else if (event.key === Qt.Key_Down || (control && event.key === Qt.Key_N)) {
+            } else if (event.key === Qt.Key_Down || vim === "j" || (control && event.key
+                                                                    === Qt.Key_N)) {
                 card.move(0, 1);
-            } else if (event.key === Qt.Key_Left || event.key === Qt.Key_Backtab) {
+            } else if (event.key === Qt.Key_Left || vim === "h" || event.key === Qt.Key_Backtab) {
                 card.move(-1, 0);
-            } else if (event.key === Qt.Key_Right || event.key === Qt.Key_Tab) {
+            } else if (event.key === Qt.Key_Right || vim === "l" || event.key === Qt.Key_Tab) {
                 card.move(1, 0);
             } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                 card.take(card.cursor.column, card.cursor.row);
@@ -168,9 +184,10 @@ BorderSurface {
                 card.toggleSound(card.chosen && card.chosen.tab);
             } else if (control && event.key === Qt.Key_W) {
                 card.close(card.chosen && card.chosen.tab);
-            } else if (!control && event.text && event.text.length === 1 && event.text.charCodeAt(0)
-                       >= 32 && event.text.charCodeAt(0) !== 127) {
-                card.setFilter(card.filter + event.text);
+            } else if (vim === "/") {
+                card.searching = true;
+            } else if (card.searching && letter) {
+                card.setFilter(card.filter + letter);
             } else {
                 return;
             }
@@ -190,11 +207,11 @@ BorderSurface {
             id: search
             width: parent.width
             height: implicitHeight + Style.space(10)
-            text: card.filter || qsTr("Type to search every Space")
+            text: card.searching ? "/" + card.filter : card.filter || qsTr("/ searches every Space")
             textFormat: Text.PlainText
             elide: Text.ElideLeft
             color: card.fg
-            opacity: card.filter ? 1 : 0.45
+            opacity: card.searching || card.filter ? 1 : 0.45
             font.family: card.font
             font.pixelSize: Style.font.heading
         }
@@ -623,9 +640,12 @@ BorderSurface {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 horizontalAlignment: Text.AlignRight
-                text: !detail.tab ? "" : detail.tab.sound !== "" ? qsTr(
-                                                                       "Enter goes there\nCtrl+W closes, Ctrl+M mutes") :
-                                                                   qsTr("Enter goes there\nCtrl+W closes it")
+                text: !detail.tab ? "" : (card.searching ? qsTr(
+                                                               "Enter goes there, Esc stops searching") :
+                                                           qsTr("hjkl moves, Enter goes there"))
+                                    + "\n" + (detail.tab.sound !== "" ? qsTr(
+                                                                            "Ctrl+W closes, Ctrl+M mutes") :
+                                                                        qsTr("Ctrl+W closes it"))
                 textFormat: Text.PlainText
                 lineHeight: 1.15
                 color: card.fg

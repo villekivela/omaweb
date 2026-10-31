@@ -141,4 +141,31 @@ TestCase {
                     "row": 0
                 });
     }
+
+    // The pins are tiles, as many to a line as the column holds, and move as
+    // a grid: sideways tile by tile and on to the next Space at the end of a
+    // line, up and down a line at a time.
+    function test_thePinsMoveAsAGrid() {
+        const browser = state();
+        const tab = id => ({
+            id: id,
+            title: id,
+            host: id + ".example"
+        });
+        browser.spaces[1].pins = [tab("a"), tab("b"), tab("c")];
+        const columns = BarModel.board(browser, "").columns;
+        const move = (row, dx, dy) => {
+            const to = BarModel.moveOnBoard(columns, 1, row, dx, dy, 2);
+            return columns[to.column].space.id + "/" + columns[to.column].tabs[to.row].tab.id;
+        };
+
+        compare(move(0, 1, 0), "research/b");
+        compare(move(1, -1, 0), "research/a");
+        compare(move(1, 1, 0), "home/news");
+        compare(move(0, 0, 1), "research/c");
+        compare(move(1, 0, 1), "research/c");
+        compare(move(2, 0, 1), "research/issue");
+        compare(move(3, 0, -1), "research/c");
+        compare(move(2, 0, -1), "research/a");
+    }
 }
