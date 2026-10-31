@@ -170,10 +170,15 @@ creates its tab only after the user commits a destination in the Omnibar. _Avoid
 omnibox, command palette, command panel
 
 **Omarchy bar widget**: The bar widget Omaweb ships for Omarchy's bar, which shows the main window's
-Spaces, Pinned tabs and tabs there when the reader sets Tabs to Omarchy bar in Settings. Omaweb
-places it twice: after the workspaces with the Spaces and tabs, and in the center as the Location.
-The window then shows only the page, and its sidebar returns when no widget has been there for a few
-seconds. A Private window keeps its own sidebar. _Avoid_: Tab bar, taskbar, panel
+Space on show and its Location there when the reader sets Tabs to Omarchy bar in Settings. Omaweb
+places it first in the bar's center. Pressing the Space opens the Tab switcher. The window then
+shows only the page, and its sidebar returns when no widget has been there for a few seconds. A
+Private window keeps its own sidebar. _Avoid_: Tab bar, taskbar, panel
+
+**Tab switcher**: The card the Omarchy bar widget opens over the screen: every Space side by side as
+a column, its Pinned tabs as favicons above its tabs, and the Space on show ruled heavier. Moving
+around it changes nothing in the browser until a tab is taken; typing keeps the tabs that match in
+every Space. _Avoid_: Tab overview, tab popup, Spaces popup
 
 **Location**: The page on show as the Omarchy bar widget names it in the bar's center: back, forward
 and reload, then a lock, the host, and the title dimmed, at a fixed width so a tab switch moves

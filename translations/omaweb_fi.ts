@@ -3232,6 +3232,14 @@ Päivitykset osoitteesta %3</translation>
         <translation>Ikkunan reuna, jota vasten sivupalkki on. Kun sivupalkki on piilotettu, viivähdä osoittimella tässä reunassa, niin näet sivupalkin.</translation>
     </message>
     <message>
+        <source>Where Spaces and tabs are shown. Omarchy bar puts the Space on show in the bar&apos;s center, which opens every Space and tab, and leaves the window to the page. The sidebar comes back if the bar does not show them.</source>
+        <translation>Missä tilat ja välilehdet näytetään. Omarchyn palkki tuo esillä olevan tilan palkin keskelle, josta avautuvat kaikki tilat ja välilehdet, ja jättää ikkunan sivulle. Sivupalkki palaa, jos palkki ei näytä niitä.</translation>
+    </message>
+    <message>
+        <source>First letter shortens the Space in the bar to its first letter. The full name shows on hover.</source>
+        <translation>Alkukirjain lyhentää palkin tilan sen ensimmäiseen kirjaimeen. Koko nimi näkyy, kun osoitin on sen päällä.</translation>
+    </message>
+    <message>
         <source>%1, from the desktop</source>
         <comment>a page scale the desktop set, as 136%</comment>
         <translation>%1, työpöydältä</translation>
@@ -3691,10 +3699,6 @@ Päivitykset osoitteesta %3</translation>
         <translation>Välilehdet</translation>
     </message>
     <message>
-        <source>Where Spaces and tabs are shown. Omarchy bar puts them in the bar beside the workspaces and leaves the window to the page. The sidebar comes back if the bar does not show them.</source>
-        <translation>Missä tilat ja välilehdet näytetään. Omarchyn palkki tuo ne palkkiin työtilojen viereen ja jättää ikkunan sivulle. Sivupalkki palaa, jos palkki ei näytä niitä.</translation>
-    </message>
-    <message>
         <source>Sidebar</source>
         <comment>tabs: shown in the window&apos;s sidebar</comment>
         <translation>Sivupalkki</translation>
@@ -3707,10 +3711,6 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>Space names in the bar</source>
         <translation>Tilojen nimet palkissa</translation>
-    </message>
-    <message>
-        <source>First letter shortens each Space to its first letter, so more tabs fit. The full name shows on hover.</source>
-        <translation>Alkukirjain lyhentää jokaisen tilan sen ensimmäiseen kirjaimeen, jotta välilehtiä mahtuu enemmän. Koko nimi näkyy, kun osoitin on sen päällä.</translation>
     </message>
     <message>
         <source>Full name</source>

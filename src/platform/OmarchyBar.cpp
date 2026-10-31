@@ -16,17 +16,16 @@
 namespace omaweb {
 namespace {
 
-    // The tabs after the workspaces, or at the end of the left where the reader
-    // has none, and the location first in the center. Omarchy 4.0.6 has no
-    // section before the center's anchor, so first in the center is as near
-    // the middle as the location can ask to be. Any earlier placement of the
-    // widget goes first, so placing it twice places it once.
+    // The widget first in the center. Omarchy 4.0.6 has no section before the
+    // center's anchor, so first in the center is as near the middle as it can
+    // ask to be. Any earlier placement goes first, so placing it twice places
+    // it once, and the pair Omaweb once placed, its tabs on the left and the
+    // Location in the center, leaves one widget with the tabs' Space names.
     const auto placeFilter = QStringLiteral(R"(
-.bar.layout.left |= ((. // []) | map(select(.id != $id))
-  | (map(.id) | index("omarchy.workspaces")) as $at
-  | if $at == null then . + [{id: $id, role: "tabs"}]
-    else .[: $at + 1] + [{id: $id, role: "tabs"}] + .[$at + 1 :] end)
-| .bar.layout.center = [{id: $id, role: "location"}]
+(first((.bar.layout // {}) | .[]? | arrays | .[] | select(.id == $id) | .spaceNames | strings)
+  // null) as $names
+| .bar.layout.left |= ((. // []) | map(select(.id != $id)))
+| .bar.layout.center = [{id: $id} + (if $names == null then {} else {spaceNames: $names} end)]
     + ((.bar.layout.center // []) | map(select(.id != $id)))
 | .bar.layout.right |= ((. // []) | map(select(.id != $id)))
 )");
@@ -37,11 +36,11 @@ then .bar.layout |= map_values(if type == "array" then map(select(.id != $id)) e
 else . end
 )");
 
-    // The tabs' entry's own setting, wherever the reader has moved it.
+    // The widget's own setting, wherever the reader has moved it.
     const auto spaceNamesFilter = QStringLiteral(R"(
 if (.bar.layout | type) == "object"
 then .bar.layout |= map_values(if type == "array"
-  then map(if .id == $id and .role == "tabs" then .spaceNames = "%1" else . end) else . end)
+  then map(if .id == $id then .spaceNames = "%1" else . end) else . end)
 else . end
 )");
 
@@ -198,7 +197,6 @@ void OmarchyBarPlacement::readSpaceNames()
             const auto fields = entry.toObject();
             if (fields.value(QStringLiteral("id")).toString()
                     == QLatin1StringView(omarchyBarWidgetId)
-                && fields.value(QStringLiteral("role")).toString() == u"tabs"
                 && fields.value(QStringLiteral("spaceNames")).toString() == u"letter") {
                 read = QStringLiteral("letter");
             }

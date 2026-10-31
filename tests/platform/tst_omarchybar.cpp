@@ -145,7 +145,8 @@ class OmarchyBarTest final : public QObject {
 
 private slots:
     void placingLinksTheShippedWidgetIntoThePlugins();
-    void placingPutsTheTabsAfterTheWorkspacesAndTheLocationFirstInTheCenter();
+    void placingPutsTheWidgetFirstInTheCenter();
+    void placingOverTheEarlierPairLeavesOneWidget();
     void placingKeepsTheReadersLayoutAsTheyWroteIt();
     void placingTwicePlacesTheWidgetOnce();
     void aReaderWithoutALayoutGetsTheDefaultWithTheWidgetInIt();
@@ -154,7 +155,7 @@ private slots:
     void startingPointsTheLinkAtThisBuildAndLeavesTheLayoutAlone();
     void theSettingIsOfferedOnlyWhileTheShellAnswers();
     void choosingTheBarAndBackAtOnceLeavesTheSidebarsLayout();
-    void spaceNamesAreTheTabsPlacementsOwnSetting();
+    void spaceNamesAreTheWidgetsOwnSetting();
 };
 
 void OmarchyBarTest::placingLinksTheShippedWidgetIntoThePlugins()
@@ -171,7 +172,7 @@ void OmarchyBarTest::placingLinksTheShippedWidgetIntoThePlugins()
         QStringLiteral("-q"), QStringLiteral("shell"), QStringLiteral("rescanPlugins")}));
 }
 
-void OmarchyBarTest::placingPutsTheTabsAfterTheWorkspacesAndTheLocationFirstInTheCenter()
+void OmarchyBarTest::placingPutsTheWidgetFirstInTheCenter()
 {
     Home home;
     write(home.paths.shellConfig, readersLayout);
@@ -183,15 +184,46 @@ void OmarchyBarTest::placingPutsTheTabsAfterTheWorkspacesAndTheLocationFirstInTh
     const auto layout = layoutIn(home.paths.shellConfig);
     QCOMPARE(section(layout, QStringLiteral("left")),
         (QStringList {QStringLiteral("omarchy.menu"), QStringLiteral("omarchy.workspaces"),
-            QStringLiteral("omaweb.bar:tabs"), QStringLiteral("omarchy.media")}));
+            QStringLiteral("omarchy.media")}));
     QCOMPARE(section(layout, QStringLiteral("center")),
-        (QStringList {QStringLiteral("omaweb.bar:location"), QStringLiteral("omarchy.clock")}));
+        (QStringList {QStringLiteral("omaweb.bar"), QStringLiteral("omarchy.clock")}));
     QCOMPARE(
         section(layout, QStringLiteral("right")), QStringList {QStringLiteral("omarchy.tray")});
     // Read again once it is written, so the shell shows what the file says.
     QCOMPARE(desktop.shellCalls.last(),
         (QStringList {
             QStringLiteral("-q"), QStringLiteral("shell"), QStringLiteral("reloadConfig")}));
+}
+
+// Omaweb once placed the widget twice, its tabs on the left and the
+// Location in the center, each with a role. Placing it again leaves the one.
+void OmarchyBarTest::placingOverTheEarlierPairLeavesOneWidget()
+{
+    Home home;
+    write(home.paths.shellConfig,
+        QByteArray(readersLayout)
+            .replace(R"({ "id": "omarchy.workspaces" })",
+                R"({ "id": "omarchy.workspaces" }, { "id": "omaweb.bar", "role": "tabs", "spaceNames": "letter" })")
+            .replace(R"({ "id": "omarchy.clock",)",
+                R"({ "id": "omaweb.bar", "role": "location" }, { "id": "omarchy.clock",)"));
+    QVERIFY(contentsOf(home.paths.shellConfig).contains(R"("role": "location")"));
+    Desktop desktop;
+    OmarchyBarPlacement placement(home.paths, home.shipped, desktop.command());
+
+    placement.place();
+
+    const auto layout = layoutIn(home.paths.shellConfig);
+    QVERIFY(!section(layout, QStringLiteral("left")).join(u' ').contains(u"omaweb"));
+    QCOMPARE(section(layout, QStringLiteral("center")),
+        (QStringList {QStringLiteral("omaweb.bar"), QStringLiteral("omarchy.clock")}));
+    // The tabs' own setting comes along.
+    QCOMPARE(layout.value(QStringLiteral("center"))
+                 .toArray()
+                 .at(0)
+                 .toObject()
+                 .value(QStringLiteral("spaceNames"))
+                 .toString(),
+        QStringLiteral("letter"));
 }
 
 void OmarchyBarTest::placingKeepsTheReadersLayoutAsTheyWroteIt()
@@ -221,9 +253,7 @@ void OmarchyBarTest::placingTwicePlacesTheWidgetOnce()
     placement.place();
 
     const auto layout = layoutIn(home.paths.shellConfig);
-    QCOMPARE(section(layout, QStringLiteral("left")).count(QStringLiteral("omaweb.bar:tabs")), 1);
-    QCOMPARE(
-        section(layout, QStringLiteral("center")).count(QStringLiteral("omaweb.bar:location")), 1);
+    QCOMPARE(section(layout, QStringLiteral("center")).count(QStringLiteral("omaweb.bar")), 1);
 }
 
 // The shell reads its default layout while the reader has no file, and their
@@ -239,7 +269,7 @@ void OmarchyBarTest::aReaderWithoutALayoutGetsTheDefaultWithTheWidgetInIt()
 
     const auto layout = layoutIn(home.paths.shellConfig);
     QVERIFY(section(layout, QStringLiteral("left")).contains(QStringLiteral("omarchy.menu")));
-    QVERIFY(section(layout, QStringLiteral("left")).contains(QStringLiteral("omaweb.bar:tabs")));
+    QVERIFY(section(layout, QStringLiteral("center")).contains(QStringLiteral("omaweb.bar")));
     QCOMPARE(contentsOf(home.paths.defaultShellConfig), readersLayout);
 }
 
@@ -335,7 +365,7 @@ void OmarchyBarTest::choosingTheBarAndBackAtOnceLeavesTheSidebarsLayout()
 
 // Omaweb's Settings and the bar's own widget settings name the same value: the
 // `spaceNames` of the tabs' entry, which the Location's entry does not carry.
-void OmarchyBarTest::spaceNamesAreTheTabsPlacementsOwnSetting()
+void OmarchyBarTest::spaceNamesAreTheWidgetsOwnSetting()
 {
     Home home;
     write(home.paths.shellConfig, readersLayout);
@@ -350,11 +380,9 @@ void OmarchyBarTest::spaceNamesAreTheTabsPlacementsOwnSetting()
     QCOMPARE(placement.spaceNames(), QStringLiteral("letter"));
     QCOMPARE(changed.count(), 1);
     const auto layout = layoutIn(home.paths.shellConfig);
-    const auto tabs = layout.value(QStringLiteral("left")).toArray().at(2).toObject();
-    QCOMPARE(tabs.value(QStringLiteral("role")).toString(), QStringLiteral("tabs"));
-    QCOMPARE(tabs.value(QStringLiteral("spaceNames")).toString(), QStringLiteral("letter"));
-    const auto location = layout.value(QStringLiteral("center")).toArray().at(0).toObject();
-    QVERIFY(!location.contains(QStringLiteral("spaceNames")));
+    const auto widget = layout.value(QStringLiteral("center")).toArray().at(0).toObject();
+    QCOMPARE(widget.value(QStringLiteral("id")).toString(), QStringLiteral("omaweb.bar"));
+    QCOMPARE(widget.value(QStringLiteral("spaceNames")).toString(), QStringLiteral("letter"));
     QCOMPARE(desktop.shellCalls.last(),
         (QStringList {
             QStringLiteral("-q"), QStringLiteral("shell"), QStringLiteral("reloadConfig")}));

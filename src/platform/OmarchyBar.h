@@ -40,9 +40,9 @@ OmarchyCommand runOmarchyCommand();
 
 // Puts the widget the package ships into the reader's Omarchy bar and takes it
 // out again (#906). Placing links the widget into the shell's plugins, so it
-// is the package's copy that runs and an upgrade reaches it, and puts it in the
-// layout twice: the tabs after the workspaces, and the location first in the
-// center. Removing takes out both and the link.
+// is the package's copy that runs and an upgrade reaches it, and puts it first
+// in the layout's center, in place of the pair earlier versions placed.
+// Removing takes out the placement and the link.
 //
 // The layout is edited with `jq`, as Omarchy's own commands edit it, so the
 // reader's file keeps its order and its indentation. The shell is asked to

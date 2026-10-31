@@ -1358,7 +1358,7 @@ Rectangle {
                         colors: root.colors
                         title: qsTr("Tabs")
                         note: qsTr(
-                                  "Where Spaces and tabs are shown. Omarchy bar puts them in the bar beside the workspaces and leaves the window to the page. The sidebar comes back if the bar does not show them.")
+                                  "Where Spaces and tabs are shown. Omarchy bar puts the Space on show in the bar's center, which opens every Space and tab, and leaves the window to the page. The sidebar comes back if the bar does not show them.")
 
                         SettingChoice {
                             objectName: "tabsPlacement"
@@ -1391,7 +1391,7 @@ Rectangle {
                         colors: root.colors
                         title: qsTr("Space names in the bar")
                         note: qsTr(
-                                  "First letter shortens each Space to its first letter, so more tabs fit. The full name shows on hover.")
+                                  "First letter shortens the Space in the bar to its first letter. The full name shows on hover.")
 
                         SettingChoice {
                             objectName: "barSpaceNames"
