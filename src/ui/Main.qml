@@ -1417,39 +1417,9 @@ ApplicationWindow {
         case "close":
             browser.closeTab(args.tab);
             break;
-        case "pin":
-        case "unpin":
-            // Pinning is the tab on show's to do, so the tab is shown for it
-            // and the one the reader was on is shown again.
-            if (browser.tabPinned(args.tab) !== (action === "pin")) {
-                const onShow = browser.activeTabId;
-                browser.activateTab(args.tab);
-                browser.toggleActivePinned();
-                if (onShow !== args.tab)
-                    browser.activateTab(onShow);
-            }
-            break;
-        case "duplicate":
-            browser.duplicateTab(args.tab);
-            break;
         case "mute":
         case "unmute":
             browser.setTabMuted(args.tab, action === "mute");
-            break;
-        case "popout":
-            if (browser.tabPoppedOut(args.tab))
-                window.putBackTab(args.tab);
-            else
-                window.popOutTab(args.tab);
-            break;
-        case "move":
-            window.moveTabAsListedInBar(args.tab, args.index);
-            break;
-        case "cycle":
-            window.stepTab(args.step);
-            break;
-        case "space":
-            browser.switchSpace(args.space);
             break;
         case "back":
             window.goBack();
@@ -1464,20 +1434,6 @@ ApplicationWindow {
             window.openOmnibar(false);
             break;
         }
-    }
-
-    // The bar lists a section's tabs without the blank ones, and the browser
-    // counts every tab of the section, so the destination is the place of the
-    // tab the bar lists there.
-    function moveTabAsListedInBar(tabId, index) {
-        const browser = window.windowBrowser;
-        const shown = browser.barSpaces().find(space => space.id === browser.activeSpaceId);
-        if (!shown)
-            return;
-        const section = browser.tabPinned(tabId) ? shown.pins : shown.tabs;
-        const target = section[Math.min(index, section.length - 1)];
-        if (target)
-            browser.moveTab(tabId, browser.tabSectionIndex(target.id));
     }
 
     // A change to anything the bar shows is told once the turn that made it

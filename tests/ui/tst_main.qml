@@ -5172,13 +5172,12 @@ TestCase {
         tryCompare(sidebar, "visible", false);
     }
 
-    function test_theBarSwitchesSpaceAndSelectsATabInAnother() {
+    // The tab switcher takes a tab in any Space.
+    function test_theBarSelectsATabInAnotherSpace() {
         const spaces = swipeSpaces();
-
-        omarchyBar.actionRequested("space", {
-                                       "space": spaces.second
-                                   });
+        browser.switchSpace(spaces.second);
         tryCompare(browser, "activeSpaceId", spaces.second);
+
         omarchyBar.actionRequested("activate", {
                                        "tab": spaces.firstTab,
                                        "space": spaces.first
@@ -5188,37 +5187,21 @@ TestCase {
         forgetSwipeSpaces(spaces);
     }
 
-    function test_theBarPinsDuplicatesAndClosesATab() {
+    function test_theBarClosesATab() {
         openPage("https://bar-first.example/");
         openPageInNewTab("https://bar-second.example/");
         const second = browser.activeTabId;
         const count = browser.tabs.rowCount();
 
-        omarchyBar.actionRequested("pin", {
-                                       "tab": second
-                                   });
-        verify(browser.tabPinned(second));
-        omarchyBar.actionRequested("unpin", {
-                                       "tab": second
-                                   });
-        verify(!browser.tabPinned(second));
-        omarchyBar.actionRequested("duplicate", {
-                                       "tab": second
-                                   });
-        compare(browser.tabs.rowCount(), count + 1);
-        const duplicate = browser.activeTabId;
-        verify(duplicate !== second);
         omarchyBar.actionRequested("close", {
-                                       "tab": duplicate
+                                       "tab": second
                                    });
-        compare(browser.tabs.rowCount(), count);
-        omarchyBar.actionRequested("cycle", {
-                                       "step": -1
-                                   });
+
+        compare(browser.tabs.rowCount(), count - 1);
         verify(browser.activeTabId !== second);
     }
 
-    // The sound mark on a favicon mutes the tab, and unmutes it again.
+    // The switcher's speaker mutes the tab, and unmutes it again.
     function test_theBarMutesATab() {
         openPage("https://bar-sound.example/");
         const tab = browser.activeTabId;
@@ -5249,47 +5232,6 @@ TestCase {
         settings.tabsPlacementChosen("sidebar");
         compare(browser.preference("tabs", "omarchy-bar"), "sidebar");
         compare(settings.tabsPlacement, "sidebar");
-    }
-
-    // Pinning from the bar's menu is about the tab it was opened on, and the
-    // tab on show stays on show.
-    function test_theBarPinsATabWithoutShowingIt() {
-        openPage("https://bar-pin-first.example/");
-        const first = browser.activeTabId;
-        openPageInNewTab("https://bar-pin-second.example/");
-        const second = browser.activeTabId;
-
-        omarchyBar.actionRequested("pin", {
-                                       "tab": first
-                                   });
-
-        verify(browser.tabPinned(first));
-        compare(browser.activeTabId, second);
-        omarchyBar.actionRequested("unpin", {
-                                       "tab": first
-                                   });
-        verify(!browser.tabPinned(first));
-        compare(browser.activeTabId, second);
-    }
-
-    // The bar's popup counts a section's tabs as it lists them.
-    function test_theBarMovesATabToWhereItListsIt() {
-        openPage("https://bar-move-a.example/");
-        openPageInNewTab("https://bar-move-b.example/");
-        const b = browser.activeTabId;
-        openPageInNewTab("https://bar-move-c.example/");
-        const c = browser.activeTabId;
-        const listed = browser.barSpaces().find(space => space.id === browser.activeSpaceId).tabs;
-        const at = listed.findIndex(tab => tab.id === b);
-
-        omarchyBar.actionRequested("move", {
-                                       "tab": c,
-                                       "index": at
-                                   });
-
-        const moved = browser.barSpaces().find(space => space.id === browser.activeSpaceId).tabs;
-        compare(moved.findIndex(tab => tab.id === c), at);
-        compare(moved.findIndex(tab => tab.id === b), at + 1);
     }
 
     // The choice reaches the bar's own setting for its widget, through the

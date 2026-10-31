@@ -49,10 +49,9 @@ public:
     void setAbsenceGrace(int milliseconds);
 
 signals:
-    // An action a widget asked for: `activate`, `close`, `pin`, `unpin`,
-    // `duplicate` and `popout` with a `tab`, `activate` with its `space` too,
-    // `space` with a `space`, `cycle` with a `step` of 1 or -1, `move` with a
-    // `tab` and an `index`, and `back`, `forward`, `reload` and `omnibar` alone.
+    // An action a widget asked for: `activate`, `close`, `mute` and `unmute`
+    // with a `tab`, `activate` with its `space` too, and `back`, `forward`,
+    // `reload` and `omnibar` alone.
     void actionRequested(const QString &action, const QVariantMap &arguments);
     void widgetsPresentChanged();
 

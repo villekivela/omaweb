@@ -246,31 +246,32 @@ void BarTest::aWidgetAsksForTheActionsOfTheFixedSet()
     QVERIFY(widget);
 
     say(*widget, R"({"do": "activate", "tab": "t1", "space": "work"})");
-    say(*widget, R"({"do": "cycle", "step": -1})");
-    say(*widget, R"({"do": "move", "tab": "t2", "index": 3})");
+    say(*widget, R"({"do": "close", "tab": "t2"})");
     say(*widget, R"({"do": "reload", "tab": "ignored"})");
     say(*widget, R"({"do": "mute", "tab": "t3"})");
     say(*widget, R"({"do": "unmute", "tab": "t3"})");
+    say(*widget, R"({"do": "omnibar"})");
 
     QTRY_COMPARE(asked.count(), 6);
     QCOMPARE(asked.at(0).at(0).toString(), QStringLiteral("activate"));
     QCOMPARE(asked.at(0).at(1).toMap(),
         (QVariantMap {{QStringLiteral("tab"), QStringLiteral("t1")},
             {QStringLiteral("space"), QStringLiteral("work")}}));
-    QCOMPARE(asked.at(1).at(1).toMap(), (QVariantMap {{QStringLiteral("step"), -1}}));
-    QCOMPARE(asked.at(2).at(1).toMap(),
-        (QVariantMap {
-            {QStringLiteral("tab"), QStringLiteral("t2")}, {QStringLiteral("index"), 3}}));
-    QCOMPARE(asked.at(3).at(0).toString(), QStringLiteral("reload"));
-    QVERIFY(asked.at(3).at(1).toMap().isEmpty());
-    QCOMPARE(asked.at(4).at(0).toString(), QStringLiteral("mute"));
+    QCOMPARE(asked.at(1).at(0).toString(), QStringLiteral("close"));
     QCOMPARE(
-        asked.at(4).at(1).toMap(), (QVariantMap {{QStringLiteral("tab"), QStringLiteral("t3")}}));
-    QCOMPARE(asked.at(5).at(0).toString(), QStringLiteral("unmute"));
+        asked.at(1).at(1).toMap(), (QVariantMap {{QStringLiteral("tab"), QStringLiteral("t2")}}));
+    QCOMPARE(asked.at(2).at(0).toString(), QStringLiteral("reload"));
+    QVERIFY(asked.at(2).at(1).toMap().isEmpty());
+    QCOMPARE(asked.at(3).at(0).toString(), QStringLiteral("mute"));
+    QCOMPARE(
+        asked.at(3).at(1).toMap(), (QVariantMap {{QStringLiteral("tab"), QStringLiteral("t3")}}));
+    QCOMPARE(asked.at(4).at(0).toString(), QStringLiteral("unmute"));
+    QCOMPARE(asked.at(5).at(0).toString(), QStringLiteral("omnibar"));
 }
 
-// The bar reaches tabs and Spaces and nothing else: no page, no address to
-// open, and no tab it does not name.
+// The bar reaches the tabs, the page's back, forward and reload, and the
+// Location, and nothing else: no page, no address to open, no tab it does
+// not name, and none of the sidebar's own tab commands.
 void BarTest::anActionOutsideTheSetIsDropped()
 {
     QTemporaryDir home;
@@ -284,8 +285,12 @@ void BarTest::anActionOutsideTheSetIsDropped()
     say(*widget, R"({"do": "eval", "script": "document.cookie"})");
     say(*widget, R"({"do": "open", "url": "https://example.com"})");
     say(*widget, R"({"do": "close"})");
-    say(*widget, R"({"do": "cycle", "step": 5})");
-    say(*widget, R"({"do": "move", "tab": "t2", "index": -1})");
+    say(*widget, R"({"do": "pin", "tab": "t2"})");
+    say(*widget, R"({"do": "duplicate", "tab": "t2"})");
+    say(*widget, R"({"do": "popout", "tab": "t2"})");
+    say(*widget, R"({"do": "move", "tab": "t2", "index": 3})");
+    say(*widget, R"({"do": "cycle", "step": 1})");
+    say(*widget, R"({"do": "space", "space": "reading"})");
     say(*widget, "not json");
     say(*widget, R"({"do": "back"})");
 
@@ -525,10 +530,10 @@ void BarTest::theBarsActionsReachTheWindow()
     auto widget = connectWidget(path);
     QVERIFY(widget);
 
-    say(*widget, R"({"do": "space", "space": "reading"})");
+    say(*widget, R"({"do": "activate", "tab": "t1"})");
 
     QTRY_COMPARE(asked.count(), 1);
-    QCOMPARE(asked.at(0).at(0).toString(), QStringLiteral("space"));
+    QCOMPARE(asked.at(0).at(0).toString(), QStringLiteral("activate"));
 }
 
 QTEST_GUILESS_MAIN(BarTest)

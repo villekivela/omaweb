@@ -37,8 +37,7 @@ namespace {
         static const QStringList bare {QStringLiteral("back"), QStringLiteral("forward"),
             QStringLiteral("reload"), QStringLiteral("omnibar")};
         static const QStringList onATab {QStringLiteral("activate"), QStringLiteral("close"),
-            QStringLiteral("pin"), QStringLiteral("unpin"), QStringLiteral("duplicate"),
-            QStringLiteral("popout"), QStringLiteral("mute"), QStringLiteral("unmute")};
+            QStringLiteral("mute"), QStringLiteral("unmute")};
         const auto tab = request.value(QStringLiteral("tab"));
         const auto space = request.value(QStringLiteral("space"));
         if (bare.contains(action)) {
@@ -53,28 +52,6 @@ namespace {
                 arguments.insert(QStringLiteral("space"), space.toString());
             }
             return arguments;
-        }
-        if (action == u"space") {
-            if (!isText(space)) {
-                return std::nullopt;
-            }
-            return QVariantMap {{QStringLiteral("space"), space.toString()}};
-        }
-        if (action == u"cycle") {
-            const auto step = request.value(QStringLiteral("step")).toInt(0);
-            if (step != 1 && step != -1) {
-                return std::nullopt;
-            }
-            return QVariantMap {{QStringLiteral("step"), step}};
-        }
-        if (action == u"move") {
-            const auto index = request.value(QStringLiteral("index"));
-            if (!isText(tab) || !index.isDouble() || index.toDouble() < 0
-                || index.toDouble() != static_cast<double>(index.toInt())) {
-                return std::nullopt;
-            }
-            return QVariantMap {
-                {QStringLiteral("tab"), tab.toString()}, {QStringLiteral("index"), index.toInt()}};
         }
         return std::nullopt;
     }
