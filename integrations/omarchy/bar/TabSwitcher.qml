@@ -13,6 +13,9 @@ BorderSurface {
 
     property BrowserLink link
     signal dismissed
+    // A tab was taken, and `window` shows it, or is null where it is not
+    // known: the card's owner raises it once the card is gone.
+    signal taken(var window)
 
     property string filter: ""
     // The card opens for moving, h, j, k and l as the arrows; / starts a
@@ -111,8 +114,9 @@ BorderSurface {
         const entry = each && each.tabs[row];
         if (!entry)
             return;
+        const window = link.windowOf(entry.tab);
         link.activate(entry.tab, each.space.id);
-        dismissed();
+        taken(window);
     }
 
     function close(tab) {

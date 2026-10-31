@@ -27,10 +27,10 @@ Item {
         socket.flush();
     }
 
-    // A window is told by its title, which the browser sends for its main
-    // window. Where the title matches no window or more than one, nothing is
-    // raised rather than the wrong one.
-    function raise(tab) {
+    // The window showing `tab`, told by its title, which the browser sends
+    // for its main window. Where the title matches no window or more than
+    // one, it is none rather than the wrong one.
+    function windowOf(tab) {
         const windows = ToplevelManager.toplevels.values;
         const only = found => found.length === 1 ? found[0] : null;
         let target = null;
@@ -40,6 +40,11 @@ Item {
         if (!target && link.live)
             target = only(windows.filter(w => w.appId === link.appId && w.title
                                               === link.browser.window));
+        return target;
+    }
+
+    function raise(tab) {
+        const target = windowOf(tab);
         if (target)
             target.activate();
     }
@@ -50,7 +55,6 @@ Item {
                  "tab": tab.id,
                  "space": spaceId || browser.activeSpace
              });
-        raise(tab);
     }
 
     Socket {

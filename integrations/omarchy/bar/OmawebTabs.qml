@@ -14,6 +14,9 @@ Item {
     property var shell: null
     property var manifest: null
     property bool opened: false
+    // The browser's window, raised once the overlay is gone: Hyprland keeps
+    // the focus on a surface that holds the keyboard as the overlay does.
+    property var raising: null
 
     function open(payloadJson) {
         root.opened = true;
@@ -43,6 +46,16 @@ Item {
         active: root.opened
         onLiveChanged: if (live && root.opened)
                            card.reset()
+    }
+
+    Timer {
+        id: raise
+        interval: 50
+        onTriggered: {
+            if (root.raising && !root.opened)
+                root.raising.activate();
+            root.raising = null;
+        }
     }
 
     PanelWindow {
@@ -76,6 +89,11 @@ Item {
             y: Math.round(parent.height * 0.2)
             link: link
             onDismissed: root.dismiss()
+            onTaken: function (window) {
+                root.raising = window;
+                root.dismiss();
+                raise.restart();
+            }
         }
 
         Text {
