@@ -153,6 +153,7 @@ private slots:
     void removingTakesBothPlacementsAndTheLinkAway();
     void removingLeavesAPluginOmawebDidNotLinkAlone();
     void startingPointsTheLinkAtThisBuildAndLeavesTheLayoutAlone();
+    void startingTurnsTheEarlierPairIntoOneWidget();
     void theSettingIsOfferedOnlyWhileTheShellAnswers();
     void choosingTheBarAndBackAtOnceLeavesTheSidebarsLayout();
     void spaceNamesAreTheWidgetsOwnSetting();
@@ -319,6 +320,35 @@ void OmarchyBarTest::startingPointsTheLinkAtThisBuildAndLeavesTheLayoutAlone()
 
     QCOMPARE(QFileInfo(home.paths.link()).symLinkTarget(), home.shipped);
     QCOMPARE(contentsOf(home.paths.shellConfig), readersLayout);
+}
+
+// A reader who chose the bar before the pair became one widget has both
+// still in the layout, each now drawing the whole widget.
+void OmarchyBarTest::startingTurnsTheEarlierPairIntoOneWidget()
+{
+    Home home;
+    write(home.paths.shellConfig,
+        QByteArray(readersLayout)
+            .replace(R"({ "id": "omarchy.workspaces" })",
+                R"({ "id": "omarchy.workspaces" }, { "id": "omaweb.bar", "role": "tabs", "spaceNames": "letter" })")
+            .replace(R"({ "id": "omarchy.clock",)",
+                R"({ "id": "omaweb.bar", "role": "location" }, { "id": "omarchy.clock",)"));
+    Desktop desktop;
+    OmarchyBarPlacement placement(home.paths, home.shipped, desktop.command());
+
+    placement.relink();
+
+    const auto layout = layoutIn(home.paths.shellConfig);
+    QVERIFY(!section(layout, QStringLiteral("left")).join(u' ').contains(u"omaweb"));
+    QCOMPARE(section(layout, QStringLiteral("center")),
+        (QStringList {QStringLiteral("omaweb.bar"), QStringLiteral("omarchy.clock")}));
+    QCOMPARE(layout.value(QStringLiteral("center"))
+                 .toArray()
+                 .at(0)
+                 .toObject()
+                 .value(QStringLiteral("spaceNames"))
+                 .toString(),
+        QStringLiteral("letter"));
 }
 
 void OmarchyBarTest::theSettingIsOfferedOnlyWhileTheShellAnswers()

@@ -64,8 +64,9 @@ public:
     void place();
     void remove();
     // Points the link at the widget this build ships, as each start does
-    // while the bar shows the tabs, and leaves the layout alone: where the
-    // reader moved the widget is theirs.
+    // while the bar shows the tabs. Where the reader moved the widget is
+    // theirs, so the layout stays, but for the pair Omaweb once placed,
+    // which becomes the one widget.
     void relink();
 
     // How the tabs' placement names a Space: "full", or "letter" for its first
@@ -85,6 +86,7 @@ private:
     void enqueue(Step step);
     void runNextStep();
     bool link();
+    bool holdsTheEarlierPair() const;
     void editLayout(const QString &filter, std::function<void()> then);
     void shell(const QString &method);
 
