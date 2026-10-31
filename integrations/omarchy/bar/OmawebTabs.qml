@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
@@ -17,6 +18,21 @@ Item {
     // The browser's window, raised once the overlay is gone: Hyprland keeps
     // the focus on a surface that holds the keyboard as the overlay does.
     property var raising: null
+
+    // Hyprland moves to the window's workspace for a focus by its address,
+    // which it does not for a toplevel's own request to be raised.
+    function focus(window) {
+        const hyprland = Hyprland.toplevels.values.find(each => each.wayland === window);
+        const address = hyprland ? String(hyprland.address) : "";
+        if (address === "") {
+            window.activate();
+            return;
+        }
+        const at = "address:" + (address.startsWith("0x") ? address : "0x" + address);
+        Quickshell.execDetached(Hyprland.usingLua ? ["hyprctl", "dispatch",
+                                                     "hl.dsp.focus({ window = \"" + at + "\" })"] :
+                                                    ["hyprctl", "dispatch", "focuswindow", at]);
+    }
 
     function open(payloadJson) {
         root.opened = true;
@@ -53,7 +69,7 @@ Item {
         interval: 50
         onTriggered: {
             if (root.raising && !root.opened)
-                root.raising.activate();
+                root.focus(root.raising);
             root.raising = null;
         }
     }
