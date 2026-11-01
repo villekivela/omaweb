@@ -53,6 +53,9 @@ namespace {
             }
             return arguments;
         }
+        if (action == u"space" && isText(space)) {
+            return QVariantMap {{QStringLiteral("space"), space.toString()}};
+        }
         return std::nullopt;
     }
 

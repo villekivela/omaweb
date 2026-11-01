@@ -1414,6 +1414,9 @@ ApplicationWindow {
         case "activate":
             browser.activateTabInSpace(args.space || browser.activeSpaceId, args.tab);
             break;
+        case "space":
+            browser.switchSpace(args.space);
+            break;
         case "close":
             browser.closeTab(args.tab);
             break;

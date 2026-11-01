@@ -22,8 +22,9 @@ BorderSurface {
     // search, where letters are the search's until Esc.
     property bool searching: false
     // The tab the reader moved to, kept by its Space and id so a new state
-    // from the browser leaves the cursor on it. Until they move, or once it
-    // is gone, the board's own choice holds.
+    // from the browser leaves the cursor on it, or the Space alone for its
+    // heading. Until they move, or once it is gone, the board's own choice
+    // holds.
     property string chosenSpace: ""
     property string chosenTab: ""
 
@@ -35,6 +36,11 @@ BorderSurface {
                                                                           })
     readonly property var cursor: {
         const column = board.columns.findIndex(each => each.space.id === chosenSpace);
+        if (column >= 0 && chosenTab === "")
+            return {
+                "column": column,
+                "row": -1
+            };
         const row = column >= 0 ? board.columns[column].tabs.findIndex(entry => entry.tab.id
                                                                                 === chosenTab) : -1;
         return row >= 0 ? {
@@ -45,8 +51,11 @@ BorderSurface {
             "row": board.row
         };
     }
-    readonly property var chosen: cursor.column >= 0 ? board.columns[cursor.column].tabs[cursor.row] :
-                                                       null
+    readonly property var chosen: cursor.column >= 0 && cursor.row >= 0
+                                  ? board.columns[cursor.column].tabs[cursor.row] : null
+    // The Space whose heading the cursor is on.
+    readonly property var chosenHeading: cursor.column >= 0 && cursor.row < 0
+                                         ? board.columns[cursor.column].space : null
 
     // The card's own surface tokens are the menu's, as Omarchy's pickers use.
     readonly property color fg: Commons.Color.menu.text
@@ -94,6 +103,11 @@ BorderSurface {
     }
 
     function choose(column, row) {
+        if (board.columns[column] && row < 0) {
+            chosenSpace = board.columns[column].space.id;
+            chosenTab = "";
+            return;
+        }
         const entry = board.columns[column] && board.columns[column].tabs[row];
         if (!entry)
             return;
@@ -109,8 +123,18 @@ BorderSurface {
         choose(next.column, next.row);
     }
 
+    // A tab, or on a heading its Space, which the browser switches to.
     function take(column, row) {
         const each = board.columns[column];
+        if (each && row < 0) {
+            const window = link.windowOf(null);
+            link.send({
+                          "do": "space",
+                          "space": each.space.id
+                      });
+            taken(window);
+            return;
+        }
         const entry = each && each.tabs[row];
         if (!entry)
             return;
@@ -274,6 +298,23 @@ BorderSurface {
                         width: card.columnWidth
                         height: boardArea.height
 
+                        // The heading, a place for the cursor that takes the
+                        // browser to the Space.
+                        Rectangle {
+                            width: parent.width
+                            height: name.height + Style.space(6)
+                            radius: Style.cornerRadius
+                            color: card.cursor.column === column.index && card.cursor.row < 0
+                                   ? card.selectedGround : "transparent"
+                            MouseArea {
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onContainsMouseChanged: if (containsMouse)
+                                                            card.choose(column.index, -1)
+                                onClicked: card.take(column.index, -1)
+                            }
+                        }
                         // The Space's name in its colour, ruled under; the
                         // rule is heavier under the Space on show, in room
                         // every rule keeps, so nothing under it moves when
@@ -281,6 +322,7 @@ BorderSurface {
                         Text {
                             id: name
                             x: Style.space(8)
+                            y: Style.space(3)
                             width: parent.width - x
                             text: column.space.name
                             textFormat: Text.PlainText
@@ -617,6 +659,7 @@ BorderSurface {
             width: parent.width
             height: Style.space(36)
             readonly property var tab: card.chosen ? card.chosen.tab : null
+            readonly property var space: card.chosenHeading
 
             Column {
                 anchors.left: parent.left
@@ -626,7 +669,7 @@ BorderSurface {
                 spacing: Style.space(2)
                 Text {
                     width: parent.width
-                    text: detail.tab ? detail.tab.title : ""
+                    text: detail.tab ? detail.tab.title : detail.space ? detail.space.name : ""
                     textFormat: Text.PlainText
                     elide: Text.ElideRight
                     color: card.fg
@@ -647,11 +690,13 @@ BorderSurface {
 
             Text {
                 id: keysHint
-                visible: !!detail.tab
+                visible: !!detail.tab || !!detail.space
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 horizontalAlignment: Text.AlignRight
                 text: {
+                    if (detail.space)
+                        return qsTr("hjkl moves, Enter switches to this Space");
                     if (!detail.tab)
                         return "";
                     const moving = card.searching ? qsTr("Enter goes there, Esc stops searching") :

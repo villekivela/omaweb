@@ -9,7 +9,8 @@ export function spaceLabel(name, letters) {
 // its Pinned tabs first. Typing keeps the tabs with every word in their title
 // or host and leaves out a Space with none. The cursor (`column`, `row`)
 // starts on the tab on show, or with words typed on the first tab left, in
-// the Space on show if it has one; both are -1 with nothing to take.
+// the Space on show if it has one. Row -1 is a Space's heading, where it
+// starts with no tab open anywhere; both are -1 with no Space left.
 export function board(state, filter) {
   const words = String(filter || "")
     .toLocaleLowerCase()
@@ -32,7 +33,11 @@ export function board(state, filter) {
     (each) => each.space.id === state.activeSpace && each.tabs.length > 0,
   );
   if (column === -1) column = columns.findIndex((each) => each.tabs.length > 0);
-  if (column === -1) return { columns, column: -1, row: -1 };
+  if (column === -1 && columns.length === 0) return { columns, column: -1, row: -1 };
+  if (column === -1) {
+    const shown = columns.findIndex((each) => each.space.id === state.activeSpace);
+    return { columns, column: Math.max(0, shown), row: -1 };
+  }
   const shown = columns[column].tabs.findIndex(
     (entry) => entry.tab.id === columns[column].space.active,
   );
@@ -43,8 +48,17 @@ export function board(state, filter) {
 // (`column`, `row`), with the pins `perLine` tiles to a line above the rows.
 // The pins move as a grid; sideways off the end of a line or a row goes to
 // the next Space with anything open, wrapping at either end, onto the same
-// line where it has one. Up and down stop at the ends of the column.
+// line where it has one. Up from the top reaches the Space's heading, and
+// along the headings every Space is a stop. Up and down stop at the ends of
+// the column.
 export function moveOnBoard(columns, column, row, dx, dy, perLine = 1) {
+  if (row < 0) {
+    if (dx !== 0) {
+      const count = columns.length;
+      return { column: (column + Math.sign(dx) + count) % count, row: -1 };
+    }
+    return { column, row: dy > 0 && columns[column].tabs.length > 0 ? 0 : -1 };
+  }
   const pinsIn = (index) => columns[index].tabs.filter((entry) => entry.pinned).length;
   const linesIn = (index) =>
     Math.ceil(pinsIn(index) / perLine) + columns[index].tabs.length - pinsIn(index);
@@ -76,6 +90,7 @@ export function moveOnBoard(columns, column, row, dx, dy, perLine = 1) {
     const line = Math.min(here.line, linesIn(next) - 1);
     return { column: next, row: rowAt(next, line, dx > 0 ? 0 : perLine - 1) };
   }
-  const line = Math.max(0, Math.min(linesIn(column) - 1, here.line + dy));
+  if (here.line + dy < 0) return { column, row: -1 };
+  const line = Math.min(linesIn(column) - 1, here.line + dy);
   return { column, row: rowAt(column, line, here.slot) };
 }

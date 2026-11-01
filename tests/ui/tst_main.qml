@@ -5187,6 +5187,19 @@ TestCase {
         forgetSwipeSpaces(spaces);
     }
 
+    // A Space's heading in the Tab switcher switches the browser to it.
+    function test_theBarSwitchesSpace() {
+        const spaces = swipeSpaces();
+        browser.switchSpace(spaces.second);
+        tryCompare(browser, "activeSpaceId", spaces.second);
+
+        omarchyBar.actionRequested("space", {
+                                       "space": spaces.first
+                                   });
+        tryCompare(browser, "activeSpaceId", spaces.first);
+        forgetSwipeSpaces(spaces);
+    }
+
     function test_theBarClosesATab() {
         openPage("https://bar-first.example/");
         openPageInNewTab("https://bar-second.example/");

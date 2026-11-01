@@ -112,8 +112,9 @@ Settings and the bar's widget settings change the same value.
 The Tab switcher opens with `omarchy-shell shell toggle omaweb.bar`, which a key in Hyprland can run
 too. It shows every Space as a column, Pinned tabs as favicons above the tabs. h, j, k and l or the
 arrows move around it as a grid, Ctrl+P and Ctrl+N up and down too, Tab and Shift+Tab across too,
-and `/` starts a search of every Space that Esc leaves. Moving changes only the card; Enter switches
-the browser to the tab, Ctrl+W closes it and Ctrl+M mutes or unmutes it.
+and `/` starts a search of every Space that Esc leaves. Above a Space's first tab is its heading.
+Moving changes only the card; Enter switches the browser to the tab, or on a heading to its Space,
+as a click does, and Ctrl+W closes the tab and Ctrl+M mutes or unmutes it.
 
 Quickshell keeps a plugin's files from its first scan. A release that changes the widget shows after
 `omarchy-restart-shell`.
@@ -121,11 +122,11 @@ Quickshell keeps a plugin's files from its first scan. A release that changes th
 The browser and the widget talk over `$XDG_RUNTIME_DIR/omaweb/bar.sock`, mode 0600, which listens
 only while the bar is chosen. It is apart from the Agent socket and not gated by Allow agents. The
 browser sends one JSON state a line to every widget, one per monitor. A widget sends one action a
-line from a fixed set: `activate`, `close`, `mute` and `unmute` on a tab, and `back`, `forward`,
-`reload` and `omnibar`. Nothing reaches a page. Favicons arrive as PNG files under
-`$XDG_RUNTIME_DIR/omaweb/bar/`, named by their contents, because the widget's `Image` caches by path
-and a page that draws a count into its icon reports a new picture. A burst of changes reaches the
-bar a few times a second, and a file no tab shows is deleted.
+line from a fixed set: `activate`, `close`, `mute` and `unmute` on a tab, `space` on a Space, and
+`back`, `forward`, `reload` and `omnibar`. Nothing reaches a page. Favicons arrive as PNG files
+under `$XDG_RUNTIME_DIR/omaweb/bar/`, named by their contents, because the widget's `Image` caches
+by path and a page that draws a count into its icon reports a new picture. A burst of changes
+reaches the bar a few times a second, and a file no tab shows is deleted.
 
 The sidebar comes back once no widget has been connected for three seconds, so a shell reload does
 not flash it, and the edge peek shows it at any time. Omarchy's plugin API has no stability promise;

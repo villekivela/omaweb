@@ -136,10 +136,70 @@ TestCase {
                     "column": 1,
                     "row": 2
                 });
-        compare(BarModel.moveOnBoard(columns, 1, 0, 0, -1), {
+        compare(BarModel.moveOnBoard(columns, 1, 1, 0, -1), {
                     "column": 1,
                     "row": 0
                 });
+    }
+
+    // Above a Space's first tab is its heading, row -1, which takes the
+    // browser to that Space.
+    function test_upFromTheTopReachesTheSpacesHeading() {
+        const columns = BarModel.board(state(), "").columns;
+
+        compare(BarModel.moveOnBoard(columns, 1, 0, 0, -1), {
+                    "column": 1,
+                    "row": -1
+                });
+        compare(BarModel.moveOnBoard(columns, 1, -1, 0, -1), {
+                    "column": 1,
+                    "row": -1
+                });
+        compare(BarModel.moveOnBoard(columns, 1, -1, 0, 1), {
+                    "column": 1,
+                    "row": 0
+                });
+    }
+
+    // Along the headings every Space is a stop, one with nothing open too,
+    // since its heading is the way there.
+    function test_sidewaysAlongTheHeadingsStopsAtEverySpace() {
+        const browser = state();
+        browser.spaces.splice(1, 0, {
+                                  id: "idle",
+                                  name: "Idle",
+                                  colour: "#7aa2f7",
+                                  active: "",
+                                  pins: [],
+                                  tabs: []
+                              });
+        const columns = BarModel.board(browser, "").columns;
+
+        compare(BarModel.moveOnBoard(columns, 0, -1, 1, 0), {
+                    "column": 1,
+                    "row": -1
+                });
+        compare(BarModel.moveOnBoard(columns, 1, -1, 0, 1), {
+                    "column": 1,
+                    "row": -1
+                });
+        compare(BarModel.moveOnBoard(columns, 0, -1, -1, 0), {
+                    "column": 2,
+                    "row": -1
+                });
+    }
+
+    // With no tab open anywhere, the cursor starts on the Space on show.
+    function test_withNothingOpenTheBoardStartsOnTheHeadingOfTheSpaceOnShow() {
+        const browser = state();
+        for (const space of browser.spaces) {
+            space.pins = [];
+            space.tabs = [];
+        }
+        const board = BarModel.board(browser, "");
+
+        compare(board.column, 1);
+        compare(board.row, -1);
     }
 
     // The pins are tiles, as many to a line as the column holds, and move as

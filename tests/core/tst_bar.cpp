@@ -251,8 +251,9 @@ void BarTest::aWidgetAsksForTheActionsOfTheFixedSet()
     say(*widget, R"({"do": "mute", "tab": "t3"})");
     say(*widget, R"({"do": "unmute", "tab": "t3"})");
     say(*widget, R"({"do": "omnibar"})");
+    say(*widget, R"({"do": "space", "space": "reading"})");
 
-    QTRY_COMPARE(asked.count(), 6);
+    QTRY_COMPARE(asked.count(), 7);
     QCOMPARE(asked.at(0).at(0).toString(), QStringLiteral("activate"));
     QCOMPARE(asked.at(0).at(1).toMap(),
         (QVariantMap {{QStringLiteral("tab"), QStringLiteral("t1")},
@@ -267,11 +268,14 @@ void BarTest::aWidgetAsksForTheActionsOfTheFixedSet()
         asked.at(3).at(1).toMap(), (QVariantMap {{QStringLiteral("tab"), QStringLiteral("t3")}}));
     QCOMPARE(asked.at(4).at(0).toString(), QStringLiteral("unmute"));
     QCOMPARE(asked.at(5).at(0).toString(), QStringLiteral("omnibar"));
+    QCOMPARE(asked.at(6).at(0).toString(), QStringLiteral("space"));
+    QCOMPARE(asked.at(6).at(1).toMap(),
+        (QVariantMap {{QStringLiteral("space"), QStringLiteral("reading")}}));
 }
 
-// The bar reaches the tabs, the page's back, forward and reload, and the
-// Location, and nothing else: no page, no address to open, no tab it does
-// not name, and none of the sidebar's own tab commands.
+// The bar reaches the tabs, the Spaces, the page's back, forward and reload,
+// and the Location, and nothing else: no page, no address to open, no tab or
+// Space it does not name, and none of the sidebar's own tab commands.
 void BarTest::anActionOutsideTheSetIsDropped()
 {
     QTemporaryDir home;
@@ -290,7 +294,8 @@ void BarTest::anActionOutsideTheSetIsDropped()
     say(*widget, R"({"do": "popout", "tab": "t2"})");
     say(*widget, R"({"do": "move", "tab": "t2", "index": 3})");
     say(*widget, R"({"do": "cycle", "step": 1})");
-    say(*widget, R"({"do": "space", "space": "reading"})");
+    say(*widget, R"({"do": "space"})");
+    say(*widget, R"({"do": "space", "space": 3})");
     say(*widget, "not json");
     say(*widget, R"({"do": "back"})");
 

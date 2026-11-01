@@ -50,8 +50,8 @@ public:
 
 signals:
     // An action a widget asked for: `activate`, `close`, `mute` and `unmute`
-    // with a `tab`, `activate` with its `space` too, and `back`, `forward`,
-    // `reload` and `omnibar` alone.
+    // with a `tab`, `activate` with its `space` too, `space` with a `space`,
+    // and `back`, `forward`, `reload` and `omnibar` alone.
     void actionRequested(const QString &action, const QVariantMap &arguments);
     void widgetsPresentChanged();
 
