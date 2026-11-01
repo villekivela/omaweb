@@ -68,15 +68,12 @@ QJsonObject layoutIn(const QString &path)
         .toObject();
 }
 
-// The ids in one section of the layout, each with its role where it has one.
+// The ids in one section of the layout.
 QStringList section(const QJsonObject &layout, const QString &name)
 {
     QStringList entries;
     for (const auto &entry : layout.value(name).toArray()) {
-        const auto object = entry.toObject();
-        const auto role = object.value(QStringLiteral("role")).toString();
-        entries.append(object.value(QStringLiteral("id")).toString()
-            + (role.isEmpty() ? QString() : u':' + role));
+        entries.append(entry.toObject().value(QStringLiteral("id")).toString());
     }
     return entries;
 }
@@ -146,14 +143,13 @@ class OmarchyBarTest final : public QObject {
 private slots:
     void placingLinksTheShippedWidgetIntoThePlugins();
     void placingPutsTheWidgetFirstInTheCenter();
-    void placingOverTheEarlierPairLeavesOneWidget();
+    void placingOverAWidgetTheReaderMovedLeavesOne();
     void placingKeepsTheReadersLayoutAsTheyWroteIt();
     void placingTwicePlacesTheWidgetOnce();
     void aReaderWithoutALayoutGetsTheDefaultWithTheWidgetInIt();
     void removingTakesBothPlacementsAndTheLinkAway();
     void removingLeavesAPluginOmawebDidNotLinkAlone();
     void startingPointsTheLinkAtThisBuildAndLeavesTheLayoutAlone();
-    void startingTurnsTheEarlierPairIntoOneWidget();
     void theSettingIsOfferedOnlyWhileTheShellAnswers();
     void choosingTheBarAndBackAtOnceLeavesTheSidebarsLayout();
     void spaceNamesAreTheWidgetsOwnSetting();
@@ -196,18 +192,13 @@ void OmarchyBarTest::placingPutsTheWidgetFirstInTheCenter()
             QStringLiteral("-q"), QStringLiteral("shell"), QStringLiteral("reloadConfig")}));
 }
 
-// Omaweb once placed the widget twice, its tabs on the left and the
-// Location in the center, each with a role. Placing it again leaves the one.
-void OmarchyBarTest::placingOverTheEarlierPairLeavesOneWidget()
+void OmarchyBarTest::placingOverAWidgetTheReaderMovedLeavesOne()
 {
     Home home;
     write(home.paths.shellConfig,
         QByteArray(readersLayout)
             .replace(R"({ "id": "omarchy.workspaces" })",
-                R"({ "id": "omarchy.workspaces" }, { "id": "omaweb.bar", "role": "tabs", "spaceNames": "letter" })")
-            .replace(R"({ "id": "omarchy.clock",)",
-                R"({ "id": "omaweb.bar", "role": "location" }, { "id": "omarchy.clock",)"));
-    QVERIFY(contentsOf(home.paths.shellConfig).contains(R"("role": "location")"));
+                R"({ "id": "omarchy.workspaces" }, { "id": "omaweb.bar", "spaceNames": "letter" })"));
     Desktop desktop;
     OmarchyBarPlacement placement(home.paths, home.shipped, desktop.command());
 
@@ -217,7 +208,7 @@ void OmarchyBarTest::placingOverTheEarlierPairLeavesOneWidget()
     QVERIFY(!section(layout, QStringLiteral("left")).join(u' ').contains(u"omaweb"));
     QCOMPARE(section(layout, QStringLiteral("center")),
         (QStringList {QStringLiteral("omaweb.bar"), QStringLiteral("omarchy.clock")}));
-    // The tabs' own setting comes along.
+    // The widget's own setting comes along.
     QCOMPARE(layout.value(QStringLiteral("center"))
                  .toArray()
                  .at(0)
@@ -320,35 +311,6 @@ void OmarchyBarTest::startingPointsTheLinkAtThisBuildAndLeavesTheLayoutAlone()
 
     QCOMPARE(QFileInfo(home.paths.link()).symLinkTarget(), home.shipped);
     QCOMPARE(contentsOf(home.paths.shellConfig), readersLayout);
-}
-
-// A reader who chose the bar before the pair became one widget has both
-// still in the layout, each now drawing the whole widget.
-void OmarchyBarTest::startingTurnsTheEarlierPairIntoOneWidget()
-{
-    Home home;
-    write(home.paths.shellConfig,
-        QByteArray(readersLayout)
-            .replace(R"({ "id": "omarchy.workspaces" })",
-                R"({ "id": "omarchy.workspaces" }, { "id": "omaweb.bar", "role": "tabs", "spaceNames": "letter" })")
-            .replace(R"({ "id": "omarchy.clock",)",
-                R"({ "id": "omaweb.bar", "role": "location" }, { "id": "omarchy.clock",)"));
-    Desktop desktop;
-    OmarchyBarPlacement placement(home.paths, home.shipped, desktop.command());
-
-    placement.relink();
-
-    const auto layout = layoutIn(home.paths.shellConfig);
-    QVERIFY(!section(layout, QStringLiteral("left")).join(u' ').contains(u"omaweb"));
-    QCOMPARE(section(layout, QStringLiteral("center")),
-        (QStringList {QStringLiteral("omaweb.bar"), QStringLiteral("omarchy.clock")}));
-    QCOMPARE(layout.value(QStringLiteral("center"))
-                 .toArray()
-                 .at(0)
-                 .toObject()
-                 .value(QStringLiteral("spaceNames"))
-                 .toString(),
-        QStringLiteral("letter"));
 }
 
 void OmarchyBarTest::theSettingIsOfferedOnlyWhileTheShellAnswers()

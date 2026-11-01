@@ -19,8 +19,7 @@ namespace {
     // The widget first in the center. Omarchy 4.0.6 has no section before the
     // center's anchor, so first in the center is as near the middle as it can
     // ask to be. Any earlier placement goes first, so placing it twice places
-    // it once, and the pair Omaweb once placed, its tabs on the left and the
-    // Location in the center, leaves one widget with the tabs' Space names.
+    // it once, and the widget keeps the Space names it had there.
     const auto placeFilter = QStringLiteral(R"(
 (first((.bar.layout // {}) | .[]? | arrays | .[] | select(.id == $id) | .spaceNames | strings)
   // null) as $names
@@ -212,38 +211,8 @@ void OmarchyBarPlacement::relink()
 {
     enqueue([this](const std::function<void()> &next) {
         link();
-        if (!holdsTheEarlierPair()) {
-            next();
-            return;
-        }
-        editLayout(placeFilter, [this, next] {
-            shell(QStringLiteral("reloadConfig"));
-            next();
-        });
+        next();
     });
-}
-
-// Omaweb once placed the widget twice, each entry with a role, and the shell
-// now draws the whole widget for each.
-bool OmarchyBarPlacement::holdsTheEarlierPair() const
-{
-    const auto layout = QJsonDocument::fromJson(readFile(m_paths.shellConfig))
-                            .object()
-                            .value(QStringLiteral("bar"))
-                            .toObject()
-                            .value(QStringLiteral("layout"))
-                            .toObject();
-    for (const auto &section : layout) {
-        for (const auto &entry : section.toArray()) {
-            const auto fields = entry.toObject();
-            if (fields.value(QStringLiteral("id")).toString()
-                    == QLatin1StringView(omarchyBarWidgetId)
-                && fields.contains(QStringLiteral("role"))) {
-                return true;
-            }
-        }
-    }
-    return false;
 }
 
 // One change at a time, each reading the layout the one before it wrote: two

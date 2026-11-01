@@ -41,8 +41,7 @@ OmarchyCommand runOmarchyCommand();
 // Puts the widget the package ships into the reader's Omarchy bar and takes it
 // out again (#906). Placing links the widget into the shell's plugins, so it
 // is the package's copy that runs and an upgrade reaches it, and puts it first
-// in the layout's center, in place of the pair earlier versions placed.
-// Removing takes out the placement and the link.
+// in the layout's center. Removing takes out the placement and the link.
 //
 // The layout is edited with `jq`, as Omarchy's own commands edit it, so the
 // reader's file keeps its order and its indentation. The shell is asked to
@@ -65,8 +64,7 @@ public:
     void remove();
     // Points the link at the widget this build ships, as each start does
     // while the bar shows the tabs. Where the reader moved the widget is
-    // theirs, so the layout stays, but for the pair Omaweb once placed,
-    // which becomes the one widget.
+    // theirs, so the layout stays.
     void relink();
 
     // How the tabs' placement names a Space: "full", or "letter" for its first
@@ -86,7 +84,6 @@ private:
     void enqueue(Step step);
     void runNextStep();
     bool link();
-    bool holdsTheEarlierPair() const;
     void editLayout(const QString &filter, std::function<void()> then);
     void shell(const QString &method);
 
