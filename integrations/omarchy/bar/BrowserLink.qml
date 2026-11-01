@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 
@@ -44,9 +45,29 @@ Item {
     }
 
     function raise(tab) {
-        const target = windowOf(tab);
-        if (target)
-            target.activate();
+        focusWindow(windowOf(tab));
+    }
+
+    // Focuses `window` on its own workspace: Hyprland moves there for a focus
+    // by the window's address, which it does not for a toplevel's own request
+    // to be raised. It waits a moment, in a process of its own, because
+    // Hyprland keeps the focus on a surface holding the keyboard, as the
+    // switcher does, and the shell unloads the switcher, with this, as it
+    // hides.
+    function focusWindow(window) {
+        const hyprland = window ? Hyprland.toplevels.values.find(each => each.wayland === window) :
+                                  null;
+        const address = hyprland ? String(hyprland.address) : "";
+        if (address === "") {
+            if (window)
+                window.activate();
+            return;
+        }
+        const at = "address:" + (address.startsWith("0x") ? address : "0x" + address);
+        const dispatch = Hyprland.usingLua ? ["hl.dsp.focus({ window = \"" + at + "\" })"] : ["focuswindow",
+                                                                                              at];
+        Quickshell.execDetached(["sh", "-c", "sleep 0.1; exec hyprctl dispatch \"$@\"", "sh"].concat(
+                                    dispatch));
     }
 
     function activate(tab, spaceId) {

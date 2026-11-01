@@ -1,8 +1,9 @@
 import QtQuick
+import qs.Commons as Commons
 
 // A tab's favicon for the switcher (#906), its host's first letters where
-// the page gave none, and a short line running under it while the page
-// loads, as the bar's favicons had.
+// the page gave none, an accent dot at its top left for an Agent tab, and a
+// short line running under it while the page loads.
 Item {
     id: icon
 
@@ -36,6 +37,15 @@ Item {
             font.pixelSize: Math.round(icon.size / 2)
             font.bold: true
         }
+    }
+    Rectangle {
+        visible: !!icon.tab.agent
+        x: -2
+        y: -2
+        width: 6
+        height: 6
+        radius: 3
+        color: Commons.Color.accent
     }
     Rectangle {
         id: runner

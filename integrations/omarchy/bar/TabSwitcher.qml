@@ -140,6 +140,13 @@ BorderSurface {
                              + Style.space(4);
     }
 
+    // A position worked out by halving, on the display's pixels, as
+    // src/ui/DevicePixels.mjs puts the window's (#571), which a plugin cannot
+    // import.
+    function snap(value) {
+        return Math.round(value * Screen.devicePixelRatio) / Screen.devicePixelRatio;
+    }
+
     function rowHeightOf(tab) {
         return tab.agent && tab.agentAct ? agentRowHeight : rowHeight;
     }
@@ -478,7 +485,7 @@ BorderSurface {
                                     id: icon
                                     visible: !row.sounding
                                     x: Style.space(10)
-                                    y: ground.y + (card.rowHeight - height) / 2
+                                    y: card.snap(ground.y + (card.rowHeight - height) / 2)
                                     tab: row.tab
                                     fg: card.fg
                                     font: card.font
@@ -516,7 +523,7 @@ BorderSurface {
                                     anchors.leftMargin: Style.space(10)
                                     anchors.right: end.left
                                     anchors.rightMargin: Style.space(6)
-                                    y: icon.y + (icon.height - height) / 2
+                                    y: card.snap(icon.y + (icon.height - height) / 2)
                                     text: row.tab.title || row.tab.host
                                     textFormat: Text.PlainText
                                     elide: Text.ElideRight
@@ -546,7 +553,7 @@ BorderSurface {
                                     id: end
                                     anchors.right: parent.right
                                     anchors.rightMargin: Style.space(4)
-                                    y: icon.y + (icon.height - height) / 2
+                                    y: card.snap(icon.y + (icon.height - height) / 2)
                                     width: Style.space(22)
                                     height: Style.space(22)
                                     Text {
@@ -644,12 +651,17 @@ BorderSurface {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 horizontalAlignment: Text.AlignRight
-                text: !detail.tab ? "" : (card.searching ? qsTr(
-                                                               "Enter goes there, Esc stops searching") :
-                                                           qsTr("hjkl moves, Enter goes there"))
-                                    + "\n" + (detail.tab.sound !== "" ? qsTr(
-                                                                            "Ctrl+W closes, Ctrl+M mutes") :
-                                                                        qsTr("Ctrl+W closes it"))
+                text: {
+                    if (!detail.tab)
+                        return "";
+                    const moving = card.searching ? qsTr("Enter goes there, Esc stops searching") :
+                                                    qsTr("hjkl moves, Enter goes there");
+                    if (detail.tab.sound === "muted")
+                        return moving + "\n" + qsTr("Ctrl+W closes, Ctrl+M unmutes");
+                    if (detail.tab.sound !== "")
+                        return moving + "\n" + qsTr("Ctrl+W closes, Ctrl+M mutes");
+                    return moving + "\n" + qsTr("Ctrl+W closes it");
+                }
                 textFormat: Text.PlainText
                 lineHeight: 1.15
                 color: card.fg

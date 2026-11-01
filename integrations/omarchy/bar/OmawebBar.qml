@@ -24,8 +24,15 @@ BarWidget {
     readonly property var browser: link.browser
     readonly property bool live: link.live
     readonly property var toplevel: ToplevelManager.activeToplevel
-    readonly property bool focused: toplevel !== null && (toplevel.appId === link.appId
-                                                          || toplevel.appId === link.tabWindowAppId)
+    // A Private window shares the main window's app id, so the main window
+    // is known by its title too.
+    readonly property bool focused: {
+        if (toplevel === null || !live)
+            return false;
+        if (toplevel.appId === link.tabWindowAppId)
+            return true;
+        return toplevel.appId === link.appId && toplevel.title === browser.window;
+    }
     readonly property var space: live ? browser.spaces.find(s => s.id === browser.activeSpace)
                                         || null : null
     readonly property var downloads: live && browser.status ? browser.status.downloads : null

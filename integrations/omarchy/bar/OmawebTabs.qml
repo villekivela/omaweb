@@ -11,31 +11,9 @@ import qs.Commons as Commons
 Item {
     id: root
 
-    property string omarchyPath: Quickshell.env("OMARCHY_PATH")
     property var shell: null
     property var manifest: null
     property bool opened: false
-
-    // Focuses `window` once the overlay is gone: Hyprland keeps the focus on
-    // a surface that holds the keyboard as the overlay does, and the shell
-    // unloads the overlay as it hides, so the focus is a process of its own
-    // that waits. Hyprland moves to the window's workspace for a focus by its
-    // address, which it does not for a toplevel's own request to be raised.
-    function focusOnceGone(window) {
-        const hyprland = window ? Hyprland.toplevels.values.find(each => each.wayland === window) :
-                                  null;
-        const address = hyprland ? String(hyprland.address) : "";
-        if (address === "") {
-            if (window)
-                window.activate();
-            return;
-        }
-        const at = "address:" + (address.startsWith("0x") ? address : "0x" + address);
-        const dispatch = Hyprland.usingLua ? ["hl.dsp.focus({ window = \"" + at + "\" })"] : ["focuswindow",
-                                                                                              at];
-        Quickshell.execDetached(["sh", "-c", "sleep 0.1; exec hyprctl dispatch \"$@\"", "sh"].concat(
-                                    dispatch));
-    }
 
     function open(payloadJson) {
         root.opened = true;
@@ -102,7 +80,7 @@ Item {
             link: link
             onDismissed: root.dismiss()
             onTaken: function (window) {
-                root.focusOnceGone(window);
+                link.focusWindow(window);
                 root.dismiss();
             }
         }

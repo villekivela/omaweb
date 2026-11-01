@@ -65,17 +65,15 @@ TestCase {
                              }, extra || {});
     }
 
-    function test_eachSpaceIsDrawnInItsSpaceColourWithItsCount() {
+    function test_eachSpaceIsDrawnInItsSpaceColour() {
         const state = BarState.build(inputs());
 
         compare(state.type, "state");
         compare(state.activeSpace, "work");
         compare(state.spaces.length, 2);
         compare(state.spaces[0].colour, "#7aa2f7");
-        compare(state.spaces[0].count, 3);
         compare(state.spaces[0].active, "issue");
         compare(state.spaces[1].colour, "#9ece6a");
-        compare(state.spaces[1].count, 0);
     }
 
     // The bar's widget names a site by its host and draws the icon the tab

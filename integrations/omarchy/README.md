@@ -100,12 +100,10 @@ Private window keeps its own sidebar. The choice is kept on this machine and is 
 
 Choosing it links the package's copy of the widget, `/usr/share/omaweb/omarchy/bar`, into
 `~/.config/omarchy/plugins/omaweb.bar`, and places it first in the center of
-`~/.config/omarchy/shell.json`. Omarchy 4.0.6 has no `centerBegin` section. Placing it over the two
-entries earlier versions placed, role `tabs` on the left and role `location` in the center, leaves
-the one, with the `tabs` entry's Space names. The layout is edited with `jq`, which keeps the file's
-order, and the shell is asked to rescan its plugins and read the file again. Choosing Sidebar takes
-the placement and the link out. A start with the bar chosen points the link at the running build's
-widget and leaves the layout where the reader moved it.
+`~/.config/omarchy/shell.json`. Omarchy 4.0.6 has no `centerBegin` section. The layout is edited
+with `jq`, which keeps the file's order, and the shell is asked to rescan its plugins and read the
+file again. Choosing Sidebar takes the placement and the link out. A start with the bar chosen
+points the link at the running build's widget and leaves the layout where the reader moved it.
 
 While the bar is chosen, Settings also offers Space names in the bar: the full name, or the first
 letter with the full name on hover. It is the widget's own `spaceNames` setting on its entry, so
@@ -113,8 +111,9 @@ Settings and the bar's widget settings change the same value.
 
 The Tab switcher opens with `omarchy-shell shell toggle omaweb.bar`, which a key in Hyprland can run
 too. It shows every Space as a column, Pinned tabs as favicons above the tabs. h, j, k and l or the
-arrows move around it as a grid, and `/` starts a search of every Space that Esc leaves. Moving
-changes only the card; Enter switches the browser to the tab, Ctrl+W closes it and Ctrl+M mutes it.
+arrows move around it as a grid, Ctrl+P and Ctrl+N up and down too, Tab and Shift+Tab across too,
+and `/` starts a search of every Space that Esc leaves. Moving changes only the card; Enter switches
+the browser to the tab, Ctrl+W closes it and Ctrl+M mutes or unmutes it.
 
 Quickshell keeps a plugin's files from its first scan. A release that changes the widget shows after
 `omarchy-restart-shell`.

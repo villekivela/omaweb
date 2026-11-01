@@ -44,7 +44,6 @@ export function build(inputs) {
       name: space.name,
       colour: String(inputs.colourOf(space.colour)),
       active: space.active,
-      count: space.pins.length + space.tabs.length,
       pins: space.pins.map((tab) => tabOf(tab, agents)),
       tabs: space.tabs.map((tab) => tabOf(tab, agents)),
     })),

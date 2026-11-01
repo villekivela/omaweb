@@ -53,6 +53,8 @@ Every string a reader sees in the chrome is wrapped for translation, as
   `objectName`s are not translated. An accessible name a screen reader speaks is.
 - A new string is added to `translations/omaweb_fi.ts` in the same change, translated, following
   [the translation guide](../localization.md).
+- The Omarchy bar plugin in `integrations/omarchy/bar/` runs in Omarchy's shell, which loads no
+  catalogue of Omaweb's, so its strings are wrapped but left out of `omaweb_fi.ts`.
 
 ### The translation gate
 

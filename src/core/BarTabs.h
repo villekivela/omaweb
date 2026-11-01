@@ -39,8 +39,8 @@ public:
     void setOn(bool on);
     bool on() const;
 
-    // The state the widgets read, laid out as BarSocket says, with each tab's
-    // icon as the address the window draws it from.
+    // The state the widgets read, laid out as BarState.mjs builds it, with
+    // each tab's icon as the address the window draws it from.
     Q_INVOKABLE void publish(const QVariantMap &state);
     // Asks again whether the shell answers, as Settings opening does.
     Q_INVOKABLE void checkOffered();
