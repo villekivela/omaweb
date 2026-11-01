@@ -111,7 +111,8 @@ echo "==> Checking what the packages carry"
 # The browser is off the PATH, where the client stands in for it. The
 # content-blocking library rides along, because it is not a distribution
 # package and nothing else would supply it. The Sync module's askpass helper is
-# in libexec because git runs it, not a person.
+# in libexec because git runs it, not a person. Omarchy's bar widget is the
+# directory that choosing it links into the shell's plugins.
 check_contents "$package" "usr/lib/omaweb/omaweb-browser
 usr/lib/omaweb/libomaweb_content_blocker.so
 usr/share/applications/omaweb.desktop
@@ -119,9 +120,10 @@ usr/share/icons/hicolor/scalable/apps/omaweb.svg
 usr/share/licenses/omaweb/LICENSE
 usr/share/licenses/omaweb/THIRD_PARTY_NOTICES.md
 usr/share/omaweb/sbom.json
-usr/share/omaweb/translations/omaweb_fi.qm" \
+usr/share/omaweb/translations/omaweb_fi.qm
+usr/share/omaweb/omarchy/bar/manifest.json" \
     '^usr/((lib|libexec)/omaweb|share/(applications|icons|licenses/omaweb))/' \
-    '^usr/share/omaweb/(translations/|sbom\.json$)'
+    '^usr/share/omaweb/(translations/|sbom\.json$|omarchy/bar/)'
 # The icon is installed under the name the desktop entry asks for, whichever
 # file it was made from, so the list above cannot tell the black and white icon
 # from another one. The launcher draws the black and white one.
