@@ -11,7 +11,9 @@ import "BarModel.mjs" as BarModel
 BorderSurface {
     id: card
 
-    property BrowserLink link
+    // The BrowserLink to the browser: an Item here, so a test can stand in
+    // for it without Quickshell.
+    property Item link
     signal dismissed
     // A tab was taken, and `window` shows it, or is null where it is not
     // known: the card's owner raises it once the card is gone.
@@ -22,11 +24,15 @@ BorderSurface {
     // search, where letters are the search's until Esc.
     property bool searching: false
     // The tab the reader moved to, kept by its Space and id so a new state
-    // from the browser leaves the cursor on it, or the Space alone for its
-    // heading. Until they move, or once it is gone, the board's own choice
-    // holds.
-    property string chosenSpace: ""
-    property string chosenTab: ""
+    // from the browser leaves the cursor on it, or the Space alone, with no
+    // tab, for its heading. Until they move, or once it is gone, the board's
+    // own choice holds. One value, set at once: a Space set before its tab
+    // would put the cursor on the board's choice in between, and the board
+    // would move for it.
+    property var choice: ({
+                              "space": "",
+                              "tab": ""
+                          })
 
     readonly property var state: link && link.live ? link.browser : null
     readonly property var board: state ? BarModel.board(state, filter) : ({
@@ -35,14 +41,15 @@ BorderSurface {
                                                                               "row": -1
                                                                           })
     readonly property var cursor: {
-        const column = board.columns.findIndex(each => each.space.id === chosenSpace);
-        if (column >= 0 && chosenTab === "")
+        const column = board.columns.findIndex(each => each.space.id === choice.space);
+        if (column >= 0 && choice.tab === "")
             return {
                 "column": column,
                 "row": -1
             };
         const row = column >= 0 ? board.columns[column].tabs.findIndex(entry => entry.tab.id
-                                                                                === chosenTab) : -1;
+                                                                                === choice.tab) :
+                                  -1;
         return row >= 0 ? {
                               "column": column,
                               "row": row
@@ -104,11 +111,14 @@ BorderSurface {
     padding: Style.spacing.panelPadding
 
     function reset() {
+        firstShown = 0;
         searching = false;
         filter = "";
-        chosenSpace = "";
-        chosenTab = "";
-        firstShown = 0;
+        choice = {
+            "space": "",
+            "tab": ""
+        };
+        keepInView();
         keys.forceActiveFocus();
     }
 
@@ -119,21 +129,27 @@ BorderSurface {
 
     function setFilter(text) {
         filter = text;
-        chosenSpace = "";
-        chosenTab = "";
+        choice = {
+            "space": "",
+            "tab": ""
+        };
     }
 
     function choose(column, row) {
         if (board.columns[column] && row < 0) {
-            chosenSpace = board.columns[column].space.id;
-            chosenTab = "";
+            choice = {
+                "space": board.columns[column].space.id,
+                "tab": ""
+            };
             return;
         }
         const entry = board.columns[column] && board.columns[column].tabs[row];
         if (!entry)
             return;
-        chosenSpace = board.columns[column].space.id;
-        chosenTab = entry.tab.id;
+        choice = {
+            "space": board.columns[column].space.id,
+            "tab": entry.tab.id
+        };
     }
 
     function move(dx, dy) {
@@ -292,20 +308,20 @@ BorderSurface {
             font.pixelSize: Style.font.heading
         }
 
-        // The Spaces side by side, scrolled to keep the cursor's in view
-        // when there are more than it shows.
-        Flickable {
+        // The Spaces side by side, from the first in view. A plain item, not
+        // a Flickable: a Flickable puts its contentX back in its bounds when
+        // its size changes before the Spaces are laid out, and the board then
+        // stays on the first Space until the cursor next moves.
+        Item {
             id: boardArea
             width: parent.width
             height: card.board.columns.length === 0 ? Style.space(96) : Math.min(card.tallest,
                                                                                  columns.tallestColumn)
-            contentWidth: columns.width
-            contentX: card.view.first * (card.columnWidth + card.gutter)
-            interactive: false
             clip: true
 
             Row {
                 id: columns
+                x: -card.view.first * (card.columnWidth + card.gutter)
                 spacing: card.gutter
                 readonly property real tallestColumn: {
                     let most = 0;
