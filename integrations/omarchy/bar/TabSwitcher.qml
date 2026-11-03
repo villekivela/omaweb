@@ -270,14 +270,11 @@ BorderSurface {
                 id: columns
                 spacing: card.gutter
                 readonly property real tallestColumn: {
-                    let most = card.rowHeight;
-                    for (const column of card.board.columns) {
-                        const pins = column.tabs.filter(entry => entry.pinned);
-                        const height = card.pinsHeight(pins.length) + column.tabs.filter(entry =>
-                        !entry.pinned).reduce((sum, entry) => sum + card.rowHeightOf(entry.tab), 0);
-                        most = Math.max(most, height);
-                    }
-                    return Style.space(36) + most;
+                    let most = 0;
+                    for (const each of children)
+                        if (each.needed !== undefined)
+                            most = Math.max(most, each.needed);
+                    return most;
                 }
 
                 Repeater {
@@ -295,6 +292,15 @@ BorderSurface {
                         // them is this many places on.
                         readonly property int pinCount: modelData.tabs.filter(entry
                                                                               => entry.pinned).length
+                        // The height its heading, pins and rows take as laid
+                        // out. A board shorter than this scrolls its tabs by
+                        // a few pixels whenever the cursor reaches the last.
+                        readonly property real needed: {
+                            let rows = 0;
+                            for (const entry of modelData.tabs.slice(pinCount))
+                                rows += card.rowHeightOf(entry.tab);
+                            return tabs.y + Math.max(card.rowHeight, rows);
+                        }
                         width: card.columnWidth
                         height: boardArea.height
 
