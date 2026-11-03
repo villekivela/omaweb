@@ -76,9 +76,24 @@ BorderSurface {
                                                                                             + pinSpacing)))
     readonly property real widest: parent ? parent.width - Style.gapsOut * 4 : Style.space(1200)
     readonly property real tallest: parent ? parent.height * 0.6 : Style.space(520)
+    // The columns the screen has room for.
+    readonly property int columnsFit: {
+        const room = widest - contentLeftInset - contentRightInset + gutter;
+        return Math.max(1, Math.floor(room / (columnWidth + gutter)));
+    }
+    // The Spaces in view, at most four. The first is kept from move to move,
+    // so the board moves only when the cursor's Space would leave it.
+    property int firstShown: 0
+    readonly property var view: BarModel.boardView(firstShown, cursor.column, board.columns.length,
+                                                   columnsFit)
+    onCursorChanged: keepInView()
+    onColumnsFitChanged: keepInView()
 
-    width: Math.min(widest, Math.max(Style.space(440), contentLeftInset + contentRightInset
-                                     + board.columns.length * (columnWidth + gutter) - gutter))
+    width: {
+        const columns = view.shown * (columnWidth + gutter) - gutter;
+        const needed = contentLeftInset + contentRightInset + columns;
+        return Math.min(widest, Math.max(Style.space(440), needed));
+    }
     height: contentTopInset + contentBottomInset + search.height + boardArea.height + detail.height
             + Style.spacing.lg * 2
     radius: Style.cornerRadius
@@ -93,7 +108,13 @@ BorderSurface {
         filter = "";
         chosenSpace = "";
         chosenTab = "";
+        firstShown = 0;
         keys.forceActiveFocus();
+    }
+
+    function keepInView() {
+        firstShown = BarModel.boardView(firstShown, cursor.column, board.columns.length,
+                                        columnsFit).first;
     }
 
     function setFilter(text) {
@@ -230,6 +251,26 @@ BorderSurface {
         }
     }
 
+    // A faint edge in the padding beside the board, on a side with more
+    // Spaces than it shows.
+    Repeater {
+        model: [card.view.before, card.view.after]
+
+        Rectangle {
+            required property bool modelData
+            required property int index
+            visible: modelData
+            x: index === 0 ? card.contentLeftInset / 2 - width / 2 : card.width
+                             - card.contentRightInset / 2 - width / 2
+            y: card.contentTopInset + boardArea.y
+            width: Math.max(1, Style.space(2))
+            height: boardArea.height
+            radius: width / 2
+            color: card.fg
+            opacity: 0.2
+        }
+    }
+
     Column {
         anchors.fill: parent
         anchors.topMargin: card.contentTopInset
@@ -251,18 +292,15 @@ BorderSurface {
             font.pixelSize: Style.font.heading
         }
 
-        // The Spaces side by side, scrolled to keep the cursor's in sight
-        // when there are more than fit.
+        // The Spaces side by side, scrolled to keep the cursor's in view
+        // when there are more than it shows.
         Flickable {
             id: boardArea
             width: parent.width
             height: card.board.columns.length === 0 ? Style.space(96) : Math.min(card.tallest,
                                                                                  columns.tallestColumn)
             contentWidth: columns.width
-            contentX: {
-                const left = Math.max(0, card.cursor.column) * (card.columnWidth + card.gutter);
-                return Math.max(0, Math.min(left, contentWidth - width));
-            }
+            contentX: card.view.first * (card.columnWidth + card.gutter)
             interactive: false
             clip: true
 

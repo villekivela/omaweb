@@ -228,4 +228,51 @@ TestCase {
         compare(move(3, 0, -1), "research/c");
         compare(move(2, 0, -1), "research/a");
     }
+
+    // ----- more Spaces than the card shows (#906).
+
+    // The card shows at most four Spaces, fewer where the screen holds fewer
+    // or the browser has fewer.
+    function test_theBoardShowsAtMostFourSpaces() {
+        compare(BarModel.boardView(0, 0, 8, 10).shown, 4);
+        compare(BarModel.boardView(0, 0, 3, 10).shown, 3);
+        compare(BarModel.boardView(0, 0, 8, 2).shown, 2);
+        compare(BarModel.boardView(0, -1, 0, 10).shown, 0);
+    }
+
+    // Walking across eight Spaces, the board moves only when the cursor's
+    // Space would leave it, and then by one Space, not to put it first.
+    function test_theBoardScrollsOnlyWhenTheCursorsSpaceWouldLeaveIt() {
+        let first = 0;
+        const firsts = [];
+        for (const column of [0, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1, 0]) {
+            first = BarModel.boardView(first, column, 8, 10).first;
+            firsts.push(first);
+        }
+
+        compare(firsts, [0, 0, 0, 0, 1, 2, 3, 4, 4, 4, 4, 3, 2, 1, 0]);
+    }
+
+    // Round the end, from the last Space to the first and back, the board
+    // goes with the cursor.
+    function test_wrappingRoundTheEndTakesTheBoardWithTheCursor() {
+        compare(BarModel.boardView(4, 0, 8, 10).first, 0);
+        compare(BarModel.boardView(0, 7, 8, 10).first, 4);
+    }
+
+    // A search that leaves fewer Spaces starts the board where they fit.
+    function test_fewerSpacesFitTheBoardAgain() {
+        compare(BarModel.boardView(4, 0, 3, 10).first, 0);
+        compare(BarModel.boardView(4, 5, 6, 10).first, 2);
+    }
+
+    // An edge shows on whichever side has more Spaces than the board shows.
+    function test_anEdgeShowsOnTheSideWithMoreSpaces() {
+        const edges = view => [view.before, view.after];
+
+        compare(edges(BarModel.boardView(0, 0, 8, 10)), [false, true]);
+        compare(edges(BarModel.boardView(2, 3, 8, 10)), [true, true]);
+        compare(edges(BarModel.boardView(4, 7, 8, 10)), [true, false]);
+        compare(edges(BarModel.boardView(0, 2, 3, 10)), [false, false]);
+    }
 }

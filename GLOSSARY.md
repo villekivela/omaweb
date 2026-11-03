@@ -176,10 +176,10 @@ shows only the page, and its sidebar returns when no widget has been there for a
 Private window keeps its own sidebar. _Avoid_: Tab bar, taskbar, panel
 
 **Tab switcher**: The card the Omarchy bar widget opens over the screen: every Space side by side as
-a column, its Pinned tabs as favicons above its tabs, and the Space on show ruled heavier. Moving
-around it with h, j, k and l changes nothing in the browser until a tab, or a Space by its heading,
-is taken; a search, started with `/`, keeps the tabs that match in every Space. _Avoid_: Tab
-overview, tab popup, Spaces popup
+a column, at most four in view, its Pinned tabs as favicons above its tabs, and the Space on show
+ruled heavier. Moving around it with h, j, k and l changes nothing in the browser until a tab, or a
+Space by its heading, is taken; a search, started with `/`, keeps the tabs that match in every
+Space. _Avoid_: Tab overview, tab popup, Spaces popup
 
 **Location**: The page on show as the Omarchy bar widget names it in the bar's center: back, forward
 and reload, then a lock, the host, and the title dimmed, at a fixed width so a tab switch moves

@@ -94,3 +94,16 @@ export function moveOnBoard(columns, column, row, dx, dy, perLine = 1) {
   const line = Math.min(linesIn(column) - 1, here.line + dy);
   return { column, row: rowAt(column, line, here.slot) };
 }
+
+// The Spaces the board shows: at most four, as many as `fits` on the screen,
+// from `first`. It moves only when the cursor's `column` of `count` would
+// leave it, just far enough to keep it in view. `before` and `after` say a
+// side has more Spaces than it shows.
+export function boardView(first, column, count, fits) {
+  const shown = Math.min(4, fits, count);
+  let start = Math.min(first, count - shown);
+  if (column >= 0 && column < start) start = column;
+  if (column >= start + shown) start = column - shown + 1;
+  start = Math.max(0, start);
+  return { first: start, shown, before: start > 0, after: start + shown < count };
+}
