@@ -66,35 +66,31 @@ too, `omaweb --diagnose` for a run with named overrides, the sidebar footer as t
 short-lived marks in a pill, no floating navigation strip, and a Glance head with its own back,
 forward and reload.
 
-[v0.20.0](https://github.com/villekivela/omaweb/milestone/21) is the release in progress, for polish
-and performance. Sync stops reloading an open page with this machine's own state
-([#861](https://github.com/villekivela/omaweb/issues/861)). The Glance comes inside its frame budget
-([#858](https://github.com/villekivela/omaweb/issues/858)), after its buttons read over a light page
-and its key to become a tab works ([#863](https://github.com/villekivela/omaweb/issues/863)). The
-runtime budget is taken again on the 6.11.3 engine
-([#859](https://github.com/villekivela/omaweb/issues/859)), and so is the comparison with Chromium
-([#860](https://github.com/villekivela/omaweb/issues/860)). The address row gets quieter: the
-extension mark is muted and the search button goes
-([#862](https://github.com/villekivela/omaweb/issues/862)), and then the Space buttons get a quieter
-hover and the keep-active dot goes ([#869](https://github.com/villekivela/omaweb/issues/869)).
-Settings glides after a touchpad lift and moves between sections with the arrow keys
-([#864](https://github.com/villekivela/omaweb/issues/864)), its toggles stand apart
-([#866](https://github.com/villekivela/omaweb/issues/866)), downloads show progress
-([#865](https://github.com/villekivela/omaweb/issues/865)), and About says Omaweb is the default
-when Omarchy's browser router opens it ([#867](https://github.com/villekivela/omaweb/issues/867)).
-Files are chosen through the desktop's file chooser portal
-([#868](https://github.com/villekivela/omaweb/issues/868)). The drifts the new budget showed are
-named. Startup's 0.2 s is mostly the runner, and a Start page closed before the first frame no
-longer fades over it ([#883](https://github.com/villekivela/omaweb/issues/883)). The 21 MiB is the
-chrome added since September and is kept ([#884](https://github.com/villekivela/omaweb/issues/884)).
-A frozen away page does not grow: the 0.44 MiB was the page brought back on show, and the probe now
-reads the away page's own processes ([#885](https://github.com/villekivela/omaweb/issues/885)). The
-budget is measured on the release build readers run
-([#889](https://github.com/villekivela/omaweb/issues/889)), and the x86_64 engine links at ThinLTO's
-`--lto-O2`, as Chrome does, which takes Speedometer from 0.73 of Chromium 140 to 0.82
-([#886](https://github.com/villekivela/omaweb/issues/886)). A popped-out pin keeps its window mark
-clear of its speaker ([#887](https://github.com/villekivela/omaweb/issues/887)), and the UI tests no
-longer open the desktop's file chooser ([#894](https://github.com/villekivela/omaweb/issues/894)).
+[v0.20.0](https://github.com/villekivela/omaweb/releases/tag/v0.20.0) shipped polish and
+performance: Sync that stops reloading an open page with this machine's own state, the Glance inside
+its frame budget, a quieter address row and Space buttons, Settings that glide after a touchpad lift
+and take the arrow keys, download progress, the desktop's file chooser portal, and a runtime budget
+measured on the release build readers run. The x86_64 engine links at ThinLTO's `--lto-O2`, which
+takes Speedometer from 0.73 of Chromium 140 to 0.82. Its engine is 6.11.3-2 on x86_64 and 6.11.3-1
+on aarch64.
+
+[v0.21.0](https://github.com/villekivela/omaweb/milestone/22) is the release in progress, for tabs
+and the page menu. Several tabs can be selected in the sidebar
+([#917](https://github.com/villekivela/omaweb/issues/917)), and Folders build on that
+([#918](https://github.com/villekivela/omaweb/issues/918)). The page context menu searches a
+selection and sends a link to a Space or a Private window
+([#915](https://github.com/villekivela/omaweb/issues/915)). A setting darkens pages that have no
+dark theme ([#916](https://github.com/villekivela/omaweb/issues/916)). The requirements stop calling
+proprietary codecs unsupported, and a test plays them
+([#914](https://github.com/villekivela/omaweb/issues/914)). Agents are taught to use temporary
+Spaces ([#910](https://github.com/villekivela/omaweb/issues/910)), the command list gets Delete
+Space ([#909](https://github.com/villekivela/omaweb/issues/909)), the Omarchy kit catches up with
+quattro ([#908](https://github.com/villekivela/omaweb/issues/908)), and the website's theme changes
+with the film ([#903](https://github.com/villekivela/omaweb/issues/903)). Three questions get
+answers: whether Widevine can run on the engine
+([#911](https://github.com/villekivela/omaweb/issues/911)), whether Omaweb's tabs can show up in
+oma-cast ([#830](https://github.com/villekivela/omaweb/issues/830)), and whether Qt's extension
+surface has grown ([#288](https://github.com/villekivela/omaweb/issues/288)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
@@ -125,6 +121,11 @@ not distribute its bundles ([ADR 0029](adr/0029-distribute-only-for-linux.md)).
   an Agent Space, the page's main world ([#534](https://github.com/villekivela/omaweb/issues/534)).
   They join the release that is open when 6.140.0 is out.
 - Account and Sync with replaceable providers are deferred.
+- Spellchecking ([#912](https://github.com/villekivela/omaweb/issues/912)) and a reader's own CSS
+  for a site ([#913](https://github.com/villekivela/omaweb/issues/913)) are planned for a release
+  after v0.21.0.
+- Tabs and Spaces in the Omarchy bar ([#906](https://github.com/villekivela/omaweb/issues/906)) are
+  parked. The design wasn't usable enough to ship, and the issue stays open for a different one.
 
 ## Known extensions
 
