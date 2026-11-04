@@ -26,7 +26,9 @@ reports what the texts say.
 On x86_64 the engine has everything it needs to load Widevine, with no build change. Qt turns it on
 for every build, it reads a file already on disk, and it finds one by itself in several places.
 Whether a current CDM then works on this engine is untested: no real CDM was loaded for this note,
-and a CDM from current Chrome is 17 Chromium versions newer than the pin.
+and a CDM from current Chrome, version 157 in
+[Google's apt repository](https://dl.google.com/linux/chrome/deb/dists/stable/main/binary-amd64/Packages.gz),
+is 17 Chromium versions newer than the pin.
 
 ### Build time
 
@@ -510,8 +512,11 @@ A small program in a scratch directory, linked against the installed `omaweb-qtw
 on x86_64, opened an off-the-record profile at `https://localhost/`, where `isSecureContext` was
 true. It called `navigator.requestMediaKeySystemAccess` for each key system with a `cenc` H.264
 configuration, then `createMediaKeys`. It ran offscreen under `dbus-run-session` with a throwaway
-`HOME`, so the lookup saw only what the probe put there. Clear Key is the control: it needs no
-library, so it shows that EME itself works in every run.
+`HOME`, so the lookup saw only what the probe put there. The current x86_64 engine, 6.11.3-2, has
+the same source and patches and differs only in its link level
+([release](https://github.com/villekivela/omaweb/releases/tag/engine-6.11.3-2)), so the result
+carries over, though it was not run. Clear Key is the control: it needs no library, so it shows that
+EME itself works in every run.
 
 | Setup                                                            | `org.w3.clearkey` | `com.widevine.alpha` access | `createMediaKeys`                                |
 | ---------------------------------------------------------------- | ----------------- | --------------------------- | ------------------------------------------------ |
