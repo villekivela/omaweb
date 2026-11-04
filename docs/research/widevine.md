@@ -24,8 +24,9 @@ reports what the texts say.
 ## Engine capability
 
 On x86_64 the engine has everything it needs to load Widevine, with no build change. Qt turns it on
-for every build, it reads a file already on disk, and it finds one by itself in several places.
-Whether a current CDM then works on this engine is untested: no real CDM was loaded for this note,
+for every build, it reads a file already on disk, and it finds one by itself in several places. A
+real CDM has been seen loaded on x86_64, as [below](#what-this-engine-does-here) records, but
+whether it then works on this engine is untested. Nothing has initialized it or played through it,
 and a CDM from current Chrome, version 157 in
 [Google's apt repository](https://dl.google.com/linux/chrome/deb/dists/stable/main/binary-amd64/Packages.gz),
 is 17 Chromium versions newer than the pin.
@@ -84,13 +85,13 @@ sandbox-disabling switches, and `--widevine-path` is none of those, so a reader'
 `QTWEBENGINE_CHROMIUM_FLAGS` reaches the engine.
 [DevelopmentLaunch.cpp](../../src/core/DevelopmentLaunch.cpp), [main.cpp](../../src/main.cpp)
 
-One consequence. On a reader's machine with Google Chrome installed, or a Firefox profile that has
-fetched its CDM, stock engine code finds a CDM with no action by Omaweb or the reader. Finding a CDM
-also loads it. On Linux, `PreloadLibraryCdms` loads every registered CDM in the zygote before the
-sandbox starts, without initializing it.
+One consequence. On a reader's machine with Google Chrome installed, or a Firefox or Chromium
+profile that has fetched its CDM, stock engine code finds a CDM with no action by Omaweb or the
+reader. Finding a CDM also loads it. On Linux, `PreloadLibraryCdms` loads every registered CDM in
+the zygote before the sandbox starts, without initializing it.
 [content_main_runner_impl.cc](https://code.qt.io/cgit/qt/qtwebengine-chromium.git/tree/chromium/content/app/content_main_runner_impl.cc?id=bcc09a68b50a40c60d8dc83f0e6b6dc872614812#n393)
 The [probes](#what-this-engine-does-here) show the shipped engine finding a file and trying to load
-it this way.
+it this way, and a running Omaweb has been seen with a real CDM loaded.
 
 Qt's documentation describes the same behaviour. Its HTML5 DRM section, quoted from the
 [source at the tag](https://code.qt.io/cgit/qt/qtwebengine.git/tree/src/core/doc/src/qtwebengine-features.qdoc?h=v6.11.3#n430)
@@ -148,8 +149,9 @@ A mismatch would therefore look like Widevine being offered to a page and then f
 Chromium `main` still enables interfaces 10 and 11.
 [supported_cdm_versions.h](https://chromium.googlesource.com/chromium/src/+/4c7244a405d326e284710231ff609168dceb9044/media/cdm/supported_cdm_versions.h#38)
 A CDM that current Chrome can load therefore offers an interface the pin also accepts, as far as the
-interface check goes. That is an inference from the two headers. Nobody has loaded one here, and the
-module version on `main` was not confirmed because that header did not fetch at the same path.
+interface check goes. That is an inference from the two headers. No CDM has been through that check
+here, because a preload does not reach it, and the module version on `main` was not confirmed
+because that header did not fetch at the same path.
 
 The hardcoded list also says what the CDM can do, whatever it really does. Qt's comment says the
 list "must match the CDM that is being bundled with Chrome", and nothing checks that it does.
@@ -385,8 +387,9 @@ What stays unsettled is narrower:
 - Whether Google enforces any of this. No statement found applies these clauses to a private test.
 
 A probe of the engine's lookup that uses no real CDM is unaffected: an empty file at a searched path
-shows the search without any Google software. The probes below do that and go no further, so no real
-CDM was loaded for this note.
+shows the search without any Google software. The probes below do that and go no further, so they
+loaded no real CDM. Nobody chose to run the experiment in place, but it has happened:
+[a running Omaweb](#what-this-engine-does-here) loaded a CDM that Chromium had fetched.
 
 ## Verified media path and services
 
@@ -505,15 +508,18 @@ CDM and an account can settle these.
 
 ## What this engine does here
 
-The probes ran on 2026-11-04 with no Widevine CDM on the machine and no real CDM at any point. They
-show what the engine does up to loading a library, and nothing after that.
+Two kinds of evidence follow: probes with no real CDM, and one observation of a real CDM loaded in a
+running Omaweb. Together they show what the engine does up to loading a library, and nothing after
+that.
+
+### Probes with an empty file
 
 A small program in a scratch directory, linked against the installed `omaweb-qtwebengine` 6.11.3-1
 on x86_64, opened an off-the-record profile at `https://localhost/`, where `isSecureContext` was
 true. It called `navigator.requestMediaKeySystemAccess` for each key system with a `cenc` H.264
 configuration, then `createMediaKeys`. It ran offscreen under `dbus-run-session` with a throwaway
-`HOME`, so the lookup saw only what the probe put there. The current x86_64 engine, 6.11.3-2, has
-the same source and patches and differs only in its link level
+`HOME`, so the lookup saw no CDM but what the probe put there. The current x86_64 engine, 6.11.3-2,
+has the same source and patches and differs only in its link level
 ([release](https://github.com/villekivela/omaweb/releases/tag/engine-6.11.3-2)), so the result
 carries over, though it was not run. Clear Key is the control: it needs no library, so it shows that
 EME itself works in every run.
@@ -543,25 +549,42 @@ directories and the string `/_platform_specific/linux_x64/libwidevinecdm.so`, an
 `linux_arm64` path. So the shipped binary agrees with the source: the loader is there, and its
 lookup names the wrong directory.
 
-What stays unproven:
+### A real CDM in a running Omaweb
 
-- That a real CDM loads and decrypts on this engine. The source points that way and Qt documents it.
-  The licence section is why nobody tried.
-- That Omaweb itself behaves as the probe program did. Omaweb's source has no EME or key system code
-  and its launch flags do not touch CDMs, so nothing suggests otherwise, but Omaweb was not run.
-- Any service. Testing one needs a signed-in account and a real CDM.
+On 2026-11-04, on a development machine (an XPS), `/proc` maps of a running Omaweb on engine
+6.11.3-2 showed `libwidevinecdm.so` 4.10.3112.0 mapped in its 3 zygotes and 13 renderers. It came
+from `~/.config/chromium/WidevineCdm`, where Arch's Chromium 155 had fetched it. Nothing was run to
+get this: the maps were read from the browser as it stood.
+
+So the shipped x86_64 engine, in Omaweb itself, finds a real CDM by its own lookup and loads it,
+with no action by Omaweb or the reader. That is what the source says `PreloadLibraryCdms` does, and
+the library lands in the zygotes before the sandbox. The maps show loading and nothing more. The
+preload does not initialize a CDM, so they say nothing about whether this one passes the interface
+checks, decrypts, or plays.
+
+### What stays unproven
+
+- That a real CDM initializes and decrypts on this engine, or that a video plays. Loading is all
+  that was seen. The source points that way and Qt documents it. The licence section is why nobody
+  tried.
+- That Omaweb offers Widevine to a page as the probe program's engine did. Omaweb's source has no
+  EME or key system code and its launch flags do not touch CDMs, so nothing suggests otherwise, but
+  no page in Omaweb has asked.
+- Any service. Testing one needs a signed-in account.
+- aarch64. Nothing here ran on it, and the observation above is x86_64 only.
 
 ## Recommendation
 
 **Keep the non-goal, and file no implementation work to play Widevine.**
 
-The blocker is the licence. The engine does not appear to be one, though no real CDM has run on it:
-on x86_64 it needs nothing built, and on aarch64 only discovery needs a small patch. VMP does not
-apply on Linux. But every route that Omaweb would own needs permission that no public text gives.
-Shipping is refused without an agreement, and a download has no clause behind it. The route that
-needs no code, a reader's own Chrome, leaves Omaweb telling readers to rely on a permission nobody
-has stated. Omaweb would also be working for a return capped at 1080p on Netflix, which may turn it
-away as a Chromium-based browser, and SD on Prime Video, with Disney+ unknown.
+The blocker is the licence. The engine does not appear to be one, though no real CDM has been seen
+to do more than load on it: on x86_64 it needs nothing built, and on aarch64 only discovery needs a
+small patch. VMP does not apply on Linux. But every route that Omaweb would own needs permission
+that no public text gives. Shipping is refused without an agreement, and a download has no clause
+behind it. The route that needs no code, a reader's own Chrome, leaves Omaweb telling readers to
+rely on a permission nobody has stated. Omaweb would also be working for a return capped at 1080p on
+Netflix, which may turn it away as a Chromium-based browser, and SD on Prime Video, with Disney+
+unknown.
 
 What would reopen this is a signed agreement, or a written answer from Widevine. Google says it
 charges no fee and tells readers of LICENSE to contact it, so one enquiry is cheap. Maddock's
@@ -569,10 +592,10 @@ account suggests it may go unanswered, or be refused, for an open source browser
 maintainer's call and not engineering work.
 
 One finding does not wait for that, and it is about the engine rather than about playing anything.
-The requirements call DRM unsupported, and the engine's lookup runs regardless. The source says it
-registers and preloads any CDM it finds, and the probes show that for an empty file in Chrome's
-directory. So on a machine with Chrome or a Firefox CDM, Google's closed library would be expected
-to load into the zygote before the sandbox, and pages to be offered Widevine, with no action by
-Omaweb or the reader. That is inferred: no real CDM was present, and Omaweb itself was not run. The
+The requirements call DRM unsupported, and the engine's lookup runs regardless. This is observed for
+loading: a running Omaweb on engine 6.11.3-2 had Google's closed library, fetched by Arch's
+Chromium, mapped in its zygotes and renderers, with no action by Omaweb or the reader. The same is
+expected with Chrome or a Firefox CDM on the machine, because the source treats them alike. That
+pages are offered Widevine in Omaweb remains inferred from the probes, and playback is untested. The
 maintainer has two ways to close the gap: remove the lookup in the patch series, which is engine
 work, or have the requirements say that it happens. This note makes neither change.
