@@ -1243,7 +1243,7 @@ that resource at the page's next load.
 - Browser data import
 - Installed web applications
 - Additional ordinary browser windows or detached tabs
-- Translation, Reader mode, View source, or spellchecking
+- Translation, Reader mode, or View source
 - A custom user agent, globally or per site: it makes a reader easier to fingerprint and mostly
   works around sites that turn away browsers other than Chrome
 - Print preview: the desktop print dialog owns preview and PDF output
