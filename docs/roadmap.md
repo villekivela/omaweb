@@ -86,10 +86,11 @@ proprietary codecs unsupported, and a test plays them
 Spaces ([#910](https://github.com/villekivela/omaweb/issues/910)), the command list gets Delete
 Space ([#909](https://github.com/villekivela/omaweb/issues/909)), the Omarchy kit catches up with
 quattro ([#908](https://github.com/villekivela/omaweb/issues/908)), and the website's theme changes
-with the film ([#903](https://github.com/villekivela/omaweb/issues/903)). Two questions get answers:
-whether Omaweb's tabs can show up in oma-cast
-([#830](https://github.com/villekivela/omaweb/issues/830)), and whether Qt's extension surface has
-grown ([#288](https://github.com/villekivela/omaweb/issues/288)).
+with the film ([#903](https://github.com/villekivela/omaweb/issues/903)). Three questions get
+answers: whether Widevine can run on the engine
+([#911](https://github.com/villekivela/omaweb/issues/911)), whether Omaweb's tabs can show up in
+oma-cast ([#830](https://github.com/villekivela/omaweb/issues/830)), and whether Qt's extension
+surface has grown ([#288](https://github.com/villekivela/omaweb/issues/288)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
@@ -123,9 +124,6 @@ not distribute its bundles ([ADR 0029](adr/0029-distribute-only-for-linux.md)).
 - Spellchecking ([#912](https://github.com/villekivela/omaweb/issues/912)) and a reader's own CSS
   for a site ([#913](https://github.com/villekivela/omaweb/issues/913)) are planned for a release
   after v0.21.0.
-- Whether Widevine can run on the engine is a research question
-  ([#911](https://github.com/villekivela/omaweb/issues/911)). DRM stays a non-goal until it is
-  answered.
 - Tabs and Spaces in the Omarchy bar ([#906](https://github.com/villekivela/omaweb/issues/906)) are
   parked. The design wasn't usable enough to ship, and the issue stays open for a different one.
 
