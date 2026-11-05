@@ -34,6 +34,14 @@ namespace {
             {QStringLiteral("zoom"), tab.zoom}, {QStringLiteral("keepActive"), tab.keepActive}};
     }
 
+    // Whether the Folder is collapsed is left out: it is this machine's.
+    QJsonObject projectedFolder(const FolderState &folder, qsizetype position)
+    {
+        return {{QStringLiteral("id"), folder.id}, {QStringLiteral("spaceId"), folder.spaceId},
+            {QStringLiteral("name"), folder.name}, {QStringLiteral("position"), position},
+            {QStringLiteral("tabIds"), QJsonArray::fromStringList(folder.tabIds)}};
+    }
+
     bool isRestingPlaceholder(const TabState &tab, const QVector<TabState> &tabs)
     {
         if (tab.pinned || (!tab.url.isEmpty() && tab.url != QUrl(QStringLiteral("about:blank")))) {
@@ -144,6 +152,7 @@ LocalSyncState::Fingerprints LocalSyncState::fingerprints(const BrowserStateImag
 {
     QJsonArray spaces;
     QJsonArray tabs;
+    QJsonArray folders;
     for (qsizetype spacePosition = 0; spacePosition < image.spaces.size(); ++spacePosition) {
         const auto &space = image.spaces.at(spacePosition);
         spaces.append(QJsonObject {{QStringLiteral("id"), space.id},
@@ -156,6 +165,10 @@ LocalSyncState::Fingerprints LocalSyncState::fingerprints(const BrowserStateImag
             }
             tabs.append(projectedTab(localTabs.at(tabPosition), tabPosition));
         }
+        const auto localFolders = image.foldersBySpace.value(space.id);
+        for (qsizetype folderPosition = 0; folderPosition < localFolders.size(); ++folderPosition) {
+            folders.append(projectedFolder(localFolders.at(folderPosition), folderPosition));
+        }
     }
     QStringList preferenceNames = image.preferences.keys();
     preferenceNames.sort();
@@ -163,8 +176,9 @@ LocalSyncState::Fingerprints LocalSyncState::fingerprints(const BrowserStateImag
     for (const auto &name : preferenceNames) {
         preferences.insert(name, image.preferences.value(name));
     }
-    return {.browser = digest(QJsonObject {{QStringLiteral("spaces"), spaces},
-                {QStringLiteral("tabs"), tabs}, {QStringLiteral("preferences"), preferences}}),
+    return {.browser
+        = digest(QJsonObject {{QStringLiteral("spaces"), spaces}, {QStringLiteral("tabs"), tabs},
+            {QStringLiteral("folders"), folders}, {QStringLiteral("preferences"), preferences}}),
         .keybindings = QCryptographicHash::hash(image.keybindings, QCryptographicHash::Sha256),
         .filterSubscriptions = digest(image.filterSubscriptions)};
 }

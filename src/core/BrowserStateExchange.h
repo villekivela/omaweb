@@ -1,5 +1,6 @@
 #pragma once
 
+#include "FolderState.h"
 #include "SpaceListModel.h"
 #include "TabListModel.h"
 
@@ -23,6 +24,7 @@ struct BrowserStateSelection {
 struct BrowserStateImage {
     QVector<SpaceState> spaces;
     QHash<QString, QVector<TabState>> tabsBySpace;
+    QHash<QString, QVector<FolderState>> foldersBySpace;
     QHash<QString, QString> preferences;
     QByteArray keybindings;
     QJsonArray filterSubscriptions;

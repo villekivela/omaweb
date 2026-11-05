@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Effects
+import QtQml.Models
 import Omaweb
 import qs.Commons
 import qs.Ui as Omarchy
@@ -340,6 +341,22 @@ Rectangle {
         }
     }
     Connections {
+        target: root.browser
+        // Collapsing a Folder changes the list without moving a tab. Any other
+        // change to the Folders is no slide's.
+        function onFoldersChanged() {
+            if (!root.togglingFolder)
+                root.settleFolderSlides();
+            root.retakeDeparture();
+        }
+        function onActiveTabChanged() {
+            root.settleFolderSlides();
+        }
+        function onSpaceSuspended() {
+            root.settleFolderSlides();
+        }
+    }
+    Connections {
         target: root.browser ? root.browser.pinnedTabs : null
         function onRowsInserted() {
             root.retakeDeparture();
@@ -450,6 +467,13 @@ Rectangle {
     // The same for a marked row, which takes every marked row with it: the
     // whole section as it is to be, by tab id, and the tabs that move to it.
     signal tabsDropped(var order, var moving)
+    // Where rows were let go in a list with Folders: in `folderId`, or in no
+    // Folder when it is empty, before the row of `beforeTabId`, or at the end.
+    signal tabsPlaced(var tabIds, string folderId, string beforeTabId)
+    // A Folder's row, which has no page: pressed open or shut by the list, and
+    // moved within the block or asked for its menu by the window.
+    signal folderDropped(string folderId, int destination)
+    signal folderMenuRequested(string folderId, real anchorX, real anchorY)
     signal spaceActivated(string spaceId)
     // The count of Spaces the footer had no room for was pressed: those
     // Spaces, each as `{ spaceId, spaceName, spaceColor, active, agentMade,
@@ -647,10 +671,104 @@ Rectangle {
         const rows = [];
         for (let index = 0; index < container.children.length; ++index) {
             const child = container.children[index];
-            if (child.tabId !== undefined)
+            if (child.placeInSection !== undefined)
                 rows[child.placeInSection] = child;
         }
         return rows;
+    }
+
+    // Whether the Space on show has Folders, which is when a row has a place
+    // in or out of one to be dragged to.
+    readonly property bool hasFolders: browser ? browser.folderCount > 0 : false
+
+    // The Folders sliding open or shut, by id. Their rows stay in the list until
+    // the slide is over, which is what lets them be drawn on the way.
+    property var slidingFolders: ({})
+    // How far the hairline is drawn from its place, as a row's `slide` is.
+    property real hairlineSlide: 0
+    // Whether the change to a Folder being heard is the one a slide is for.
+    property bool togglingFolder: false
+
+    // Collapsing leaves the tab on show in view, and lets go of the marks on
+    // the rows it hides. The pointer slides the rows there, and the keys and
+    // reduced motion change them at once. The Folder itself changes at once in
+    // both, so the last state asked for is the one it ends in.
+    function toggleFolder(folderId, byPointer) {
+        const collapsing = !root.browser.folderCollapsed(folderId);
+        const row = root.sectionRows(ordinarySection).find(function (other) {
+            return other && other.isFolder && other.folderRowId === folderId;
+        });
+        if (row) {
+            row.slideNext = byPointer === true && !SystemMotion.reduced;
+            root.drawFolderSlides();
+        }
+        root.togglingFolder = true;
+        root.browser.setFolderCollapsed(folderId, collapsing);
+        root.togglingFolder = false;
+        if (collapsing)
+            tabMarks.remove(root.browser.folderTabIds(folderId));
+        root.drawFolderSlides();
+    }
+
+    // Draws the list for how far each Folder stands open. The list is laid out
+    // with every sliding row in it, so nothing moves in the layout on the way:
+    // each row is drawn up by the height the rows above it have given up, and a
+    // row on its way out goes up behind the one before it as it fades.
+    function drawFolderSlides() {
+        const sliding = {};
+        let shift = 0;
+        let folder = null;
+        let previous = null;
+        for (const row of root.sectionRows(ordinarySection)) {
+            if (!row)
+                continue;
+            if (row.isFolder) {
+                folder = row;
+                if (row.sliding || row.slideNext)
+                    sliding[row.folderRowId] = true;
+                row.slide = -shift;
+                previous = row;
+                continue;
+            }
+            const moving = folder !== null && row.folderId === folder.folderRowId && folder.sliding;
+            const leaving = moving && !row.active && !row.tabBeside;
+            const sameLine = row.inSplit && previous && previous.tabId === row.splitPartnerId;
+            if (leaving && !sameLine)
+                shift += (1 - folder.openness) * (row.height + root.rowGap);
+            row.slide = -shift;
+            row.folderFade = leaving ? folder.openness : 1;
+            previous = row;
+        }
+        root.hairlineSlide = -shift;
+        if (Object.keys(sliding).join() !== Object.keys(root.slidingFolders).join())
+            root.slidingFolders = sliding;
+    }
+
+    // Lands every slide where its Folder stands, for whatever a row part way
+    // would get wrong: a drag reads where the rows are, and a list that changes
+    // has rows the slide did not start with.
+    function settleFolderSlides() {
+        for (const row of root.sectionRows(ordinarySection)) {
+            if (row && row.isFolder)
+                row.settle();
+        }
+        root.drawFolderSlides();
+    }
+
+    Connections {
+        target: root.browser ? root.browser.sidebarRows : null
+        function onRowsInserted() {
+            root.settleFolderSlides();
+        }
+        function onRowsRemoved() {
+            root.settleFolderSlides();
+        }
+        function onRowsMoved() {
+            root.settleFolderSlides();
+        }
+        function onModelReset() {
+            root.settleFolderSlides();
+        }
     }
 
     function rowsFor(row) {
@@ -675,7 +793,7 @@ Rectangle {
     function markRows() {
         const groups = [];
         for (const row of root.sectionRows(ordinarySection)) {
-            if (!row || !row.visible)
+            if (!row || !row.visible || row.isFolder || row.folderHidden)
                 continue;
             const previous = groups.length > 0 ? groups[groups.length - 1] : null;
             if (row.inSplit && previous && previous[0] === row.splitPartnerId)
@@ -703,6 +821,8 @@ Rectangle {
     // marks reach to it. A pin is not an ordinary row, so it is neither.
     function markAtCursor(range) {
         const row = root.cursorRow();
+        if (row && row.isFolder)
+            return true;
         if (!row || row.pinned)
             return false;
         if (range)
@@ -740,6 +860,7 @@ Rectangle {
     }
 
     function beginTabDrag(row) {
+        root.settleFolderSlides();
         root.draggedRow = row;
         root.dropDestination = row.placeInSection;
         row.lifted = true;
@@ -763,6 +884,10 @@ Rectangle {
         row.carry = row.pinned ? Qt.point(wanted.x - home.x, wanted.y - home.y) : Qt.point(0,
                                                                                            wanted.y
                                                                                            - home.y);
+        if (root.hasFolders && !row.pinned) {
+            root.updateRowDragAmongFolders(row, pointer);
+            return;
+        }
 
         const rows = root.rowsFor(row);
         let destination = row.placeInSection;
@@ -800,7 +925,7 @@ Rectangle {
     // moves up or down by one place — into the place the arrangement would give
     // it — which is what opens the gap the held row will drop into.
     function openTheDroppedPlace(row, rows, destination) {
-        const from = row.placeInSection;
+        const from = rows.indexOf(row);
         for (let place = 0; place < rows.length; ++place) {
             const other = rows[place];
             if (!other || other === row)
@@ -821,21 +946,200 @@ Rectangle {
         }
     }
 
+    // The row or Folder a row in the hand would land on, in a list with Folders.
+    property var dropRow: null
+    // A drop is rearranging the list. The list moves its rows rather than
+    // building them again, so the carries go at once, or a row would ease in
+    // from the far side of the place it has just been given.
+    property bool landing: false
+
+    // The list's rows on show, in the order they stand.
+    function rowsOnShow(row) {
+        return root.rowsFor(row).filter(function (other) {
+            return other && other.visible;
+        });
+    }
+
+    // The row under the hand, or in the gaps between rows the nearest one.
+    function rowUnder(rows, pointer) {
+        let nearest = rows[0];
+        let distance = Infinity;
+        for (const other of rows) {
+            const top = root.homeOf(other).y;
+            const away = pointer.y < top ? top - pointer.y : Math.max(0, pointer.y - top
+                                                                      - other.height);
+            if (away < distance) {
+                nearest = other;
+                distance = away;
+            }
+        }
+        return nearest;
+    }
+
+    // A Folder's row takes what is let go over it and opens no place, since
+    // what lands goes to its end. Any other row opens one, in whichever list
+    // it stands in. A split's other half goes along with the hand.
+    function updateRowDragAmongFolders(row, pointer) {
+        const rows = root.rowsOnShow(row);
+        const target = root.rowUnder(rows, pointer);
+        const partner = row.inSplit ? root.tabRow(row.splitPartnerId) : null;
+        if (partner)
+            partner.carry = row.carry;
+        root.dropRow = target;
+        const place = target.isFolder || target === partner ? rows.indexOf(row) : rows.indexOf(
+                                                                  target);
+        root.openTheDroppedPlace(row, rows.filter(function (other) {
+            return other !== partner;
+        }), place);
+    }
+
+    // The row a drop lands before: the target itself on the way up, and on the
+    // way down the row after it in its list, the rows in the hand left out.
+    function placeBefore(row, target, moving) {
+        const rows = root.rowsOnShow(row);
+        if (rows.indexOf(target) < rows.indexOf(row))
+            return target.tabId;
+        const list = root.sectionRows(ordinarySection).filter(function (other) {
+            return other && !other.isFolder && other.folderId === target.folderId && moving.indexOf(
+                        other.tabId) < 0;
+        });
+        const after = list.slice(list.indexOf(target) + 1).find(function (other) {
+            return other.tabId !== target.splitPartnerId;
+        });
+        return after ? after.tabId : "";
+    }
+
+    function finishRowDragAmongFolders(row, target) {
+        if (!target || target === row || target.tabId === row.splitPartnerId)
+            return;
+        const folderId = target.isFolder ? target.folderRowId : target.folderId;
+        const marked = tabMarks.has(row.tabId) && tabMarks.count > 1;
+        // A split stays where it is among the rows of its own list, as it does
+        // in a list with no Folders.
+        const moving = root.sectionRows(ordinarySection).filter(function (other) {
+            return other && !other.isFolder && (marked ? tabMarks.has(other.tabId) : other === row
+                                                         || other.tabId === row.splitPartnerId) && !(
+                        other.inSplit && other.folderId === folderId);
+        }).map(function (other) {
+            return other.tabId;
+        });
+        if (moving.length > 0)
+            root.tabsPlaced(moving, folderId, target.isFolder ? "" : root.placeBefore(row, target,
+                                                                                      moving));
+    }
+
+    // A Folder and the rows on show under it, one block each, in order.
+    function folderBlocks() {
+        const blocks = [];
+        for (const other of root.sectionRows(ordinarySection)) {
+            if (!other || !other.visible)
+                continue;
+            if (other.isFolder)
+                blocks.push([other]);
+            else if (other.folderId.length > 0 && blocks.length > 0)
+                blocks[blocks.length - 1].push(other);
+        }
+        return blocks;
+    }
+
+    function beginFolderDrag(row) {
+        root.settleFolderSlides();
+        root.draggedRow = row;
+        root.dropDestination = root.folderBlocks().findIndex(function (block) {
+            return block[0] === row;
+        });
+        row.lifted = true;
+    }
+
+    function folderBlockExtent(block) {
+        const top = root.homeOf(block[0]).y;
+        let bottom = top + block[0].height;
+        for (const other of block)
+            bottom = Math.max(bottom, root.homeOf(other).y + other.height);
+        return {
+            "top": top,
+            "bottom": bottom
+        };
+    }
+
+    // The Folder goes with its rows, and each other block moves to where the
+    // block would stand with this one in the place the hand has reached.
+    function updateFolderDrag(row, sceneX, sceneY) {
+        if (root.draggedRow !== row)
+            return;
+        const pointer = root.mapFromItem(null, sceneX, sceneY);
+        const blocks = root.folderBlocks();
+        const from = blocks.findIndex(function (block) {
+            return block[0] === row;
+        });
+        const extents = blocks.map(root.folderBlockExtent);
+        let destination = extents.findIndex(function (extent) {
+            return pointer.y >= extent.top && pointer.y < extent.bottom + root.rowGap;
+        });
+        if (destination < 0)
+            destination = pointer.y < extents[0].top ? 0 : blocks.length - 1;
+        root.dropDestination = destination;
+
+        const carried = pointer.y - row.grabbedAt.y - root.homeOf(row).y;
+        const order = blocks.map(function (block, index) {
+            return index;
+        });
+        order.splice(destination, 0, order.splice(from, 1)[0]);
+        let top = extents[0].top;
+        for (const index of order) {
+            const shift = index === from ? carried : top - extents[index].top;
+            for (const other of blocks[index])
+                other.carry = Qt.point(0, shift);
+            top += extents[index].bottom - extents[index].top + root.rowGap;
+        }
+    }
+
+    function endFolderDrag(row) {
+        if (root.draggedRow !== row)
+            return;
+        const destination = root.dropDestination;
+        const blocks = root.folderBlocks();
+        const from = blocks.findIndex(function (block) {
+            return block[0] === row;
+        });
+        root.draggedRow = null;
+        root.dropDestination = -1;
+        row.lifted = false;
+        root.landing = destination >= 0 && destination !== from;
+        for (const block of blocks) {
+            for (const other of block)
+                other.carry = Qt.point(0, 0);
+        }
+        if (root.landing)
+            root.folderDropped(row.folderRowId, destination);
+        root.landing = false;
+    }
+
     function endTabDrag(row) {
         if (root.draggedRow !== row)
             return;
         const destination = root.dropDestination;
+        const target = root.dropRow;
         const rows = root.rowsFor(row);
         root.draggedRow = null;
         root.dropDestination = -1;
+        root.dropRow = null;
         row.lifted = false;
         if (root.browser)
             root.browser.setDraggedTab("");
         // Every row goes back to the place the list gives it, and the list is
         // told the one thing the drag decided.
+        const foldered = root.hasFolders && !row.pinned;
+        root.landing = foldered ? target !== null && target !== row : destination >= 0
+                                  && destination !== row.placeInSection;
         for (let place = 0; place < rows.length; ++place) {
             if (rows[place])
                 rows[place].carry = Qt.point(0, 0);
+        }
+        if (foldered) {
+            root.finishRowDragAmongFolders(row, target);
+            root.landing = false;
+            return;
         }
         if (destination >= 0 && destination !== row.placeInSection) {
             if (!row.pinned && tabMarks.has(row.tabId) && tabMarks.count > 1) {
@@ -855,6 +1159,7 @@ Rectangle {
                 root.tabDropped(row.tabId, destination);
             }
         }
+        root.landing = false;
     }
 
     function focusOutline() {
@@ -869,18 +1174,13 @@ Rectangle {
         return root.keyMap ? root.keyMap.labelFor(command, number) : "";
     }
 
-    // The key that selects a tab is the number of its place among all of the
-    // Space's tabs, not of its place in its section.
+    // The key that selects a tab is the number of its place among the Space's
+    // tabs on show, not of its place in its section.
     function tabLabel(tabId) {
         if (!root.keyLabelsShown || !root.browser)
             return "";
-        const tabs = root.browser.tabs;
-        const count = Math.min(9, tabs.rowCount());
-        for (let position = 0; position < count; ++position) {
-            if (tabs.data(tabs.index(position, 0), Qt.UserRole + 1) === tabId)
-                return root.labelFor("select-tab", position + 1);
-        }
-        return "";
+        const position = root.browser.countedTabIds().indexOf(tabId);
+        return position >= 0 && position < 9 ? root.labelFor("select-tab", position + 1) : "";
     }
 
     // The rows as the reader sees them, pins first, which is the order the
@@ -888,7 +1188,7 @@ Rectangle {
     function cursorRows() {
         return root.sectionRows(pinnedSection).concat(root.sectionRows(ordinarySection)).filter(
                     function (row) {
-                        return row && row.visible;
+                        return row && row.visible && !row.folderHidden;
                     });
     }
 
@@ -928,6 +1228,11 @@ Rectangle {
             });
             if (!row)
                 return;
+            if (row.isFolder) {
+                root.toggleFolder(row.folderRowId);
+                event.accepted = true;
+                return;
+            }
             tabMarks.clear();
             root.tabActivated(row.tabId);
             root.pageFocusRequested();
@@ -1399,83 +1704,158 @@ Rectangle {
                 // washes meet across it.
                 spacing: root.rowGap
 
-                // At rest the tabs a Tab window shows are still listed, and the
-                // blank one standing in for a page is not.
+                // At rest the tabs a Tab window shows are still listed, and so is
+                // every Folder, and the blank tab standing in for a page is not.
                 Repeater {
                     id: ordinaryRows
-                    model: !root.browser || (root.atRest && !root.hasTabWindows) ? null :
-                                                                                   root.browser.unpinnedTabs
+                    model: !root.browser || (root.atRest && !root.hasTabWindows && !root.hasFolders)
+                           ? null : root.browser.sidebarRows
+                    delegate: DelegateChooser {
+                        role: "rowKind"
 
-                    TabRow {
-                        id: ordinaryRow
-                        required property int index
-                        visible: !root.atRest || poppedOut
-                        placeInSection: index
-                        width: inSplit ? (ordinarySection.rowWidth - ordinarySection.spacing) / 2 :
-                                         ordinarySection.rowWidth
-                        trailingHalf: inSplit && x > ordinarySection.leftPadding
-                        // A split's halves meet in the middle of the gap
-                        // between them, and reach their own edges.
-                        reachLeft: trailingHalf ? x - ordinarySection.splitMiddle :
-                                                  ordinarySection.leftPadding
-                        reachRight: inSplit && !trailingHalf ? ordinarySection.splitMiddle - x
-                                                               - width : ordinarySection.rightPadding
-                        colors: root.colors
-                        iconFontFamily: root.iconFontFamily
-                        useFavicons: root.useFavicons
-                        tintFavicons: root.tintFavicons
-                        keyLabel: root.tabLabel(tabId)
-                        keyLabelShown: root.keyLabelsShown
-                        agent: root.agentOf(tabId)
-                        held: root.heldTabId === tabId
-                        onAgentStopRequested: function (id) {
-                            root.agentStopRequested(id);
+                        DelegateChoice {
+                            roleValue: "folder"
+
+                            FolderRow {
+                                id: folderRow
+                                required property int index
+                                placeInSection: index
+                                width: ordinarySection.rowWidth
+                                reachLeft: ordinarySection.leftPadding
+                                reachRight: ordinarySection.rightPadding
+                                colors: root.colors
+                                iconFontFamily: root.iconFontFamily
+                                dropTarget: root.dropRow === this
+                                landing: root.landing
+                                onToggled: function (id, byPointer) {
+                                    root.toggleFolder(id, byPointer);
+                                }
+                                onOpennessChanged: root.drawFolderSlides()
+                                onSlidingChanged: {
+                                    root.drawFolderSlides();
+                                    if (!sliding)
+                                        root.retakeDeparture();
+                                }
+                                onDragStarted: root.beginFolderDrag(folderRow)
+                                onDragMoved: function (id, sceneX, sceneY) {
+                                    root.updateFolderDrag(folderRow, sceneX, sceneY);
+                                }
+                                onDragEnded: root.endFolderDrag(folderRow)
+                                onMenuRequested: function (id, anchorX, anchorY) {
+                                    root.folderMenuRequested(id, anchorX, anchorY);
+                                }
+                            }
                         }
-                        glance: root.glanceOf(tabId)
-                        onGlanceKeepRequested: root.glanceKeepRequested()
-                        arrivalWash: tabId === root.washTabId ? root.washLevel : 0
-                        marked: tabMarks.has(tabId)
-                        onMarkToggled: function (id) {
-                            tabMarks.toggle(root.markGroupOf(id));
+
+                        // The hairline between the block and the ordinary tabs,
+                        // in the gap the block ends with.
+                        DelegateChoice {
+                            roleValue: "divider"
+
+                            Item {
+                                objectName: "folderHairline"
+                                width: ordinarySection.rowWidth
+                                height: root.blockGap + 1
+                                transform: Translate {
+                                    y: root.hairlineSlide
+                                }
+
+                                Rectangle {
+                                    y: DevicePixels.snap(root.blockGap / 2, root.pixelRatio)
+                                    width: parent.width
+                                    height: 1
+                                    color: root.colors.separator
+                                }
+                            }
                         }
-                        onMarkRangeRequested: function (id) {
-                            tabMarks.extendTo(root.markGroupOf(id), root.markRows(),
-                                              root.browser.activeTabId);
+
+                        DelegateChoice {
+                            roleValue: "tab"
+
+                            TabRow {
+                                id: ordinaryRow
+                                required property int index
+                                visible: (!root.atRest || poppedOut || folderId.length > 0) && (
+                                             !folderHidden || root.slidingFolders[folderId]
+                                             === true)
+                                // On its way out it is drawn and no more.
+                                enabled: !folderHidden
+                                placeInSection: index
+                                splitDrags: root.hasFolders
+                                landing: root.landing
+                                // A mark on a row out of the list would have
+                                // `x` close a tab the reader cannot see.
+                                onFolderHiddenChanged: if (folderHidden)
+                                                           tabMarks.remove([tabId])
+                                width: inSplit ? (ordinarySection.rowWidth
+                                                  - ordinarySection.spacing) / 2 :
+                                                 ordinarySection.rowWidth
+                                trailingHalf: inSplit && x > ordinarySection.leftPadding
+                                // A split's halves meet in the middle of the gap
+                                // between them, and reach their own edges.
+                                reachLeft: trailingHalf ? x - ordinarySection.splitMiddle :
+                                                          ordinarySection.leftPadding
+                                reachRight: inSplit && !trailingHalf ? ordinarySection.splitMiddle
+                                                                       - x - width :
+                                                                       ordinarySection.rightPadding
+                                colors: root.colors
+                                iconFontFamily: root.iconFontFamily
+                                useFavicons: root.useFavicons
+                                tintFavicons: root.tintFavicons
+                                keyLabel: root.tabLabel(tabId)
+                                keyLabelShown: root.keyLabelsShown
+                                agent: root.agentOf(tabId)
+                                held: root.heldTabId === tabId
+                                onAgentStopRequested: function (id) {
+                                    root.agentStopRequested(id);
+                                }
+                                glance: root.glanceOf(tabId)
+                                onGlanceKeepRequested: root.glanceKeepRequested()
+                                arrivalWash: tabId === root.washTabId ? root.washLevel : 0
+                                marked: tabMarks.has(tabId)
+                                onMarkToggled: function (id) {
+                                    tabMarks.toggle(root.markGroupOf(id));
+                                }
+                                onMarkRangeRequested: function (id) {
+                                    tabMarks.extendTo(root.markGroupOf(id), root.markRows(),
+                                                      root.browser.activeTabId);
+                                }
+                                onActivated: function (id) {
+                                    tabMarks.clear();
+                                    root.tabActivated(id);
+                                }
+                                onCloseRequested: function (id) {
+                                    root.tabCloseRequested(id);
+                                }
+                                onMuteToggled: function (id) {
+                                    root.tabMuteToggled(id);
+                                }
+                                onDragStarted: root.beginTabDrag(ordinaryRow)
+                                onDragMoved: function (id, sceneX, sceneY) {
+                                    root.updateTabDrag(ordinaryRow, sceneX, sceneY);
+                                }
+                                onDragEnded: root.endTabDrag(ordinaryRow)
+                                onMenuRequested: function (id, anchorX, anchorY) {
+                                    root.tabMenuRequested(id, anchorX, anchorY);
+                                }
+                                onActiveChanged: if (active)
+                                                     root.activeTabItem = this
+                                onTabBesideChanged: {
+                                    if (tabBeside)
+                                        root.besideTabItem = this;
+                                    else if (root.besideTabItem === this)
+                                        root.besideTabItem = null;
+                                }
+                                Component.onCompleted: {
+                                    if (active)
+                                        root.activeTabItem = this;
+                                    if (tabBeside)
+                                        root.besideTabItem = this;
+                                }
+                                Component.onDestruction: if (root.besideTabItem === this)
+                                                             root.besideTabItem = null
+                            }
                         }
-                        onActivated: function (id) {
-                            tabMarks.clear();
-                            root.tabActivated(id);
-                        }
-                        onCloseRequested: function (id) {
-                            root.tabCloseRequested(id);
-                        }
-                        onMuteToggled: function (id) {
-                            root.tabMuteToggled(id);
-                        }
-                        onDragStarted: root.beginTabDrag(ordinaryRow)
-                        onDragMoved: function (id, sceneX, sceneY) {
-                            root.updateTabDrag(ordinaryRow, sceneX, sceneY);
-                        }
-                        onDragEnded: root.endTabDrag(ordinaryRow)
-                        onMenuRequested: function (id, anchorX, anchorY) {
-                            root.tabMenuRequested(id, anchorX, anchorY);
-                        }
-                        onActiveChanged: if (active)
-                                             root.activeTabItem = this
-                        onTabBesideChanged: {
-                            if (tabBeside)
-                                root.besideTabItem = this;
-                            else if (root.besideTabItem === this)
-                                root.besideTabItem = null;
-                        }
-                        Component.onCompleted: {
-                            if (active)
-                                root.activeTabItem = this;
-                            if (tabBeside)
-                                root.besideTabItem = this;
-                        }
-                        Component.onDestruction: if (root.besideTabItem === this)
-                                                     root.besideTabItem = null
                     }
                 }
             }
@@ -1584,23 +1964,60 @@ Rectangle {
                         spacing: neighbourPins.spacing
 
                         Repeater {
-                            model: neighbourList.neighbour ? neighbourList.neighbour.unpinnedTabs :
-                                                             null
+                            model: neighbourList.neighbour ? neighbourList.neighbour.rows : null
+                            delegate: DelegateChooser {
+                                role: "rowKind"
 
-                            TabRow {
-                                objectName: "neighbour-" + tabId
-                                width: inSplit ? (neighbourRows.rowWidth - neighbourRows.spacing)
-                                                 / 2 : neighbourRows.rowWidth
-                                trailingHalf: inSplit && x > neighbourRows.leftPadding
-                                reachLeft: trailingHalf ? x - neighbourRows.splitMiddle :
-                                                          neighbourRows.leftPadding
-                                reachRight: inSplit && !trailingHalf ? neighbourRows.splitMiddle
-                                                                       - x - width :
-                                                                       neighbourRows.rightPadding
-                                colors: root.colors
-                                iconFontFamily: root.iconFontFamily
-                                useFavicons: root.useFavicons
-                                tintFavicons: root.tintFavicons
+                                DelegateChoice {
+                                    roleValue: "folder"
+
+                                    FolderRow {
+                                        objectName: "neighbourFolder-" + folderRowId
+                                        width: neighbourRows.rowWidth
+                                        reachLeft: neighbourRows.leftPadding
+                                        reachRight: neighbourRows.rightPadding
+                                        colors: root.colors
+                                        iconFontFamily: root.iconFontFamily
+                                    }
+                                }
+
+                                DelegateChoice {
+                                    roleValue: "divider"
+
+                                    Item {
+                                        width: neighbourRows.rowWidth
+                                        height: root.blockGap + 1
+
+                                        Rectangle {
+                                            y: DevicePixels.snap(root.blockGap / 2, root.pixelRatio)
+                                            width: parent.width
+                                            height: 1
+                                            color: root.colors.separator
+                                        }
+                                    }
+                                }
+
+                                DelegateChoice {
+                                    roleValue: "tab"
+
+                                    TabRow {
+                                        objectName: "neighbour-" + tabId
+                                        visible: !folderHidden
+                                        width: inSplit ? (neighbourRows.rowWidth
+                                                          - neighbourRows.spacing) / 2 :
+                                                         neighbourRows.rowWidth
+                                        trailingHalf: inSplit && x > neighbourRows.leftPadding
+                                        reachLeft: trailingHalf ? x - neighbourRows.splitMiddle :
+                                                                  neighbourRows.leftPadding
+                                        reachRight: inSplit && !trailingHalf
+                                                    ? neighbourRows.splitMiddle - x - width :
+                                                      neighbourRows.rightPadding
+                                        colors: root.colors
+                                        iconFontFamily: root.iconFontFamily
+                                        useFavicons: root.useFavicons
+                                        tintFavicons: root.tintFavicons
+                                    }
+                                }
                             }
                         }
                     }

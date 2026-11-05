@@ -489,6 +489,8 @@ add_library(omaweb-core STATIC
     src/core/SoundingTabs.h
     src/core/NeighbourSpace.cpp
     src/core/NeighbourSpace.h
+    src/core/SidebarRowModel.cpp
+    src/core/SidebarRowModel.h
     src/core/SpaceListModel.cpp
     src/core/SpaceListModel.h
     src/core/SpaceProject.cpp
@@ -498,6 +500,7 @@ add_library(omaweb-core STATIC
     src/core/SyncFeature.h
     src/core/SyncLauncher.cpp
     src/core/SyncLauncher.h
+    src/core/FolderState.h
     src/core/TabListModel.cpp
     src/core/TabListModel.h
     src/core/WindowCapabilities.h
@@ -961,6 +964,7 @@ set(omaweb_ui_files
     src/ui/CommandDialog.qml
     src/ui/DiagnosticBanner.qml
     src/ui/DialogPanel.qml
+    src/ui/FolderRow.qml
     src/ui/FilePicker.qml
     src/ui/PageBackdrop.qml
     src/ui/PageLoadingIndicator.qml
@@ -1664,6 +1668,14 @@ if(BUILD_TESTING)
         omaweb_strict_target(omaweb-secret-service-keyring-tests)
         add_test(NAME omaweb-secret-service-keyring COMMAND omaweb-secret-service-keyring-tests)
     endif()
+
+    qt_add_executable(omaweb-folders-tests
+        "tests/core/tst_folders.cpp"
+    )
+    target_link_libraries(omaweb-folders-tests PRIVATE omaweb-core Qt6::Test)
+    target_include_directories(omaweb-folders-tests PRIVATE "tests/core")
+    omaweb_strict_target(omaweb-folders-tests)
+    add_test(NAME omaweb-folders COMMAND omaweb-folders-tests)
 
     qt_add_executable(omaweb-put-away-tabs-tests
         "tests/core/SessionFixture.cpp"

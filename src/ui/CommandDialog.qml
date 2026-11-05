@@ -45,6 +45,11 @@ DialogPanel {
         });
     }
 
+    // A dialog is opened and given its preset by one change, and which is heard
+    // first is not settled.
+    onPresetTextChanged: if (open)
+                             field.text = presetText
+
     function step(delta) {
         if (rows.length === 0)
             return;

@@ -334,6 +334,12 @@ TestCase {
     // each one starts from a settled window. It is put back as a key would put
     // it, so nothing restored here is still moving when the test begins.
     function init() {
+        // A Folder a failed test left standing would be counted by the next.
+        const ordinaryList = findChild(window.contentItem, "ordinaryList");
+        for (let index = ordinaryList.children.length - 1; index >= 0; --index) {
+            if (ordinaryList.children[index].isFolder)
+                browser.removeFolder(ordinaryList.children[index].folderRowId);
+        }
         // A stand-in chooser a failed test left answering is a desktop with no portal again.
         FileChooserStandIn.reset();
         while (frameWatches.length > 0)
@@ -9523,6 +9529,1154 @@ TestCase {
         verify(browser.deleteSpace(workSpaceId, "Notifying"));
     }
 
+    // Folders (#918). The tabs are ordinary rows, and each test takes down the Folders it made.
+    function folderRowOf(folderId) {
+        const row = findChild(window.contentItem, "folder-" + folderId);
+        verify(row !== null);
+        settleRow(row);
+        return row;
+    }
+
+    // A click, and the slide it starts over: its rows stay in the list until then.
+    function clickFolderRow(folderId) {
+        const row = folderRowOf(folderId);
+        mouseClick(row, row.width / 2, row.height / 2);
+        tryVerify(function () {
+            return !row.sliding;
+        });
+    }
+
+    function removeFolders(folderIds) {
+        for (const id of folderIds)
+            browser.removeFolder(id);
+    }
+
+    // The sidebar's ordinary list, as it is drawn top to bottom: a Folder's row by its name, a
+    // tab's by its id, and the hairline as a line.
+    function drawnRows() {
+        const list = findChild(window.contentItem, "ordinaryList");
+        const rows = [];
+        for (let index = 0; index < list.children.length; ++index) {
+            const child = list.children[index];
+            if (child.visible && child.height > 0 && (child.placeInSection !== undefined
+                                                      || child.objectName === "folderHairline"))
+                rows.push(child);
+        }
+        rows.sort(function (a, b) {
+            return a.y - b.y || a.x - b.x;
+        });
+        return rows.map(function (row) {
+            return row.isFolder ? row.folderName : row.tabId !== undefined ? row.tabId : "---";
+        });
+    }
+
+    function folderNamed(name) {
+        const list = findChild(window.contentItem, "ordinaryList");
+        for (let index = 0; index < list.children.length; ++index) {
+            const child = list.children[index];
+            if (child.isFolder && child.folderName === name)
+                return child.folderRowId;
+        }
+        return "";
+    }
+
+    function typeName(name) {
+        for (let at = 0; at < name.length; ++at)
+            keyClick(name[at]);
+    }
+
+    function answerNameDialog(name) {
+        const dialog = findChild(window.contentItem, "spaceDialog");
+        tryVerify(function () {
+            return dialog.open;
+        });
+        settleMotion();
+        typeName(name);
+        keyClick(Qt.Key_Return);
+    }
+
+    function openFolderMenu(folderId) {
+        const row = folderRowOf(folderId);
+        mouseClick(row, row.width / 2, row.height / 2, Qt.RightButton);
+        tryVerify(function () {
+            return window.tabMenuOpen;
+        });
+        compare(window.tabMenuFolderId, folderId);
+        return window.tabMenuItems.filter(function (action) {
+            return action.separator !== true;
+        }).map(function (action) {
+            return action.label;
+        });
+    }
+
+    // The sidebar holding the keyboard, on the row of a Folder.
+    function holdTheSidebarOnFolder(folderId, tabId) {
+        holdTheSidebarOn(tabId);
+        folderRowOf(folderId).steer();
+        verify(folderRowOf(folderId).activeFocus);
+    }
+
+    function dragRowOnto(row, target, ratio) {
+        const grabbed = row.mapToItem(window.contentItem, row.width / 2, row.height / 2);
+        const place = target.mapToItem(window.contentItem, target.width / 2, target.height * (ratio
+                                                                                              === undefined
+                                                                                              ? 0.5 : ratio));
+        mousePress(row, row.width / 2, row.height / 2);
+        mouseMove(window.contentItem, grabbed.x, grabbed.y + 6);
+        wait(1);
+        dragRowBy(grabbed, place.y - grabbed.y);
+        mouseRelease(window.contentItem, grabbed.x, place.y);
+        settleMotion();
+    }
+
+    function test_aFolderRowIsAGlyphAndItsNameInTheQuietColour() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1]]);
+        settleMotion();
+        const row = folderRowOf(folder);
+        const name = findChild(row, "folderName-" + folder);
+        const glyph = findChild(row, "folderGlyph-" + folder);
+        const count = findChild(row, "folderCount-" + folder);
+        compare(name.text, "Reading");
+        compare(glyph.text, "folder_open");
+        // The icon font draws the name as one glyph, not as the letters of it.
+        verify(Math.abs(glyph.contentWidth - glyph.font.pixelSize) < 1);
+        compare(String(name.color), String(window.colors.mutedText));
+        compare(String(glyph.color), String(window.colors.mutedText));
+        // The glyph alone says which state the Folder is in: nothing stands before it.
+        const items = row.children;
+        for (let index = 0; index < items.length; ++index)
+            verify(items[index].text === undefined || items[index].x >= glyph.x);
+        // The glyph stands in the tab chip's column, and the name lines up with the titles of
+        // the ordinary tabs.
+        const ordinary = rowOf(ids[2]);
+        const chip = findChild(ordinary, "siteTile-" + ids[2]);
+        const title = findChild(ordinary, "tabTitle-" + ids[2]);
+        compare(glyph.mapToItem(null, 0, 0).x, chip.mapToItem(null, 0, 0).x);
+        compare(name.mapToItem(null, 0, 0).x, title.mapToItem(null, 0, 0).x);
+        // A count only while collapsed.
+        verify(!count.visible);
+        verify(browser.setFolderCollapsed(folder, true));
+        tryVerify(function () {
+            return count.visible;
+        });
+        compare(count.text, "2");
+        compare(glyph.text, "folder");
+        verify(Math.abs(glyph.contentWidth - glyph.font.pixelSize) < 1);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aFoldersCountReadsASplitAsOneRow() {
+        const ids = openMarkableTabs(3);
+        browser.activateTab(ids[0]);
+        verify(browser.addSplit(ids[1]));
+        const folder = browser.createFolder("Pair", [ids[0]]);
+        browser.activateTab(ids[2]);
+        verify(browser.setFolderCollapsed(folder, true));
+        settleMotion();
+        compare(findChild(folderRowOf(folder), "folderCount-" + folder).text, "1");
+        removeFolders([folder]);
+        browser.separateSplit(ids[0]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aFoldersTabsAreIndentedByOneFaviconsWidth() {
+        const ids = openMarkableTabs(2);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        settleMotion();
+        const inside = findChild(rowOf(ids[0]), "tabTitle-" + ids[0]);
+        const outside = findChild(rowOf(ids[1]), "tabTitle-" + ids[1]);
+        const chip = rowOf(ids[1]).chipSize;
+        compare(inside.mapToItem(null, 0, 0).x - outside.mapToItem(null, 0, 0).x, chip);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_theHairlineStandsBetweenTheBlockAndTheOrdinaryTabs() {
+        const ids = openMarkableTabs(2);
+        settleMotion();
+        verify(drawnRows().indexOf("---") < 0);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        settleMotion();
+        // The list lays its rows out on the next frame.
+        tryVerify(function () {
+            const drawn = drawnRows();
+            const at = drawn.indexOf("---");
+            return at > drawn.indexOf(ids[0]) && at < drawn.indexOf(ids[1]);
+        });
+        const line = drawnRows().indexOf("---");
+        const hairline = findChild(window.contentItem, "folderHairline");
+        compare(hairline.children[0].height, 1);
+        compare(String(hairline.children[0].color), String(window.colors.separator));
+
+        // With every ordinary tab in the Folder there is nothing to separate it from.
+        const ordinary = drawnRows().filter(function (label, at) {
+            return at > line;
+        });
+        verify(browser.placeTabs(ordinary, folder));
+        tryVerify(function () {
+            return drawnRows().indexOf("---") < 0;
+        });
+        verify(browser.placeTabs(ordinary, ""));
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_clickingAFolderRowCollapsesAndOpensIt() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        clickFolderRow(folder);
+        verify(browser.folderCollapsed(folder));
+        compare(drawnRows().filter(function (label) {
+            return ids.indexOf(label) >= 0;
+        }), [ids[2]]);
+        clickFolderRow(folder);
+        verify(!browser.folderCollapsed(folder));
+        verify(drawnRows().indexOf(ids[0]) >= 0);
+        // Opening or closing a Folder is no choice of tab.
+        compare(browser.activeTabId, ids[2]);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_collapsingAndOpeningQuicklyEndsInTheStateLastAskedFor() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        const row = folderRowOf(folder);
+        const expected = drawnRows();
+        for (let times = 0; times < 7; ++times)
+            mouseClick(row, row.width / 2, row.height / 2);
+        verify(browser.folderCollapsed(folder));
+        mouseClick(row, row.width / 2, row.height / 2);
+        verify(!browser.folderCollapsed(folder));
+        settleMotion();
+        compare(drawnRows(), expected);
+        const first = rowOf(ids[0]);
+        const second = rowOf(ids[1]);
+        verify(first.y < second.y);
+        verify(row.y < first.y);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_theKeysOnAFolderRowOpenCollapseMoveAndMenu() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        const other = browser.createSpace("Folder keys");
+        browser.activateTab(ids[2]);
+        settleMotion();
+        holdTheSidebarOnFolder(folder, ids[2]);
+        keyClick(Qt.Key_L);
+        verify(browser.folderCollapsed(folder));
+        keyClick(Qt.Key_Return);
+        verify(!browser.folderCollapsed(folder));
+        keyClick(Qt.Key_Space);
+        verify(browser.folderCollapsed(folder));
+        // The keyboard stays on the row, with the page where it was.
+        verify(folderRowOf(folder).activeFocus);
+        compare(browser.activeTabId, ids[2]);
+
+        keyClick(Qt.Key_M, Qt.ShiftModifier);
+        tryVerify(function () {
+            return window.tabMenuOpen;
+        });
+        compare(window.tabMenuFolderId, folder);
+        window.tabMenuOpen = false;
+        settleMotion();
+        folderRowOf(folder).steer();
+        keyClick(Qt.Key_M);
+        tryCompare(window, "dialogMode", "move-folder");
+        window.dialogMode = "";
+        verify(browser.deleteSpace(other, "Folder keys"));
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_xPAndVDoNothingOnAFolderRow() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        holdTheSidebarOnFolder(folder, ids[2]);
+        const before = browser.tabs.rowCount();
+        keyClick(Qt.Key_X);
+        keyClick(Qt.Key_P);
+        keyClick(Qt.Key_V);
+        keyClick(Qt.Key_V, Qt.ShiftModifier);
+        compare(browser.tabs.rowCount(), before);
+        compare(browser.activeTabId, ids[2]);
+        verify(!browser.tabPinned(ids[2]));
+        compare(findChild(window.contentItem, "sidebar").marks.count, 0);
+        compare(browser.folderTabIds(folder), [ids[0]]);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_theCursorStopsOnACollapsedFoldersRowAndPassesItsTabs() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1]]);
+        browser.activateTab(ids[2]);
+        verify(browser.setFolderCollapsed(folder, true));
+        settleMotion();
+        const rows = drawnRows();
+        const firstOrdinary = rows[rows.indexOf("---") + 1];
+        holdTheSidebarOn(firstOrdinary);
+        keyClick(Qt.Key_K);
+        verify(folderRowOf(folder).activeFocus);
+        keyClick(Qt.Key_J);
+        compare(cursorTabId(), firstOrdinary);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aFolderIsMadeFromMarkedRows() {
+        const ids = openMarkableTabs(4);
+        clickRow(ids[1], Qt.ControlModifier);
+        clickRow(ids[2], Qt.ControlModifier);
+        const labels = openMenuOn(ids[1]);
+        verify(labels.indexOf("New folder with 2 tabs") >= 0);
+        runMenuEntry("New folder with 2 tabs");
+        tryCompare(window, "dialogMode", "new-folder");
+        answerNameDialog("Marked");
+        tryCompare(browser, "folderCount", 1);
+        const folder = browser.tabFolder(ids[1]);
+        compare(browser.folderName(folder), "Marked");
+        compare(browser.folderTabIds(folder), [ids[1], ids[2]]);
+        compare(markedTabs(), []);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aFolderIsMadeFromATabsMenu() {
+        const ids = openMarkableTabs(2);
+        openMenuOn(ids[0]);
+        runMenuEntry("New folder");
+        tryCompare(window, "dialogMode", "new-folder");
+        answerNameDialog("Kept");
+        tryCompare(browser, "folderCount", 1);
+        const folder = browser.tabFolder(ids[0]);
+        compare(browser.folderName(folder), "Kept");
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_theOmnibarsNewFolderCommandMakesAnEmptyOne() {
+        const ids = openMarkableTabs(1);
+        verify(window.commands.available("new-folder"));
+        window.commands.run("new-folder", -1);
+        tryCompare(window, "dialogMode", "new-folder");
+        answerNameDialog("Empty");
+        tryCompare(browser, "folderCount", 1);
+        settleMotion();
+        const folder = folderNamed("Empty");
+        verify(folder.length > 0);
+        compare(browser.folderTabIds(folder), []);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_anEmptyNameIsRefusedAndTheDialogStays() {
+        const ids = openMarkableTabs(1);
+        window.commands.run("new-folder", -1);
+        tryCompare(window, "dialogMode", "new-folder");
+        settleMotion();
+        keyClick(Qt.Key_Return);
+        compare(browser.folderCount, 0);
+        compare(window.dialogMode, "new-folder");
+        keyClick(Qt.Key_Escape);
+        tryCompare(window, "dialogMode", "");
+        closeMarkableTabs(ids);
+    }
+
+    function test_renameUsesTheDialogSpacesUse() {
+        const ids = openMarkableTabs(1);
+        const folder = browser.createFolder("Before", []);
+        settleMotion();
+        openFolderMenu(folder);
+        runMenuEntry("Rename");
+        tryCompare(window, "dialogMode", "rename-folder");
+        const dialog = findChild(window.contentItem, "spaceDialog");
+        tryCompare(dialog, "text", "Before");
+        answerNameDialog("After");
+        tryCompare(window, "dialogMode", "");
+        compare(browser.folderName(folder), "After");
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_theMenuOnAFoldersRow() {
+        const ids = openMarkableTabs(2);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        settleMotion();
+        compare(openFolderMenu(folder), ["Rename", "Unload tabs", "Move to Space", "Close folder",
+                                         "Remove folder"]);
+        window.tabMenuOpen = false;
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_closeFolderAsksFirstNamingItAndItsTabCount() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        const closedBefore = browser.closedTabCount;
+        openFolderMenu(folder);
+        runMenuEntry("Close folder");
+        tryCompare(window, "dialogMode", "close-folder");
+        const dialog = findChild(window.contentItem, "spaceDialog");
+        verify(dialog.message.indexOf("Reading") >= 0);
+        verify(dialog.message.indexOf("2") >= 0);
+        verify(dialog.destructive);
+        compare(browser.folderCount, 1);
+        settleMotion();
+        keyClick(Qt.Key_Return);
+        tryCompare(browser, "folderCount", 0);
+        compare(browser.closedTabCount, Math.min(25, closedBefore + 2));
+        browser.closeTab(ids[2]);
+    }
+
+    function test_removeFolderAsksNothing() {
+        const ids = openMarkableTabs(2);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        settleMotion();
+        openFolderMenu(folder);
+        runMenuEntry("Remove folder");
+        compare(window.dialogMode, "");
+        compare(browser.folderCount, 0);
+        compare(browser.tabFolder(ids[0]), "");
+        closeMarkableTabs(ids);
+    }
+
+    function test_movingAFolderThroughTheChooser() {
+        const ids = openMarkableTabs(2);
+        const home = browser.activeSpaceId;
+        const other = browser.createSpace("Folder moved");
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        settleMotion();
+        openFolderMenu(folder);
+        runMenuEntry("Move to Space");
+        tryCompare(window, "dialogMode", "move-folder");
+        const target = window.moveTargets.findIndex(function (entry) {
+            return entry.id === other;
+        });
+        verify(target >= 0);
+        const dialog = findChild(window.contentItem, "spaceDialog");
+        dialog.selected = target;
+        settleMotion();
+        keyClick(Qt.Key_Return);
+        tryCompare(browser, "folderCount", 0);
+        verify(browser.switchSpace(other));
+        tryCompare(browser, "folderCount", 1);
+        verify(browser.switchSpace(home));
+        browser.closeTab(ids[1]);
+        verify(browser.deleteSpace(other, "Folder moved"));
+    }
+
+    function test_unloadTabsReleasesThePagesAndLeavesTheRows() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1]]);
+        browser.activateTab(ids[1]);
+        browser.activateTab(ids[0]);
+        settleMotion();
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        verify(engineHost.engines[ids[1]] !== undefined);
+        openFolderMenu(folder);
+        runMenuEntry("Unload tabs");
+        tryVerify(function () {
+            return engineHost.engines[ids[1]] === undefined;
+        });
+        // The one on show keeps its page, and a released row looks like any other.
+        verify(engineHost.engines[ids[0]] !== undefined);
+        verify(rowOf(ids[1]).visible);
+        compare(browser.folderTabIds(folder), [ids[0], ids[1]]);
+
+        // It loads again when it next comes on show.
+        browser.activateTab(ids[1]);
+        tryVerify(function () {
+            return engineHost.engines[ids[1]] !== undefined;
+        });
+        compare(String(engineHost.engines[ids[1]].currentUrl), "https://marks.example/1");
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aFolderTabPastTheAgeLosesItsPageAndKeepsItsRow() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const home = browser.activeSpaceId;
+        const spaceId = browser.createSpace("Folder age");
+        verify(browser.switchSpace(spaceId));
+        browser.openInput("https://folder-age-kept.example/", false);
+        const kept = browser.activeTabId;
+        const lastWeek = Date.now() - 7 * 24 * 3600 * 1000;
+        browser.setNowForTests(lastWeek);
+        browser.openInput("https://folder-age-shown.example/", true);
+        wait(0);
+        browser.setNowForTests(0);
+        const folder = browser.createFolder("Reading", [kept]);
+        settleMotion();
+        verify(engineHost.engines[kept] !== undefined);
+
+        browser.putAwayUnusedTabs();
+        const released = engineHost.engines[kept] === undefined;
+        const row = findChild(window.contentItem, "tab-" + kept);
+        const putAway = browser.putAwayTabs.length;
+        verify(browser.switchSpace(home));
+        verify(browser.deleteSpace(spaceId, "Folder age"));
+        verify(released);
+        verify(row !== null);
+        compare(putAway, 0);
+    }
+
+    // The list moves a row rather than building it again, so what a row holds, the Sidebar cursor
+    // among it, goes with it into a Folder.
+    function test_aRowMovedIntoAFolderIsTheSameRow() {
+        const ids = openMarkableTabs(2);
+        const folder = browser.createFolder("Reading", []);
+        settleMotion();
+        const row = rowOf(ids[0]);
+        verify(browser.placeTabs([ids[0]], folder));
+        settleMotion();
+        verify(rowOf(ids[0]) === row);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_droppingARowOnAFoldersRowAddsItAtTheEndAndLeavesItAsItWas() {
+        const ids = openMarkableTabs(4);
+        const open = browser.createFolder("Open", [ids[0]]);
+        const collapsed = browser.createFolder("Collapsed", [ids[1]]);
+        verify(browser.setFolderCollapsed(collapsed, true));
+        browser.activateTab(ids[3]);
+        settleMotion();
+        dragRowOnto(rowOf(ids[2]), folderRowOf(collapsed));
+        compare(browser.folderTabIds(collapsed), [ids[1], ids[2]]);
+        verify(browser.folderCollapsed(collapsed));
+        verify(!browser.folderCollapsed(open));
+
+        const fifth = openMarkableTabs(1);
+        settleMotion();
+        browser.activateTab(ids[3]);
+        settleMotion();
+        dragRowOnto(rowOf(fifth[0]), folderRowOf(open));
+        compare(browser.folderTabIds(open), [ids[0], fifth[0]]);
+        removeFolders([open, collapsed]);
+        closeMarkableTabs(ids);
+        closeMarkableTabs(fifth);
+    }
+
+    function test_draggingMovesARowInAndOutOfAFolder() {
+        const ids = openMarkableTabs(4);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1]]);
+        browser.activateTab(ids[3]);
+        settleMotion();
+        // Over a Folder's tab, in among its rows.
+        dragRowOnto(rowOf(ids[2]), rowOf(ids[1]));
+        compare(browser.folderTabIds(folder), [ids[0], ids[2], ids[1]]);
+        // Over an ordinary row, out of the Folder.
+        dragRowOnto(rowOf(ids[0]), rowOf(ids[3]));
+        compare(browser.folderTabIds(folder), [ids[2], ids[1]]);
+        compare(browser.tabFolder(ids[0]), "");
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aSplitsRowEntersAFolderWhole() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", []);
+        browser.activateTab(ids[0]);
+        verify(browser.addSplit(ids[1]));
+        settleMotion();
+        dragRowOnto(rowOf(ids[0]), folderRowOf(folder));
+        compare(browser.folderTabIds(folder), [ids[0], ids[1]]);
+        verify(browser.tabInSplit(ids[0]));
+        removeFolders([folder]);
+        browser.separateSplit(ids[0]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aMarkedDragCarriesEveryMarkedRowIntoAFolder() {
+        const ids = openMarkableTabs(4);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[3]);
+        settleMotion();
+        clickRow(ids[1], Qt.ControlModifier);
+        clickRow(ids[2], Qt.ControlModifier);
+        dragRowOnto(rowOf(ids[2]), folderRowOf(folder));
+        compare(browser.folderTabIds(folder), [ids[0], ids[1], ids[2]]);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_closingTheLastOrdinaryMarkedRowsComesToRest() {
+        const home = browser.activeSpaceId;
+        const spaceId = browser.createSpace("Folder marks rest");
+        verify(browser.switchSpace(spaceId));
+        browser.openInput("https://marks-rest-kept.example/", false);
+        const kept = browser.activeTabId;
+        browser.openInput("https://marks-rest-one.example/", true);
+        const one = browser.activeTabId;
+        browser.openInput("https://marks-rest-two.example/", true);
+        const two = browser.activeTabId;
+        browser.createFolder("Kept", [kept]);
+        settleMotion();
+        clickRow(one, Qt.ControlModifier);
+        clickRow(two, Qt.ControlModifier);
+        openMenuOn(two);
+        runMenuEntry("Close 2 tabs");
+        tryCompare(browser, "atRest", true);
+        const shown = browser.activeTabId;
+        const blank = browser.activeTabBlank;
+        verify(browser.switchSpace(home));
+        verify(browser.deleteSpace(spaceId, "Folder marks rest"));
+        verify(shown !== kept);
+        verify(blank);
+    }
+
+    function test_aDropInTheGapBetweenRowsStaysInTheListItIsIn() {
+        const ids = openMarkableTabs(4);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1], ids[2]]);
+        browser.activateTab(ids[3]);
+        settleMotion();
+        // Just past the bottom of the middle row, in the gap under it.
+        dragRowOnto(rowOf(ids[0]), rowOf(ids[1]), 1.04);
+        compare(browser.tabFolder(ids[0]), folder);
+        compare(browser.folderTabIds(folder), [ids[1], ids[0], ids[2]]);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aMarkedDragIntoACollapsedFolderLetsGoOfTheMarks() {
+        const ids = openMarkableTabs(4);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        verify(browser.setFolderCollapsed(folder, true));
+        browser.activateTab(ids[3]);
+        settleMotion();
+        clickRow(ids[1], Qt.ControlModifier);
+        clickRow(ids[2], Qt.ControlModifier);
+        dragRowOnto(rowOf(ids[2]), folderRowOf(folder));
+        compare(browser.folderTabIds(folder), [ids[0], ids[1], ids[2]]);
+        const outline = findChild(window.contentItem, "sidebar");
+        compare(outline.marks.count, 0);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_separatingASplitInACollapsedFolderCountsTwoRows() {
+        const ids = openMarkableTabs(3);
+        browser.activateTab(ids[0]);
+        verify(browser.addSplit(ids[1]));
+        const folder = browser.createFolder("Pair", [ids[0]]);
+        browser.activateTab(ids[2]);
+        verify(browser.setFolderCollapsed(folder, true));
+        settleMotion();
+        const count = findChild(folderRowOf(folder), "folderCount-" + folder);
+        compare(count.text, "1");
+        verify(browser.separateSplit(ids[0]));
+        tryCompare(count, "text", "2");
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_theSwipePreviewDrawsANeighboursFolders() {
+        const home = browser.activeSpaceId;
+        const spaceId = browser.createSpace("Folder preview");
+        verify(browser.switchSpace(spaceId));
+        browser.openInput("https://preview-kept.example/", false);
+        const kept = browser.activeTabId;
+        browser.openInput("https://preview-loose.example/", true);
+        const folder = browser.createFolder("Previewed", [kept]);
+        settleMotion();
+        verify(browser.switchSpace(home));
+        tryVerify(function () {
+            return findChild(window.contentItem, "neighbourFolder-" + folder) !== null;
+        });
+        const row = findChild(window.contentItem, "neighbourFolder-" + folder);
+        compare(row.folderName, "Previewed");
+        verify(browser.deleteSpace(spaceId, "Folder preview"));
+    }
+
+    function test_aFolderDragsAsAWholeWithinItsBlock() {
+        const ids = openMarkableTabs(3);
+        const first = browser.createFolder("First", [ids[0]]);
+        const second = browser.createFolder("Second", [ids[1]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        dragRowOnto(folderRowOf(first), rowOf(ids[1]));
+        // The list lays its rows out on the next frame.
+        tryVerify(function () {
+            return drawnRows()[0] === "Second";
+        });
+        compare(drawnRows().slice(0, 4), ["Second", ids[1], "First", ids[0]]);
+        compare(browser.folderTabIds(first), [ids[0]]);
+        // Past the block it stops at the block's end, and takes no ordinary row in.
+        dragRowOnto(folderRowOf(second), rowOf(ids[2]));
+        tryVerify(function () {
+            return drawnRows()[0] === "First";
+        });
+        compare(drawnRows().slice(0, 4), ["First", ids[0], "Second", ids[1]]);
+        compare(browser.tabFolder(ids[2]), "");
+        removeFolders([first, second]);
+        closeMarkableTabs(ids);
+    }
+
+    // A Folder sliding, held part way so a test reads a place on the way and not only its ends.
+    // The rows of `folder` are set up by the caller, and the row is clicked to start it.
+    function holdFolderSlide(folder, openness) {
+        const row = folderRowOf(folder);
+        mouseClick(row, row.width / 2, row.height / 2);
+        verify(row.sliding);
+        row.motion.pause();
+        row.openness = openness;
+        return row;
+    }
+
+    function windowY(item) {
+        return item.mapToItem(window.contentItem, 0, 0).y;
+    }
+
+    function test_aClickSlidesAFoldersRowsShutAndTheRowsBelowFollow() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        const row = folderRowOf(folder);
+        const member = rowOf(ids[1]);
+        const below = rowOf(ids[2]);
+        const from = windowY(below);
+        const travel = 2 * (member.height + 4);
+        // Watched at the frames the window draws.
+        const drawn = watchFrames(function () {
+            return windowY(below);
+        });
+        const faded = watchChanges(member, "opacity");
+        mouseClick(row, row.width / 2, row.height / 2);
+        verify(browser.folderCollapsed(folder));
+        verify(member.visible);
+        verify(passedBetween(faded, 1, 0));
+        verify(passedBetween(drawn, from, from - travel));
+        tryVerify(function () {
+            return !row.sliding && !member.visible;
+        });
+        settleRow(below);
+        compare(windowY(below), from - travel);
+        compare(below.slide, 0);
+        compare(row.motion.duration, 160);
+        compare(row.motion.easing.type, Easing.OutCubic);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aClickSlidesAFoldersRowsOpenAndTheRowsBelowFollow() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        const below = rowOf(ids[2]);
+        const open = windowY(below);
+        verify(browser.setFolderCollapsed(folder, true));
+        tryVerify(function () {
+            return windowY(below) < open;
+        });
+        const row = folderRowOf(folder);
+        const shut = windowY(below);
+        const drawn = watchFrames(function () {
+            return windowY(below);
+        });
+        mouseClick(row, row.width / 2, row.height / 2);
+        verify(!browser.folderCollapsed(folder));
+        verify(passedBetween(drawn, shut, open));
+        tryVerify(function () {
+            return !row.sliding;
+        });
+        settleRow(below);
+        compare(windowY(below), open);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_partWayEveryRowStandsWhereTheSlideHasReached() {
+        const ids = openMarkableTabs(4);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1], ids[2]]);
+        browser.activateTab(ids[1]);
+        settleMotion();
+        const first = rowOf(ids[0]);
+        const shown = rowOf(ids[1]);
+        const last = rowOf(ids[2]);
+        const below = rowOf(ids[3]);
+        const hairline = findChild(window.contentItem, "folderHairline");
+        const step = first.height + 4;
+        const at = [first, shown, last, below, hairline].map(windowY);
+        const row = holdFolderSlide(folder, 0.5);
+        // Two rows are leaving, so the rows after them have moved by half of two rows.
+        compare(windowY(first), at[0] - step / 2);
+        compare(windowY(shown), at[1] - step / 2);
+        compare(windowY(last), at[2] - step);
+        compare(windowY(below), at[3] - step);
+        compare(windowY(hairline), at[4] - step);
+        // The tab on show stays in view, and only the rows that go fade.
+        compare(shown.opacity, 1);
+        compare(first.opacity, 0.5);
+        compare(last.opacity, 0.5);
+        row.settle();
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aSecondClickReversesTheSlideFromWhereItStands() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        const below = rowOf(ids[2]);
+        const open = windowY(below);
+        const row = holdFolderSlide(folder, 0.6);
+        const openness = watchChanges(row, "openness");
+        mouseClick(row, row.width / 2, row.height / 2);
+        verify(!browser.folderCollapsed(folder));
+        tryVerify(function () {
+            return !row.sliding;
+        });
+        stopWatching(openness);
+        // From 0.6 up to 1, and never back through the shut end.
+        verify(openness.seen.every(function (value) {
+            return value >= 0.6;
+        }), openness.seen.join(" "));
+        compare(row.openness, 1);
+        settleRow(below);
+        compare(windowY(below), open);
+        verify(rowOf(ids[0]).visible);
+        compare(rowOf(ids[0]).opacity, 1);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_theKeysChangeAFolderAtOnce() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        holdTheSidebarOnFolder(folder, ids[2]);
+        const row = folderRowOf(folder);
+        const member = rowOf(ids[0]);
+        const openness = watchChanges(row, "openness");
+        keyClick(Qt.Key_L);
+        verify(!row.sliding);
+        verify(!member.visible);
+        keyClick(Qt.Key_Return);
+        verify(!row.sliding);
+        verify(member.visible);
+        keyClick(Qt.Key_Space);
+        verify(!row.sliding);
+        verify(!member.visible);
+        stopWatching(openness);
+        compare(openness.seen, [0, 1, 0]);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aKeyLandsASlideAtOnce() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        holdTheSidebarOnFolder(folder, ids[2]);
+        const row = holdFolderSlide(folder, 0.5);
+        row.steer();
+        keyClick(Qt.Key_L);
+        verify(!browser.folderCollapsed(folder));
+        verify(!row.sliding);
+        compare(row.openness, 1);
+        compare(rowOf(ids[2]).slide, 0);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_underReducedMotionAClickChangesAFolderAtOnce() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        const row = folderRowOf(folder);
+        const member = rowOf(ids[0]);
+        SystemMotion.reduced = true;
+        mouseClick(row, row.width / 2, row.height / 2);
+        const sliding = row.sliding;
+        const visible = member.visible;
+        SystemMotion.reduced = false;
+        verify(!sliding);
+        verify(!visible);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aDragLandsASlideBeforeItLifts() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        const below = rowOf(ids[2]);
+        const row = holdFolderSlide(folder, 0.5);
+        const member = findChild(window.contentItem, "tab-" + ids[0]);
+        const grabbed = below.mapToItem(window.contentItem, below.width / 2, below.height / 2);
+        mousePress(below, below.width / 2, below.height / 2);
+        mouseMove(window.contentItem, grabbed.x, grabbed.y + 8);
+        wait(1);
+        verify(below.lifted);
+        verify(!row.sliding);
+        compare(below.slide, 0);
+        verify(!member.visible);
+        mouseRelease(window.contentItem, grabbed.x, grabbed.y + 8);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aSyncReloadLandsASlide() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        browser.landPendingTabs();
+        holdFolderSlide(folder, 0.5);
+        browser.reloadSyncedState();
+        const row = folderRowOf(folder);
+        verify(!row.sliding);
+        compare(row.openness, 0);
+        const outline = findChild(window.contentItem, "sidebar");
+        compare(outline.hairlineSlide, 0);
+        compare(rowOf(ids[2]).slide, 0);
+        verify(!rowOf(ids[0]).visible);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aSpaceSwitchLandsASlide() {
+        const ids = openMarkableTabs(3);
+        const home = browser.activeSpaceId;
+        const other = browser.createSpace("Folder slide");
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        holdFolderSlide(folder, 0.5);
+        verify(browser.switchSpace(other));
+        const outline = findChild(window.contentItem, "sidebar");
+        tryCompare(outline, "arriving", false);
+        compare(outline.hairlineSlide, 0);
+        compare(Object.keys(outline.slidingFolders).length, 0);
+        verify(browser.switchSpace(home));
+        tryCompare(outline, "arriving", false);
+        const row = folderRowOf(folder);
+        verify(!row.sliding);
+        compare(row.openness, 0);
+        compare(rowOf(ids[2]).slide, 0);
+        verify(browser.deleteSpace(other, "Folder slide"));
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aRowOnItsWayOutTakesNoClickKeyOrMark() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        const leaving = rowOf(ids[0]);
+        const rows = drawnRows();
+        const firstOrdinary = rows[rows.indexOf("---") + 1];
+        holdTheSidebarOn(firstOrdinary);
+        const row = holdFolderSlide(folder, 0.9);
+        verify(leaving.visible);
+        const outline = findChild(window.contentItem, "sidebar");
+        // The cursor passes it, ranges pass it, and a press on it reaches nothing.
+        verify(outline.cursorRows().indexOf(leaving) < 0);
+        verify(outline.markRows().every(function (group) {
+            return group.indexOf(ids[0]) < 0;
+        }));
+        mouseClick(leaving, leaving.width / 3, leaving.height / 2);
+        compare(browser.activeTabId, ids[2]);
+        mouseClick(leaving, leaving.width / 3, leaving.height / 2, Qt.LeftButton,
+                   Qt.ControlModifier);
+        compare(outline.marks.count, 0);
+        row.settle();
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aFolderRowCannotBeMarkedAndItsTabsCan() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        const row = folderRowOf(folder);
+        mouseClick(row, row.width / 2, row.height / 2, Qt.LeftButton, Qt.ControlModifier);
+        compare(markedTabs(), []);
+        // That was no click on the row either.
+        verify(!browser.folderCollapsed(folder));
+        clickRow(ids[0], Qt.ControlModifier);
+        clickRow(ids[1], Qt.ControlModifier);
+        compare(markedTabs(), [ids[0], ids[1]]);
+        clickRow(ids[2], Qt.ShiftModifier);
+        compare(markedTabs(), [ids[0], ids[1], ids[2]]);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_collapsingDropsTheFoldersTabsFromTheMarks() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        clickRow(ids[0], Qt.ControlModifier);
+        clickRow(ids[1], Qt.ControlModifier);
+        clickFolderRow(folder);
+        verify(browser.folderCollapsed(folder));
+        compare(markedTabs(), [ids[1]]);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aCollapsedFoldersTabOnShowStandsUnderItsRow() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1]]);
+        browser.activateTab(ids[2]);
+        verify(browser.setFolderCollapsed(folder, true));
+        settleMotion();
+        browser.activateTab(ids[1]);
+        settleMotion();
+        verify(browser.folderCollapsed(folder));
+        const rows = drawnRows();
+        compare(rows[rows.indexOf("Reading") + 1], ids[1]);
+        verify(rows.indexOf(ids[0]) < 0);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        verify(drawnRows().indexOf(ids[1]) < 0);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_collapsingLeavesTheTabOnShowInView() {
+        const ids = openMarkableTabs(2);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1]]);
+        browser.activateTab(ids[1]);
+        settleMotion();
+        clickFolderRow(folder);
+        verify(drawnRows().indexOf(ids[1]) >= 0);
+        verify(drawnRows().indexOf(ids[0]) < 0);
+        compare(browser.activeTabId, ids[1]);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_theSelectTabKeysAndLabelsCountWhatIsOnShow() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[2]);
+        verify(browser.setFolderCollapsed(folder, true));
+        settleMotion();
+        const counted = browser.countedTabIds();
+        verify(counted.indexOf(ids[0]) < 0);
+        window.commands.run("select-tab", counted.indexOf(ids[1]));
+        compare(browser.activeTabId, ids[1]);
+
+        const outline = findChild(window.contentItem, "sidebar");
+        outline.keyLabelsShown = true;
+        compare(outline.tabLabel(ids[0]), "");
+        verify(outline.tabLabel(ids[1]).length > 0);
+        outline.keyLabelsShown = false;
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_theTabJumpListStillReachesACollapsedFoldersTab() {
+        const ids = openMarkableTabs(2);
+        browser.activateTab(ids[0]);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[1]);
+        verify(browser.setFolderCollapsed(folder, true));
+        settleMotion();
+        verify(browser.jumpBack());
+        compare(browser.activeTabId, ids[0]);
+        verify(browser.folderCollapsed(folder));
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_theOmnibarStillListsACollapsedFoldersTab() {
+        const ids = openMarkableTabs(2);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[1]);
+        verify(browser.setFolderCollapsed(folder, true));
+        settleMotion();
+        browser.reportTabPageState(ids[0], "https://marks.example/0", "Quarterly in a Folder", "",
+                                   false, false);
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        window.openOmnibar(false);
+        input.text = "quarterly";
+        verify(omnibarRowsOf(panel, "tab").some(function (row) {
+            return row.argument === ids[0];
+        }));
+        window.closeOmnibar();
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aPoppedOutTabKeepsItsRowInTheFolderWithTheWindowMark() {
+        const ids = openMarkableTabs(2);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[1]);
+        settleMotion();
+        verify(window.popOutTab(ids[0]));
+        settleMotion();
+        verify(rowOf(ids[0]).visible);
+        verify(findChild(window.contentItem, "tabWindowMark-" + ids[0]).visible);
+        compare(browser.tabFolder(ids[0]), folder);
+        window.putBackTab(ids[0]);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aSpaceAtRestStillListsItsFolders() {
+        const home = browser.activeSpaceId;
+        const spaceId = browser.createSpace("Folder rest");
+        verify(browser.switchSpace(spaceId));
+        browser.openInput("https://rest-folder.example/", false);
+        const kept = browser.activeTabId;
+        browser.openInput("https://rest-loose.example/", true);
+        const loose = browser.activeTabId;
+        const folder = browser.createFolder("Kept", [kept]);
+        settleMotion();
+        browser.closeTab(loose);
+        tryCompare(browser, "atRest", true);
+        tryVerify(function () {
+            return drawnRows().length === 2;
+        });
+        compare(drawnRows(), ["Kept", kept]);
+        verify(browser.switchSpace(home));
+        verify(browser.deleteSpace(spaceId, "Folder rest"));
+    }
+
+    function test_aPrivateWindowOffersNoFolder() {
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateWindow = window.privateWindows[0];
+        const privateBrowser = privateWindow.windowBrowser;
+        verify(!privateBrowser.foldersAvailable);
+        verify(!privateWindow.commands.available("new-folder"));
+        const labels = privateWindow.tabMenuActionsFor(privateBrowser.activeTabId).map(function (
+            action) {
+            return action.label;
+        });
+        verify(labels.indexOf("New folder") < 0);
+        privateBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+    }
+
     // Marking several rows (#917). The tabs are ordinary rows in the order they were opened, the
     // last of them on show.
     function openMarkableTabs(count) {
@@ -9777,7 +10931,8 @@ TestCase {
         clickRow(ids[0], Qt.ControlModifier);
         clickRow(ids[2], Qt.ControlModifier);
         const labels = openMenuOn(ids[2]);
-        compare(labels.filter(Boolean), ["Pin 2 tabs", "Move 2 tabs to a Space", "Close 2 tabs"]);
+        compare(labels.filter(Boolean), ["Pin 2 tabs", "New folder with 2 tabs",
+                                         "Move 2 tabs to a Space", "Close 2 tabs"]);
         window.tabMenuOpen = false;
         openMenuOn(ids[0]);
         runMenuEntry("Close 2 tabs");
@@ -10868,8 +12023,7 @@ TestCase {
         compare(browser.tabSectionIndex(thirdTabId), place - 2);
         compare(browser.tabSectionIndex(secondTabId), place);
 
-        // The arrangement replaces the rows that were showing it, so the row is
-        // asked for again rather than remembered.
+        // The row is where it was carried to, so nothing is left to ease.
         const carried = findChild(window.contentItem, "tab-" + thirdTabId);
         verify(carried !== null);
         verify(!carried.lifted);

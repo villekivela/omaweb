@@ -30,9 +30,9 @@ Every piece of browser state falls into exactly one of these three lists.
 
 ### Encrypted before upload
 
-Space names and colours, ordinary tabs and Pinned tabs. Each is its own record, encrypted on your
-machine with XChaCha20-Poly1305 under your recovery key. GitHub stores only ciphertext and can't
-read them.
+Space names and colours, ordinary tabs, Pinned tabs and Folders, with a Folder's name and the tabs
+it holds. Each is its own record, encrypted on your machine with XChaCha20-Poly1305 under your
+recovery key. GitHub stores only ciphertext and can't read them.
 
 ### Readable in the repository
 
@@ -48,8 +48,9 @@ exists any more.
 Passwords, cookies and active logins. Payment cards, which stay in your desktop's keyring. Browsing
 history. Form history, what you typed into forms. Saved addresses. Downloads. Site permissions.
 Per-site content-blocking exceptions and your own rules. Anything in a Private window. Which Space
-and tab you have open stays on the machine, and so does your theme: the browser theme travels as the
-name of an Omarchy theme, and a machine without it installed follows its desktop's.
+and tab you have open stays on the machine, as do which Folders are collapsed and which of their
+pages are released, and so does your theme: the browser theme travels as the name of an Omarchy
+theme, and a machine without it installed follows its desktop's.
 
 ## What encryption covers, and what it doesn't
 
@@ -57,8 +58,9 @@ The records are encrypted and authenticated. The repository around them isn't.
 
 ### Covered
 
-The contents of every Space and tab record, and any tampering with them. Each record authenticates
-its schema version, kind and identifier, so a modified record is rejected instead of applied.
+The contents of every Space, tab and Folder record, and any tampering with them. Each record
+authenticates its schema version, kind and identifier, so a modified record is rejected instead of
+applied.
 
 ### Not covered
 

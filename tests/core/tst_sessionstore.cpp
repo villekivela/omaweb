@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <memory>
 
+using omaweb::FolderState;
 using omaweb::PrivateSessionStore;
 using omaweb::SessionStore;
 using omaweb::SpaceState;
@@ -78,6 +79,11 @@ class SessionStoreTest : public QObject {
     Q_OBJECT
 
 private slots:
+    void keepsAFoldersNameMembersAndOrder();
+    void keepsWhetherAFolderIsCollapsed();
+    void keepsAFolderWithNoTabs();
+    void keepsFoldersWithTheirSpace();
+    void deletingASpaceTakesItsFolders();
     void adaptersOpen();
     void adaptersOpen_data();
     void adaptersRecordASpaceOnlyIfTheyRecord();
@@ -926,6 +932,98 @@ void SessionStoreTest::aThreadedStoreFindsAFaviconOffTheCallersThread()
     const QMutexLocker locker(&mutex);
     QCOMPARE(found, QByteArrayLiteral("icon"));
     QCOMPARE(answeredOn, store.thread());
+}
+
+void SessionStoreTest::keepsAFoldersNameMembersAndOrder()
+{
+    QTemporaryDir root;
+    const QVector<FolderState> folders {
+        {.id = QStringLiteral("reading"),
+            .spaceId = spaceId(),
+            .name = QStringLiteral("Reading"),
+            .tabIds = {QStringLiteral("b"), QStringLiteral("a")}},
+        {.id = QStringLiteral("work"),
+            .spaceId = spaceId(),
+            .name = QStringLiteral("Reading"),
+            .tabIds = {QStringLiteral("c")}},
+    };
+    {
+        SqliteSessionStore store(root.path());
+        QVERIFY(store.open());
+        QVERIFY(store.saveSpace(makeSpace()));
+        QVERIFY(store.saveFolders(spaceId(), folders));
+    }
+    SqliteSessionStore reopened(root.path());
+    QVERIFY(reopened.open());
+    QCOMPARE(reopened.loadFolders(spaceId()), folders);
+
+    // The list is written whole, so one left out is gone.
+    QVERIFY(reopened.saveFolders(spaceId(), {folders.at(1)}));
+    QCOMPARE(reopened.loadFolders(spaceId()), QVector<FolderState> {folders.at(1)});
+}
+
+void SessionStoreTest::keepsWhetherAFolderIsCollapsed()
+{
+    QTemporaryDir root;
+    {
+        SqliteSessionStore store(root.path());
+        QVERIFY(store.open());
+        QVERIFY(store.saveSpace(makeSpace()));
+        QVERIFY(store.saveFolders(spaceId(),
+            {{.id = QStringLiteral("reading"),
+                .spaceId = spaceId(),
+                .name = QStringLiteral("Reading"),
+                .tabIds = {QStringLiteral("a")},
+                .collapsed = true}}));
+    }
+    SqliteSessionStore reopened(root.path());
+    QVERIFY(reopened.open());
+    QVERIFY(reopened.loadFolders(spaceId()).constFirst().collapsed);
+}
+
+void SessionStoreTest::keepsAFolderWithNoTabs()
+{
+    QTemporaryDir root;
+    SqliteSessionStore store(root.path());
+    QVERIFY(store.open());
+    QVERIFY(store.saveSpace(makeSpace()));
+    QVERIFY(store.saveFolders(spaceId(),
+        {{.id = QStringLiteral("empty"), .spaceId = spaceId(), .name = QStringLiteral("Empty")}}));
+    const auto folders = store.loadFolders(spaceId());
+    QCOMPARE(folders.size(), 1);
+    QVERIFY(folders.constFirst().tabIds.isEmpty());
+}
+
+void SessionStoreTest::keepsFoldersWithTheirSpace()
+{
+    QTemporaryDir root;
+    SqliteSessionStore store(root.path());
+    QVERIFY(store.open());
+    QVERIFY(store.saveSpace(makeSpace()));
+    auto other = makeSpace();
+    other.id = QStringLiteral("space-2");
+    other.active = false;
+    QVERIFY(store.saveSpace(other));
+    QVERIFY(store.saveFolders(spaceId(),
+        {{.id = QStringLiteral("mine"), .spaceId = spaceId(), .name = QStringLiteral("Mine")}}));
+    QVERIFY(store.loadFolders(other.id).isEmpty());
+    QCOMPARE(store.loadFolders(spaceId()).size(), 1);
+}
+
+void SessionStoreTest::deletingASpaceTakesItsFolders()
+{
+    QTemporaryDir root;
+    SqliteSessionStore store(root.path());
+    QVERIFY(store.open());
+    QVERIFY(store.saveSpace(makeSpace()));
+    QVERIFY(store.saveFolders(spaceId(),
+        {{.id = QStringLiteral("mine"), .spaceId = spaceId(), .name = QStringLiteral("Mine")}}));
+    auto other = makeSpace();
+    other.id = QStringLiteral("space-2");
+    QVERIFY(store.saveSpace(other));
+    QVERIFY(store.deleteSpace(spaceId(), other.id));
+    QVERIFY(store.saveSpace(makeSpace()));
+    QVERIFY(store.loadFolders(spaceId()).isEmpty());
 }
 
 QTEST_MAIN(SessionStoreTest)

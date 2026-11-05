@@ -57,8 +57,15 @@ sleeping tab, discarded tab
 the setting allows, kept in its Space's put-away list for 30 days and opened again from the History
 sheet or the Omnibar. A tab in use some other way is never put away: a Pinned tab, a tab making
 sound, an Agent tab, a split's tab, the tab Developer tools are attached to, a row being dragged,
-and each Space's active tab. The list is not the recently closed stack, which holds only the
-reader's own closes. _Avoid_: Discarded tab, archived tab, auto-closed tab
+and each Space's active tab. A tab in a Folder is never put away either: its page is released. The
+list is not the recently closed stack, which holds only the reader's own closes. _Avoid_: Discarded
+tab, archived tab, auto-closed tab
+
+**Released page**: The page of a tab in a Folder, dropped once the tab has gone unused past the age
+"Put away unused tabs" sets, or by the Folder's Unload tabs. The tab keeps its row, which looks like
+any other, and its page loads again when it next comes on show, as a restored tab's does, so scroll
+position and form state are lost. Hidden pages are frozen already, so only dropping the engine frees
+anything. Which pages are released stays on this machine. _Avoid_: Unloaded tab, sleeping tab
 
 **Sounding tab**: The tab that is making sound, and the one Omaweb announces to the desktop so the
 media keys, the bar's media widget, and anything else that asks reach it. There is one for the whole
@@ -70,9 +77,14 @@ tab announces that something is playing and nothing about what. _Avoid_: Now pla
 active player
 
 **Space at rest**: A Space with nothing open in it, because nothing has been opened yet or the last
-page has been closed. Its only ordinary tab is blank. A Space at rest lists no ordinary tab and
-shows the Start page in place of a webpage; its Pinned tabs are unaffected. _Avoid_: Empty tab,
-blank tab, new tab
+page has been closed. Its only ordinary tab outside a Folder is blank. A Space at rest lists no such
+tab and shows the Start page in place of a webpage; its Pinned tabs are unaffected. _Avoid_: Empty
+tab, blank tab, new tab
+
+**Folder**: A named row in the sidebar that holds a Space's ordinary tabs and splits, and collapses.
+Folders stand in a block between the Pinned tabs and the ordinary tabs, one level deep, and a Folder
+lasts until the reader removes it, with tabs in it or not. A new tab joins none. A Folder is a Sync
+record of its own, and whether it is collapsed stays on this machine. _Avoid_: Tab group, section
 
 **Split**: Two ordinary tabs of one Space shown side by side where one webpage would be, and listed
 as one sidebar row. One of the two is the active tab; the other is the tab beside. A split belongs
@@ -174,11 +186,11 @@ Typing `:` into the field enters it and backspacing the `:` leaves it, keeping t
 _Avoid_: Command mode, command panel
 
 **Sidebar cursor**: The sidebar row that holds the keyboard, drawn in the accent while the sidebar
-has focus. `j` and `k` move it through the pins and then the ordinary tabs without changing the
-page, `l` opens its tab and hands the keyboard to the page, and `h` returns it to the tab on show.
-It is never the mark of the tab on show, and no row carries it while the page has the keyboard. The
-same mark shows which of a Glance's controls holds the keyboard. _Avoid_: Selection, highlight,
-focused tab
+has focus. `j` and `k` move it through the pins, the Folders and then the ordinary tabs without
+changing the page, `l` opens its tab, or opens or collapses its Folder, and hands the keyboard to
+the page, and `h` returns it to the tab on show. It is never the mark of the tab on show, and no row
+carries it while the page has the keyboard. The same mark shows which of a Glance's controls holds
+the keyboard. _Avoid_: Selection, highlight, focused tab
 
 **Mark**: The accent wash that puts an ordinary sidebar row among the rows an action acts on
 together. A marked row draws a softer wash than the row on show, with no bar, and does not hold the
@@ -263,9 +275,10 @@ identity, not an Engine profile)
 installations through a replaceable provider. _Avoid_: Backup, account
 
 **Sync projection**: The positive allowlist of browser state Sync may copy: Space names, colours and
-order, ordinary and Pinned open tabs, approved Settings, keybindings, and filter subscriptions.
-Active Space and tab selection stay local, and Browsing data and every Private window are outside
-the projection. _Avoid_: Browser backup, profile snapshot, all settings
+order, ordinary and Pinned open tabs, Folders with their members, approved Settings, keybindings,
+and filter subscriptions. Active Space and tab selection stay local, as do which Folders are
+collapsed and which pages are released, and Browsing data and every Private window are outside the
+projection. _Avoid_: Browser backup, profile snapshot, all settings
 
 **Site permission**: A Space-specific decision that allows or blocks an origin from using a
 protected browser capability. A Private window retains its Site permissions only while the shared

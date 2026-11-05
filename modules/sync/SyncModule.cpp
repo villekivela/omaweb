@@ -95,6 +95,15 @@ namespace {
         return digest(compactJson(record));
     }
 
+    // Whether the Folder is collapsed is not here: it stays on this machine.
+    QJsonObject folderRecord(const FolderState &folder, qsizetype position)
+    {
+        return {{QStringLiteral("version"), SyncModule::contractVersion},
+            {QStringLiteral("id"), folder.id}, {QStringLiteral("spaceId"), folder.spaceId},
+            {QStringLiteral("name"), folder.name}, {QStringLiteral("position"), position},
+            {QStringLiteral("tabIds"), QJsonArray::fromStringList(folder.tabIds)}};
+    }
+
     QJsonArray projectedSubscriptions(const QJsonArray &localSubscriptions)
     {
         QJsonArray subscriptions;
@@ -208,6 +217,11 @@ namespace {
 
     struct RemoteTab {
         TabState state;
+        int position = 0;
+    };
+
+    struct RemoteFolder {
+        FolderState state;
         int position = 0;
     };
 
@@ -368,7 +382,8 @@ bool SyncModule::compactHistoryIfNeeded(QString *errorMessage)
     if (!countOk || (count <= m_options.historyCommitLimit && !tooOld)) {
         return countOk;
     }
-    for (const auto &kind : {QStringLiteral("spaces"), QStringLiteral("tabs")}) {
+    for (const auto &kind :
+        {QStringLiteral("spaces"), QStringLiteral("tabs"), QStringLiteral("folders")}) {
         QDir directory(QDir(checkoutRoot()).filePath(kind));
         for (const auto &name : directory.entryList({QStringLiteral("*.sync")}, QDir::Files)) {
             const auto id = name.chopped(5);
@@ -948,6 +963,7 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
     }
     QVector<RemoteSpace> remoteSpaces;
     QHash<QString, QVector<RemoteTab>> tabsBySpace;
+    QHash<QString, QVector<RemoteFolder>> foldersBySpace;
     QSet<QString> deletedSpaceIds;
     const auto readDirectory =
         [this, errorMessage](const QString &kind,
@@ -1008,8 +1024,8 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
                 });
                 return true;
             })
-        || !readDirectory(
-            QStringLiteral("tabs"), [&tabsBySpace](const QString &, const QJsonObject &record) {
+        || !readDirectory(QStringLiteral("tabs"),
+            [&tabsBySpace](const QString &, const QJsonObject &record) {
                 if (record.value(QStringLiteral("deleted")).toBool()) {
                     return true;
                 }
@@ -1026,6 +1042,24 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
                 }
                 tabsBySpace[tab.spaceId].append(
                     RemoteTab {std::move(tab), record.value(QStringLiteral("position")).toInt()});
+                return true;
+            })
+        || !readDirectory(QStringLiteral("folders"),
+            [&foldersBySpace](const QString &, const QJsonObject &record) {
+                if (record.value(QStringLiteral("deleted")).toBool()) {
+                    return true;
+                }
+                FolderState folder {.id = record.value(QStringLiteral("id")).toString(),
+                    .spaceId = record.value(QStringLiteral("spaceId")).toString(),
+                    .name = record.value(QStringLiteral("name")).toString()};
+                for (const auto &tabId : record.value(QStringLiteral("tabIds")).toArray()) {
+                    folder.tabIds.append(tabId.toString());
+                }
+                if (folder.id.isEmpty() || folder.spaceId.isEmpty() || folder.name.isEmpty()) {
+                    return false;
+                }
+                foldersBySpace[folder.spaceId].append(RemoteFolder {
+                    std::move(folder), record.value(QStringLiteral("position")).toInt()});
                 return true;
             })) {
         return false;
@@ -1074,6 +1108,16 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
             return false;
         }
     }
+    // Read from every Space first, since a Folder may arrive in another Space
+    // than the one it was collapsed in.
+    QSet<QString> collapsedFolderIds;
+    for (const auto &space : store.loadSpaces()) {
+        for (const auto &folder : store.loadFolders(space.id)) {
+            if (folder.collapsed) {
+                collapsedFolderIds.insert(folder.id);
+            }
+        }
+    }
     for (qsizetype index = 0; index < spaces.size(); ++index) {
         auto tabs = tabsBySpace.take(spaces[index].id);
         std::ranges::sort(tabs, {}, &RemoteTab::position);
@@ -1114,6 +1158,23 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
                 QStringLiteral("the tabs of Space %1").arg(spaces[index].id), errorMessage);
             return false;
         }
+        // Whether a Folder is collapsed is this machine's, and never in the
+        // projection, so a Folder collapsed here stays collapsed.
+        auto folders = foldersBySpace.take(spaces[index].id);
+        std::ranges::sort(folders, {}, &RemoteFolder::position);
+        QVector<FolderState> folderStates;
+        folderStates.reserve(folders.size());
+        for (auto &folder : folders) {
+            folder.state.collapsed = collapsedFolderIds.contains(folder.state.id);
+            folderStates.append(std::move(folder.state));
+        }
+        if (!store.saveFolders(spaces[index].id, folderStates)) {
+            setError(errorMessage,
+                QCoreApplication::translate("SyncModule", "Could not apply remote browser state"));
+            logRestoreFailure(
+                QStringLiteral("the Folders of Space %1").arg(spaces[index].id), errorMessage);
+            return false;
+        }
     }
     return restoreConfiguration(errorMessage) && writeAppliedRecordInventory(errorMessage);
 }
@@ -1121,7 +1182,8 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
 bool SyncModule::writeAppliedRecordInventory(QString *errorMessage) const
 {
     QJsonObject inventory {{QStringLiteral("version"), 1}};
-    for (const auto &kind : {QStringLiteral("spaces"), QStringLiteral("tabs")}) {
+    for (const auto &kind :
+        {QStringLiteral("spaces"), QStringLiteral("tabs"), QStringLiteral("folders")}) {
         QJsonObject records;
         QDir directory(QDir(checkoutRoot()).filePath(kind));
         for (const auto &name : directory.entryList({QStringLiteral("*.sync")}, QDir::Files)) {
@@ -1182,6 +1244,7 @@ bool SyncModule::writeLocalBaselineInventory(SessionStore &store, QString *error
     QJsonObject inventory {{QStringLiteral("version"), 1}};
     QJsonObject spaces;
     QJsonObject tabs;
+    QJsonObject folders;
     const auto localSpaces = store.loadSpaces();
     for (qsizetype spacePosition = 0; spacePosition < localSpaces.size(); ++spacePosition) {
         const auto &space = localSpaces.at(spacePosition);
@@ -1202,9 +1265,15 @@ bool SyncModule::writeLocalBaselineInventory(SessionStore &store, QString *error
                     {QStringLiteral("zoom"), tab.zoom},
                     {QStringLiteral("keepActive"), tab.keepActive}}));
         }
+        const auto localFolders = store.loadFolders(space.id);
+        for (qsizetype position = 0; position < localFolders.size(); ++position) {
+            const auto &folder = localFolders.at(position);
+            folders.insert(folder.id, recordDigest(folderRecord(folder, position)));
+        }
     }
     inventory.insert(QStringLiteral("spaces"), spaces);
     inventory.insert(QStringLiteral("tabs"), tabs);
+    inventory.insert(QStringLiteral("folders"), folders);
     QJsonObject configuration;
     const SettingsFile settings(m_options.configRoot);
     for (const auto &name : syncedPreferences) {
@@ -1530,6 +1599,7 @@ bool SyncModule::reconcileRemote(SessionStore &store, QString *errorMessage)
     }
     QSet<QString> currentSpaceIds;
     QSet<QString> currentTabIds;
+    QSet<QString> currentFolderIds;
     const auto localSpaces = store.loadSpaces();
     for (qsizetype spacePosition = 0; spacePosition < localSpaces.size(); ++spacePosition) {
         const auto &space = localSpaces.at(spacePosition);
@@ -1559,9 +1629,19 @@ bool SyncModule::reconcileRemote(SessionStore &store, QString *errorMessage)
                 return false;
             }
         }
+        const auto folders = store.loadFolders(space.id);
+        for (qsizetype position = 0; position < folders.size(); ++position) {
+            const auto &folder = folders.at(position);
+            currentFolderIds.insert(folder.id);
+            if (!writeEncryptedRecord(QStringLiteral("folders"), folder.id,
+                    compactJson(folderRecord(folder, position)), errorMessage)) {
+                return false;
+            }
+        }
     }
     if (!tombstoneMissingRecords(QStringLiteral("spaces"), currentSpaceIds, errorMessage)
-        || !tombstoneMissingRecords(QStringLiteral("tabs"), currentTabIds, errorMessage)) {
+        || !tombstoneMissingRecords(QStringLiteral("tabs"), currentTabIds, errorMessage)
+        || !tombstoneMissingRecords(QStringLiteral("folders"), currentFolderIds, errorMessage)) {
         return false;
     }
     if (!captureConfiguration(errorMessage)) {

@@ -124,6 +124,9 @@ QtObject {
         case "select-space":
             window.activateSpaceAt(argument);
             return true;
+        case "new-folder":
+            window.requestNewFolder([]);
+            return true;
         case "new-space":
             window.requestNewSpace();
             return true;
@@ -284,6 +287,11 @@ QtObject {
                                              "new-tab": {
                                                  group: "tabs",
                                                  title: qsTr("New tab")
+                                             },
+                                             "new-folder": {
+                                                 group: "tabs",
+                                                 title: qsTr("New folder"),
+                                                 requires: "folders"
                                              },
                                              "close-tab": {
                                                  group: "tabs",
@@ -690,6 +698,8 @@ QtObject {
             return !window.privateWindow && window.tabWindowCount > 0;
         case "agent-space":
             return window.agentSpaceOnShow;
+        case "folders":
+            return browser.foldersAvailable;
             // Settings' × is off with one Space left, and a Private window has
             // no Spaces to delete.
         case "several-spaces":
@@ -765,7 +775,8 @@ QtObject {
                                          || command === "take-over-space" || command
                                          === "delete-space" || command === "ask" || command
                                          === "pop-out-tab" || command === "put-back-tab" || command
-                                         === "toggle-tab-window-strip")) {
+                                         === "toggle-tab-window-strip" || command
+                                         === "new-folder")) {
                 continue;
             }
             list.push({

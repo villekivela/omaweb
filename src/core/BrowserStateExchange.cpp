@@ -37,6 +37,7 @@ BrowserStateExchangeAdapter::BrowserStateExchangeAdapter(BrowserController *brow
     connect(browser->tabs(), &QAbstractItemModel::rowsRemoved, this, reportPossibleChange);
     connect(browser->tabs(), &QAbstractItemModel::rowsMoved, this, reportPossibleChange);
     connect(browser->tabs(), &QAbstractItemModel::modelReset, this, reportPossibleChange);
+    connect(browser, &BrowserController::foldersChanged, this, reportPossibleChange);
     connect(browser, &BrowserController::preferenceChanged, this, reportPossibleChange);
     if (blocker) {
         connect(blocker, &ContentBlocker::subscriptionsChanged, this, reportPossibleChange);
@@ -81,6 +82,7 @@ BrowserStateImage BrowserStateExchangeAdapter::capture(const BrowserStateSelecti
             tab.stripHidden = false;
         }
         image.tabsBySpace.insert(space.id, std::move(tabs));
+        image.foldersBySpace.insert(space.id, store->loadFolders(space.id));
     }
     image.activeSpaceId = m_browser->activeSpaceId();
     image.activeTabId = m_browser->activeTabId();

@@ -69,6 +69,12 @@ struct TabState {
     // the popping out itself never synced.
     bool stripHidden = false;
     QString rendererFailureReason {};
+    // The Folder holding this tab, or nothing, and whether its row is out of
+    // the list because that Folder is collapsed. Both are worked out from the
+    // Space's Folders and never kept with the tab: a Folder's members are its
+    // own Sync record, and Tab records do not change.
+    QString folderId {};
+    bool folderHidden = false;
 };
 
 class TabListModel final : public QAbstractListModel {
@@ -98,6 +104,8 @@ public:
         TabBesideRole,
         // Whether the tab is shown in a Tab window of its own.
         PoppedOutRole,
+        FolderIdRole,
+        FolderHiddenRole,
     };
     Q_ENUM(Role)
 

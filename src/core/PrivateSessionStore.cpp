@@ -61,6 +61,13 @@ bool PrivateSessionStore::recordClosedTabs(const QString &, const QVector<TabSta
     return false;
 }
 
+QVector<FolderState> PrivateSessionStore::loadFolders(const QString &) const { return {}; }
+
+bool PrivateSessionStore::saveFolders(const QString &, const QVector<FolderState> &)
+{
+    return false;
+}
+
 QVector<PutAwayTab> PrivateSessionStore::loadPutAwayTabs(const QString &) const { return {}; }
 
 bool PrivateSessionStore::recordPutAwayTabs(const QString &, const QVector<PutAwayTab> &)
