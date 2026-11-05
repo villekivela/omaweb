@@ -122,6 +122,10 @@
         <translation>Uusi välilehti</translation>
     </message>
     <message>
+        <source>New folder</source>
+        <translation>Uusi kansio</translation>
+    </message>
+    <message>
         <source>Close tab</source>
         <translation>Sulje välilehti</translation>
     </message>
@@ -867,6 +871,17 @@
     </message>
 </context>
 <context>
+    <name>FolderRow</name>
+    <message>
+        <source>Folder %1, collapsed: %2</source>
+        <translation>Kansio %1, supistettu: %2</translation>
+    </message>
+    <message>
+        <source>Folder %1, open</source>
+        <translation>Kansio %1, avoinna</translation>
+    </message>
+</context>
+<context>
     <name>FormSuggestions</name>
     <message>
         <source>Card</source>
@@ -1343,6 +1358,10 @@
         <translation>Kiinnitä välilehti</translation>
     </message>
     <message>
+        <source>New folder</source>
+        <translation>Uusi kansio</translation>
+    </message>
+    <message>
         <source>Close other tabs</source>
         <translation>Sulje muut välilehdet</translation>
     </message>
@@ -1359,6 +1378,10 @@
         <translation>Kiinnitä %1 välilehteä</translation>
     </message>
     <message>
+        <source>New folder with %1 tabs</source>
+        <translation>Uusi kansio, jossa on %1 välilehteä</translation>
+    </message>
+    <message>
         <source>Move %1 tabs to a Space</source>
         <translation>Siirrä %1 välilehteä Tilaan</translation>
     </message>
@@ -1373,6 +1396,27 @@
     <message>
         <source>Pop out into a window</source>
         <translation>Irrota ikkunaan</translation>
+    </message>
+    <message>
+        <source>Rename</source>
+        <comment>verb: give a Folder another name</comment>
+        <translation>Nimeä uudelleen</translation>
+    </message>
+    <message>
+        <source>Unload tabs</source>
+        <translation>Vapauta välilehdet</translation>
+    </message>
+    <message>
+        <source>Move to Space</source>
+        <translation>Siirrä tilaan</translation>
+    </message>
+    <message>
+        <source>Close folder</source>
+        <translation>Sulje kansio</translation>
+    </message>
+    <message>
+        <source>Remove folder</source>
+        <translation>Poista kansio</translation>
     </message>
     <message>
         <source>New blank tab</source>
@@ -1925,6 +1969,22 @@
         <translation>lisää jaettu näkymä</translation>
     </message>
     <message>
+        <source>new folder</source>
+        <translation>uusi kansio</translation>
+    </message>
+    <message>
+        <source>rename folder</source>
+        <translation>nimeä kansio uudelleen</translation>
+    </message>
+    <message>
+        <source>close folder</source>
+        <translation>sulje kansio</translation>
+    </message>
+    <message>
+        <source>move folder to a space</source>
+        <translation>siirrä kansio tilaan</translation>
+    </message>
+    <message>
         <source>discard edited form state</source>
         <translation>hylkää muokatut lomaketiedot</translation>
     </message>
@@ -1949,6 +2009,10 @@
         <translation>poista kirjoittamalla %1</translation>
     </message>
     <message>
+        <source>name the Folder</source>
+        <translation>nimeä Kansio</translation>
+    </message>
+    <message>
         <source>%1 keeps its tabs, its session, its logins and its engine data. Deleting it cannot be undone.</source>
         <translation>%1 säilyttää välilehtensä, istuntonsa, kirjautumisensa ja moottorinsa tiedot. Poistamista ei voi perua.</translation>
     </message>
@@ -1959,6 +2023,14 @@
     <message>
         <source>%1 link rules name this Space, and are deleted with it.</source>
         <translation>%1 linkkisääntöä nimeää tämän tilan, ja ne poistetaan tilan mukana.</translation>
+    </message>
+    <message>
+        <source>Closing %1 closes its 1 tab and removes the Folder.</source>
+        <translation>Kansion %1 sulkeminen sulkee sen 1 välilehden ja poistaa Kansion.</translation>
+    </message>
+    <message>
+        <source>Closing %1 closes its %2 tabs and removes the Folder.</source>
+        <translation>Kansion %1 sulkeminen sulkee sen %2 välilehteä ja poistaa Kansion.</translation>
     </message>
     <message>
         <source>This page has edited form state. Moving it reloads the page under the destination identity and discards those edits.</source>
@@ -1995,6 +2067,22 @@
     <message>
         <source>↑↓ choose      ⏎ show it beside this tab</source>
         <translation>↑↓ valitse      ⏎ näytä tämän välilehden vieressä</translation>
+    </message>
+    <message>
+        <source>⏎ create the Folder</source>
+        <translation>⏎ luo Kansio</translation>
+    </message>
+    <message>
+        <source>⏎ rename the Folder</source>
+        <translation>⏎ nimeä Kansio uudelleen</translation>
+    </message>
+    <message>
+        <source>⏎ close %1</source>
+        <translation>⏎ sulje %1</translation>
+    </message>
+    <message>
+        <source>↑↓ choose      ⏎ move the Folder</source>
+        <translation>↑↓ valitse      ⏎ siirrä Kansio</translation>
     </message>
     <message>
         <source>⏎ discard the edits and move</source>

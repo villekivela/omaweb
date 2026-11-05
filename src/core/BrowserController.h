@@ -9,6 +9,7 @@
 #include "SettingsFile.h"
 #include "ExtensionInstaller.h"
 #include "NeighbourSpace.h"
+#include "SidebarRowModel.h"
 #include "SpaceListModel.h"
 #include "SpaceProject.h"
 #include "SpaceStorage.h"
@@ -50,6 +51,9 @@ class BrowserController final : public QObject, public DownloadPermissions {
     Q_PROPERTY(QAbstractItemModel *tabs READ tabs CONSTANT)
     Q_PROPERTY(QAbstractItemModel *pinnedTabs READ pinnedTabs CONSTANT)
     Q_PROPERTY(QAbstractItemModel *unpinnedTabs READ unpinnedTabs CONSTANT)
+    Q_PROPERTY(QAbstractItemModel *sidebarRows READ sidebarRows CONSTANT)
+    Q_PROPERTY(bool foldersAvailable READ foldersAvailable NOTIFY foldersAvailableChanged)
+    Q_PROPERTY(int folderCount READ folderCount NOTIFY foldersChanged)
     // The Spaces before and after the one on show in footer order, wrapping at
     // both ends, which a swipe across the sidebar brings in.
     Q_PROPERTY(omaweb::NeighbourSpace *previousSpace READ previousSpace CONSTANT)
@@ -210,6 +214,11 @@ public:
     QAbstractItemModel *tabs();
     QAbstractItemModel *pinnedTabs();
     QAbstractItemModel *unpinnedTabs();
+    QAbstractItemModel *sidebarRows();
+    // Whether the Space on show can hold Folders. A Private window has nowhere
+    // to keep them, and an Agent Space gets them once it is taken over.
+    bool foldersAvailable() const;
+    int folderCount() const;
     NeighbourSpace *previousSpace();
     NeighbourSpace *nextSpace();
     QString activeSpaceId() const;
@@ -396,6 +405,41 @@ public:
     Q_INVOKABLE bool moveTabBy(const QString &tabId, int offset);
     Q_INVOKABLE int tabSectionIndex(const QString &tabId) const;
     Q_INVOKABLE int tabSectionCount(const QString &tabId) const;
+    // A Folder takes the rows named, a split's two tabs as one row, and stands
+    // at the end of the block. An empty name is refused, a name already used is
+    // not. Answers the Folder's id, or nothing where it was refused.
+    Q_INVOKABLE QString createFolder(const QString &name, const QStringList &tabIds = {});
+    Q_INVOKABLE bool renameFolder(const QString &folderId, const QString &name);
+    Q_INVOKABLE bool setFolderCollapsed(const QString &folderId, bool collapsed);
+    // Places in the block, counted as `moveTab` counts a section's.
+    Q_INVOKABLE bool moveFolder(const QString &folderId, int destinationIndex);
+    Q_INVOKABLE bool moveFolderBy(const QString &folderId, int offset);
+    // Puts rows in `folderId`, or in no Folder when it is empty, before the row
+    // of `beforeTabId`, or at the end when that is empty. A split's tab brings
+    // the other, so its row moves whole. Pinned tabs are refused.
+    Q_INVOKABLE bool placeTabs(
+        const QStringList &tabIds, const QString &folderId, const QString &beforeTabId = {});
+    // The Folder goes and its tabs stay, as ordinary tabs.
+    Q_INVOKABLE bool removeFolder(const QString &folderId);
+    // The Folder goes and its tabs close, into the recently closed stack.
+    Q_INVOKABLE bool closeFolder(const QString &folderId);
+    // Releases every page in the Folder but the one on show and the tabs
+    // put-away spares.
+    Q_INVOKABLE void unloadFolder(const QString &folderId);
+    // Moves the Folder whole to the end of that Space's block. As with a tab,
+    // asking first is about the page on show, and a Tab window stays behind.
+    Q_INVOKABLE bool requestFolderMoveToSpace(
+        const QString &folderId, const QString &destinationSpaceId, bool hasEditedFormState);
+    Q_INVOKABLE bool confirmFolderMoveToSpace(
+        const QString &folderId, const QString &destinationSpaceId);
+    Q_INVOKABLE QString folderName(const QString &folderId) const;
+    Q_INVOKABLE bool folderCollapsed(const QString &folderId) const;
+    Q_INVOKABLE QStringList folderTabIds(const QString &folderId) const;
+    // The Folder holding a tab, or nothing.
+    Q_INVOKABLE QString tabFolder(const QString &tabId) const;
+    // The Space's tabs as the `select-tab` keys and the Key labels count them:
+    // all but the ones a collapsed Folder keeps out of the list.
+    Q_INVOKABLE QStringList countedTabIds() const;
     Q_INVOKABLE void toggleActivePinned();
     // Pins or unpins one tab, on show or not, and leaves what is on show where
     // it was. Refused for a tab in a split, which is separated first, and for a
@@ -805,6 +849,13 @@ signals:
     void tabsReplaced();
     void spaceDiscarded(const QString &spaceId);
     void tabMoveConfirmationRequested(const QString &tabId, const QString &destinationSpaceId);
+    void folderMoveConfirmationRequested(
+        const QString &folderId, const QString &destinationSpaceId);
+    void foldersChanged();
+    void foldersAvailableChanged();
+    // These tabs keep their rows and lose their pages, which load again when
+    // the tabs next come on show.
+    void tabPagesReleased(const QStringList &tabIds);
     // Recovery clears core-owned failure state, then asks the active engine to
     // load its page again. Ordinary reloads go straight to the engine host.
     void rendererRecoveryReloadRequested();
@@ -993,6 +1044,25 @@ private:
     static bool poppable(const QUrl &url);
     bool restingOnBlankTab() const;
     void refreshAtRest();
+    // Reads the Space's Folders for `tabs`, ignoring what names no tab here,
+    // and stands the tabs in the Folders' order.
+    void loadFolders(QVector<TabState> &tabs, const QString &activeTabId);
+    FolderState *findFolder(const QString &folderId);
+    const FolderState *findFolder(const QString &folderId) const;
+    // The rows `tabIds` name, each with the other half of its split.
+    QStringList wholeRows(const QStringList &tabIds) const;
+    // Takes the tabs out of whichever Folders hold them.
+    void leaveFolders(const QStringList &tabIds);
+    // After any change to the Folders: the tabs stand pinned, then in Folders,
+    // then the rest, with `looseOrder` deciding the rest where it is given.
+    void settleFolders(const QStringList &looseOrder = {});
+    void refreshFolderFields();
+    void persistFolders();
+    // What comes on show when these tabs go, or nothing when only Folder tabs
+    // would be left, which is a Space at rest.
+    QString tabAfterLeaving(const QStringList &leaving) const;
+    bool foldersHeld() const;
+    bool stepRowAcrossFolders(const QString &tabId, int direction);
     void setDeveloperToolsTab(const QString &tabId, const QString &spaceId);
     static QUrl resolveInput(const QString &input);
     QUrl resolveConfiguredInput(const QString &input) const;
@@ -1136,6 +1206,8 @@ private:
     bool m_ready = false;
     bool m_startedWithEmptyState = false;
     bool m_atRest = false;
+    QVector<FolderState> m_folders;
+    SidebarRowModel m_sidebarRows {m_tabs, m_folders};
     // The last answer given for the split on show, so a change is announced
     // once and only when there is one.
     QStringList m_announcedSplit;

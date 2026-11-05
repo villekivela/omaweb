@@ -1167,6 +1167,20 @@ Item {
             Qt.callLater(root.ensureAgentEngine, tabId);
     }
 
+    // The tab keeps its row and loses its page, which loads again the next time
+    // the tab comes on show, as a restored tab's does. A hidden page is frozen
+    // already, so it is only by dropping the engine that anything is freed.
+    function releasePage(tabId) {
+        for (let index = 0; index < tabSlots.count; ++index) {
+            const slot = tabSlots.itemAt(index);
+            if (slot && slot.tabId === tabId) {
+                slot.everActive = false;
+                slot.engine = null;
+            }
+        }
+        root.discardEngine(tabId);
+    }
+
     function discardEnginesForSpace(spaceId) {
         for (const tabId in root.engineSpaces) {
             if (root.engineSpaces[tabId] !== spaceId)
@@ -1203,6 +1217,11 @@ Item {
         function onRetainedTabsChanged() {
             if (!root.suspended)
                 Qt.callLater(root.restoreRetainedTabs);
+        }
+
+        function onTabPagesReleased(tabIds) {
+            for (const tabId of tabIds)
+                root.releasePage(tabId);
         }
 
         function onTabsReplacing(keptTabIds) {
@@ -1488,6 +1507,7 @@ Item {
     }
 
     Repeater {
+        id: tabSlots
         model: root.browserController ? root.browserController.tabs : null
 
         Item {

@@ -5,6 +5,8 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include <QDir>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include <QDirIterator>
 #include <QSqlError>
 #include <QSqlQuery>
@@ -280,6 +282,59 @@ bool SqliteSessionStore::recordPutAwayTabs(const QString &spaceId, const QVector
         insert.addBindValue(tab.zoom);
         insert.addBindValue(tab.muted);
         insert.addBindValue(tab.putAwayAt);
+        insert.addBindValue(static_cast<int>(position));
+        if (!insert.exec()) {
+            database.rollback();
+            return false;
+        }
+    }
+    return database.commit();
+}
+
+QVector<FolderState> SqliteSessionStore::loadFolders(const QString &spaceId) const
+{
+    QVector<FolderState> folders;
+    QSqlQuery query(spaceDatabase(spaceId));
+    query.prepare(
+        QStringLiteral("SELECT id, name, tab_ids, collapsed FROM folders ORDER BY position"));
+    query.exec();
+    while (query.next()) {
+        FolderState folder {
+            .id = query.value(0).toString(),
+            .spaceId = spaceId,
+            .name = query.value(1).toString(),
+            .collapsed = query.value(3).toBool(),
+        };
+        for (const auto &tabId : QJsonDocument::fromJson(query.value(2).toByteArray()).array()) {
+            folder.tabIds.append(tabId.toString());
+        }
+        folders.append(std::move(folder));
+    }
+    return folders;
+}
+
+bool SqliteSessionStore::saveFolders(const QString &spaceId, const QVector<FolderState> &folders)
+{
+    auto database = spaceDatabase(spaceId);
+    if (!database.transaction()) {
+        return false;
+    }
+    QSqlQuery removeExisting(database);
+    if (!removeExisting.exec(QStringLiteral("DELETE FROM folders"))) {
+        database.rollback();
+        return false;
+    }
+    for (qsizetype position = 0; position < folders.size(); ++position) {
+        const auto &folder = folders.at(position);
+        QSqlQuery insert(database);
+        insert.prepare(QStringLiteral("INSERT INTO folders(id, name, tab_ids, collapsed, position) "
+                                      "VALUES(?, ?, ?, ?, ?)"));
+        insert.addBindValue(folder.id);
+        insert.addBindValue(folder.name);
+        insert.addBindValue(
+            QString::fromUtf8(QJsonDocument(QJsonArray::fromStringList(folder.tabIds))
+                    .toJson(QJsonDocument::Compact)));
+        insert.addBindValue(folder.collapsed);
         insert.addBindValue(static_cast<int>(position));
         if (!insert.exec()) {
             database.rollback();
@@ -1497,6 +1552,13 @@ QSqlDatabase SqliteSessionStore::spaceDatabase(const QString &spaceId) const
                                "zoom REAL NOT NULL DEFAULT 1.0, "
                                "muted INTEGER NOT NULL DEFAULT 0, "
                                "put_away_at INTEGER NOT NULL, "
+                               "position INTEGER NOT NULL DEFAULT 0)"));
+    // The Space's Folders. `tab_ids` is a JSON array, in the Folder's order.
+    schema.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS folders ("
+                               "id TEXT PRIMARY KEY, "
+                               "name TEXT NOT NULL, "
+                               "tab_ids TEXT NOT NULL, "
+                               "collapsed INTEGER NOT NULL DEFAULT 0, "
                                "position INTEGER NOT NULL DEFAULT 0)"));
     schema.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS history ("
                                "id INTEGER PRIMARY KEY, "

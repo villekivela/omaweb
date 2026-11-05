@@ -229,6 +229,52 @@ reports the gap and remains experimental rather than imitating behavior it canno
   do when dragged alone.
 - Dragging a marked row moves every marked row, which close up at the drop point in their existing
   order. Dragging an unmarked row moves that row alone. The marks stay in both.
+- Folders stand in a block between the Pinned tabs and the ordinary tabs, one level deep. A Folder's
+  row is a chevron, a folder glyph and its name in the quiet text colour, with a count of its rows
+  while collapsed, and no colour of its own. Its tabs are indented by one favicon's width. A
+  hairline separates the block from the ordinary tabs, drawn only when both are there. Folders
+  reorder within the block, and a Folder drags as a whole.
+- A Folder holds ordinary tabs and splits, a split's row counting as one. It lasts until the reader
+  removes it, with tabs in it or not. A new, duplicated or reopened tab joins no Folder. Pinning a
+  tab takes it out, and a popped-out tab keeps its row, with the window mark. Add split view with a
+  tab outside the Folder brings both in, and separating leaves both there. Close other tabs and
+  Close tabs below never touch a Folder's tabs. A Space left with only Folder tabs comes to rest and
+  shows the Start page.
+- The reader makes a Folder from marked tabs, from a tab's menu, or with the Omnibar's New folder
+  command, which makes an empty one. New folder and Rename use the dialog Spaces use. An empty name
+  is refused, and two Folders may share a name. Dropping rows on a Folder's row, open or collapsed,
+  adds them at its end and leaves it as it was. Dragging moves a row in and out, a split's whole,
+  and the tab move keys do too: at the end of a list a row crosses into the next list. Tabs inside
+  an open Folder can be marked alongside tabs outside it. A Folder's row can't be marked.
+- The menu on a Folder's row has Rename, Unload tabs, Move to Space, Close folder and Remove folder.
+  Close folder asks first in the centred dialog, naming the Folder and its tab count, because the
+  recently closed stack holds 25 tabs, then closes the tabs into that stack and removes the Folder.
+  Remove folder asks nothing and leaves the tabs as ordinary tabs. Move to Space moves the Folder
+  whole to the end of that Space's block, and logins don't follow, as with any moved tab. It asks
+  about edited forms only for the tab on show, a tab in a Tab window stays behind as an ordinary
+  tab, and an Agent Space is not offered.
+- A tab in a Folder is never put away. Past the age "Put away unused tabs" sets, its page is
+  released and its row stays, looking like any other. The page loads again when it next comes on
+  show, as a restored tab does, so scroll position and form state are lost. The tabs put-away spares
+  are spared this too, and with the setting Off no page is released. Unload tabs releases every page
+  in the Folder except the one on show and the tabs put-away spares.
+- On a Folder's row, `l`, `Return` and `Space` open or collapse it, `m` moves it to a Space, `M`
+  opens its menu, and the tab move keys move it within the block. `x`, `p`, `v` and `V` do nothing
+  there. The Sidebar cursor passes over a collapsed Folder's tabs and stops on its row, and next tab
+  and previous tab pass over them, because its row has no page. The Omnibar and the Tab jump list
+  still reach them. A collapsed Folder stays collapsed when its tab comes on show, and that one row
+  shows under the Folder's row until another tab is on show. Collapsing leaves the tab on show in
+  view and drops the Folder's tabs from the marks. The `select-tab` keys and the Key labels count
+  what is on show, so a collapsed Folder's tabs have neither.
+- A Private window has no Folders, and neither has an Agent Space until it is taken over. Agent
+  verbs ignore Folders, and a tab an Agent opens joins none. A restart restores Folders, and a
+  collapsed Folder stays collapsed.
+- A Folder syncs as a record of its own, holding its name, position, Space and ordered tab ids. Tab
+  records don't change. Records resolve by modification time, so two machines changing one Folder's
+  members at once keep the newer change. Remove folder leaves the tabs as ordinary tabs on the other
+  machines. Close folder closes them everywhere, and a tab added on another machine meanwhile stays
+  as an ordinary tab. A tab id a machine doesn't have is ignored. Whether a Folder is collapsed, and
+  which pages are released, stay on the machine.
 - A plain click on a row, opening a row with `Space`, `l` or `Return`, a Space switch, and finishing
   a close, move or pin clear the marks. `Escape` clears them, and only the next `Escape` hands the
   keyboard back to the page. Marks are never saved or synced.

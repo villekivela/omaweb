@@ -15,6 +15,8 @@
 #include "SpaceStorage.h"
 #include "SqliteSessionStore.h"
 
+#include <memory>
+
 #include <QDirIterator>
 #include <QFile>
 #include <QJsonArray>
@@ -35,6 +37,7 @@
 
 using omaweb::BrowserController;
 using omaweb::BrowserStateExchangeAdapter;
+using omaweb::FolderState;
 using omaweb::LocalSyncApplyStatus;
 using omaweb::LocalSyncState;
 using omaweb::PrivateSessionStore;
@@ -45,6 +48,7 @@ using omaweb::SqliteSessionStore;
 using omaweb::SyncFailure;
 using omaweb::SyncIntent;
 using omaweb::SyncModule;
+using omaweb::SyncOptions;
 using omaweb::SyncSetup;
 using omaweb::TabListModel;
 using omaweb::TabState;
@@ -249,6 +253,87 @@ QByteArray gitOutput(const QString &directory, const QStringList &arguments)
     return git.readAllStandardOutput().trimmed();
 }
 
+// Two machines on one local repository, each with its own store and clock.
+struct TwoMachines {
+    QTemporaryDir remoteRoot;
+    QTemporaryDir firstDataRoot;
+    QTemporaryDir firstConfigRoot;
+    QTemporaryDir secondDataRoot;
+    QTemporaryDir secondConfigRoot;
+    qint64 firstNow = 1'000;
+    qint64 secondNow = 1'000;
+    SqliteSessionStore firstStore {firstDataRoot.path()};
+    SqliteSessionStore secondStore {secondDataRoot.path()};
+    std::unique_ptr<SyncModule> first;
+    std::unique_ptr<SyncModule> second;
+    QString space = QStringLiteral("space-1");
+    QByteArray key = QByteArray(32, 'f');
+    bool secondOpened = false;
+
+    TabState tab(const QString &name) const
+    {
+        return {.id = name,
+            .spaceId = space,
+            .url = QUrl(QStringLiteral("https://%1.example").arg(name)),
+            .title = name};
+    }
+
+    FolderState folder(const QStringList &tabIds) const
+    {
+        return {.id = QStringLiteral("folder-1"),
+            .spaceId = space,
+            .name = QStringLiteral("Reading"),
+            .tabIds = tabIds};
+    }
+
+    bool open()
+    {
+        QString error;
+        const auto bare = QStringLiteral("sync.git");
+        if (!runGit(remoteRoot.path(),
+                {QStringLiteral("init"), QStringLiteral("--bare"),
+                    QStringLiteral("--initial-branch=main"), bare},
+                &error)
+            || !firstStore.open(&error) || !secondStore.open(&error)
+            || !firstStore.saveSpace(
+                SpaceState {space, QStringLiteral("Personal"), QStringLiteral("green"), true})) {
+            return false;
+        }
+        const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(bare));
+        first = std::make_unique<SyncModule>(SyncOptions {.dataRoot = firstDataRoot.path(),
+            .configRoot = firstConfigRoot.path(),
+            .remoteUrl = remote,
+            .machineId = QStringLiteral("machine-a"),
+            .now = [this] { return firstNow; }});
+        second = std::make_unique<SyncModule>(SyncOptions {.dataRoot = secondDataRoot.path(),
+            .configRoot = secondConfigRoot.path(),
+            .remoteUrl = remote,
+            .machineId = QStringLiteral("machine-b"),
+            .now = [this] { return secondNow; }});
+        return !first->open({.recoveryKey = key});
+    }
+
+    // Each machine in turn, then the first again, as a pass of each would
+    // bring every change to both. The second joins a repository the first has
+    // already written, as a second machine does.
+    omaweb::SyncError settleBoth()
+    {
+        if (const auto failed = settle(*first, firstStore)) {
+            return failed;
+        }
+        if (!secondOpened) {
+            secondOpened = true;
+            if (const auto failed = second->open({.recoveryKey = key})) {
+                return failed;
+            }
+        }
+        if (const auto failed = settle(*second, secondStore)) {
+            return failed;
+        }
+        return settle(*first, firstStore);
+    }
+};
+
 QByteArray filesBelow(const QString &root)
 {
     QByteArray contents;
@@ -333,6 +418,18 @@ private slots:
     void setupPreservesRepositoryProvisioningError();
     void githubInstallationSelectsOnlyTheSyncRepository();
     void compactsAnOvergrownRepositoryIntoASnapshot();
+    void compactionKeepsARecordKindItDoesNotKnow();
+    void compactionForgetsAnExpiredFolderTombstone();
+    void aFolderIsARecordOfItsOwnKind();
+    void makingAFolderLeavesTheTabRecordsAlone();
+    void twoMachinesAgreeOnAFoldersMembersAndOrder();
+    void whetherAFolderIsCollapsedStaysOnThisMachine();
+    void theNewerChangeToAFolderIsKept();
+    void removingAFolderLeavesItsTabsOnTheOtherMachine();
+    void closingAFolderClosesItsTabsOnTheOtherMachine();
+    void aTabAddedElsewhereStaysWhenAFolderCloses();
+    void aFolderKeepsTheIdOfATabThisMachineLacks();
+    void aFolderMovedToASpaceFollowsOnTheOtherMachine();
     void anExistingRepositoryRequiresItsRecoveryKey();
 };
 
@@ -1858,6 +1955,330 @@ void SyncModuleTest::compactsAnOvergrownRepositoryIntoASnapshot()
                  {QStringLiteral("rev-list"), QStringLiteral("--count"), QStringLiteral("main")})
                  .toInt(),
         2);
+}
+
+void SyncModuleTest::compactionKeepsARecordKindItDoesNotKnow()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir dataRoot;
+    QTemporaryDir configRoot;
+    QTemporaryDir newerBuild;
+    QString error;
+    QVERIFY(runGit(remoteRoot.path(),
+        {QStringLiteral("init"), QStringLiteral("--bare"), QStringLiteral("--initial-branch=main"),
+            QStringLiteral("sync.git")},
+        &error));
+    const auto bare = remoteRoot.filePath(QStringLiteral("sync.git"));
+    SqliteSessionStore store(dataRoot.path());
+    QVERIFY(store.open(&error));
+    QVERIFY(store.saveSpace(
+        {QStringLiteral("space"), QStringLiteral("Space"), QStringLiteral("#000000"), true}));
+    SyncModule sync({.dataRoot = dataRoot.path(),
+        .configRoot = configRoot.path(),
+        .remoteUrl = QUrl::fromLocalFile(bare),
+        .machineId = QStringLiteral("machine"),
+        .historyCommitLimit = 2,
+        .historyMaxAgeMilliseconds = 0});
+    OMAWEB_VERIFY_SYNC(sync.open({.recoveryKey = QByteArray(32, 'k')}));
+    OMAWEB_VERIFY_SYNC(settle(sync, store));
+
+    // A newer build's record, in a kind this build has no name for. It is sealed under a key this
+    // build's walk would fail on, so a walk that reached it would stop the compaction.
+    const auto clone = newerBuild.filePath(QStringLiteral("clone"));
+    QVERIFY(runGit(newerBuild.path(), {QStringLiteral("clone"), bare, clone}, &error));
+    QVERIFY(QDir(clone).mkpath(QStringLiteral("unknown-kind")));
+    const QByteArray sealed("a record of a kind this build does not know");
+    QFile record(QDir(clone).filePath(QStringLiteral("unknown-kind/record.sync")));
+    QVERIFY(record.open(QIODevice::WriteOnly));
+    QCOMPARE(record.write(sealed), sealed.size());
+    record.close();
+    QVERIFY(runGit(clone, {QStringLiteral("add"), QStringLiteral("--all")}, &error));
+    QVERIFY(runGit(clone,
+        {QStringLiteral("-c"), QStringLiteral("user.name=Newer"), QStringLiteral("-c"),
+            QStringLiteral("user.email=newer@omaweb.local"), QStringLiteral("commit"),
+            QStringLiteral("-m"), QStringLiteral("sync: reconcile browser state")},
+        &error));
+    QVERIFY(runGit(
+        clone, {QStringLiteral("push"), QStringLiteral("origin"), QStringLiteral("main")}, &error));
+
+    for (int revision = 0; revision < 4; ++revision) {
+        QVERIFY(writeSettings(
+            configRoot.path(), {{QStringLiteral("use-favicons"), revision % 2 == 1}}));
+        OMAWEB_VERIFY_SYNC(settle(sync, store));
+    }
+    const auto meta = QJsonDocument::fromJson(
+        gitOutput(bare, {QStringLiteral("show"), QStringLiteral("main:meta.json")}));
+    QVERIFY(meta.object().value(QStringLiteral("epoch")).toInt() > 0);
+    QCOMPARE(
+        gitOutput(bare, {QStringLiteral("show"), QStringLiteral("main:unknown-kind/record.sync")}),
+        sealed);
+}
+
+void SyncModuleTest::compactionForgetsAnExpiredFolderTombstone()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir dataRoot;
+    QTemporaryDir configRoot;
+    QString error;
+    QVERIFY(runGit(remoteRoot.path(),
+        {QStringLiteral("init"), QStringLiteral("--bare"), QStringLiteral("--initial-branch=main"),
+            QStringLiteral("sync.git")},
+        &error));
+    const auto bare = remoteRoot.filePath(QStringLiteral("sync.git"));
+    SqliteSessionStore store(dataRoot.path());
+    QVERIFY(store.open(&error));
+    QVERIFY(store.saveSpace(
+        {QStringLiteral("space"), QStringLiteral("Space"), QStringLiteral("#000000"), true}));
+    QVERIFY(store.saveFolders(QStringLiteral("space"),
+        {{.id = QStringLiteral("gone"),
+            .spaceId = QStringLiteral("space"),
+            .name = QStringLiteral("Gone")}}));
+    qint64 now = 1'000;
+    SyncModule sync({.dataRoot = dataRoot.path(),
+        .configRoot = configRoot.path(),
+        .remoteUrl = QUrl::fromLocalFile(bare),
+        .machineId = QStringLiteral("machine"),
+        .now = [&now] { return now; },
+        .historyCommitLimit = 2,
+        .historyMaxAgeMilliseconds = 0,
+        .tombstoneRetentionMilliseconds = 10});
+    OMAWEB_VERIFY_SYNC(sync.open({.recoveryKey = QByteArray(32, 'k')}));
+    OMAWEB_VERIFY_SYNC(settle(sync, store));
+    QVERIFY(store.saveFolders(QStringLiteral("space"), {}));
+    now = 2'000;
+    OMAWEB_VERIFY_SYNC(settle(sync, store));
+    QVERIFY(!gitOutput(
+        bare, {QStringLiteral("ls-tree"), QStringLiteral("main"), QStringLiteral("folders/")})
+            .isEmpty());
+    now = 3'000;
+    for (int revision = 0; revision < 4; ++revision) {
+        QVERIFY(writeSettings(
+            configRoot.path(), {{QStringLiteral("use-favicons"), revision % 2 == 1}}));
+        OMAWEB_VERIFY_SYNC(settle(sync, store));
+    }
+    QVERIFY(!gitOutput(bare,
+        {QStringLiteral("ls-tree"), QStringLiteral("-r"), QStringLiteral("--name-only"),
+            QStringLiteral("main")})
+            .contains("folders/"));
+}
+
+void SyncModuleTest::aFolderIsARecordOfItsOwnKind()
+{
+    TwoMachines machines;
+    QVERIFY(machines.open());
+    const auto kept = machines.tab(QStringLiteral("kept"));
+    QVERIFY(machines.firstStore.saveTabs(machines.space, {kept}, kept.id));
+    QVERIFY(machines.firstStore.saveFolders(machines.space, {machines.folder({kept.id})}));
+    OMAWEB_VERIFY_SYNC(settle(*machines.first, machines.firstStore));
+
+    const auto bare = machines.remoteRoot.filePath(QStringLiteral("sync.git"));
+    const auto files = gitOutput(bare,
+        {QStringLiteral("ls-tree"), QStringLiteral("-r"), QStringLiteral("--name-only"),
+            QStringLiteral("main")});
+    QVERIFY(files.contains("folders/folder-1.sync"));
+    // Sealed like every other record, so its name is not there to read.
+    QVERIFY(!gitOutput(bare, {QStringLiteral("show"), QStringLiteral("main:folders/folder-1.sync")})
+            .contains("Reading"));
+}
+
+void SyncModuleTest::makingAFolderLeavesTheTabRecordsAlone()
+{
+    TwoMachines machines;
+    QVERIFY(machines.open());
+    const auto kept = machines.tab(QStringLiteral("kept"));
+    QVERIFY(machines.firstStore.saveTabs(machines.space, {kept}, kept.id));
+    OMAWEB_VERIFY_SYNC(settle(*machines.first, machines.firstStore));
+    const auto bare = machines.remoteRoot.filePath(QStringLiteral("sync.git"));
+    const auto before = gitOutput(bare, {QStringLiteral("rev-parse"), QStringLiteral("main:tabs")});
+
+    QVERIFY(machines.firstStore.saveFolders(machines.space, {machines.folder({kept.id})}));
+    machines.firstNow = 2'000;
+    OMAWEB_VERIFY_SYNC(settle(*machines.first, machines.firstStore));
+    QCOMPARE(gitOutput(bare, {QStringLiteral("rev-parse"), QStringLiteral("main:tabs")}), before);
+}
+
+void SyncModuleTest::twoMachinesAgreeOnAFoldersMembersAndOrder()
+{
+    TwoMachines machines;
+    QVERIFY(machines.open());
+    const auto a = machines.tab(QStringLiteral("a"));
+    const auto b = machines.tab(QStringLiteral("b"));
+    QVERIFY(machines.firstStore.saveTabs(machines.space, {a, b}, a.id));
+    auto second = machines.folder({b.id, a.id});
+    auto first = machines.folder({});
+    first.id = QStringLiteral("folder-0");
+    first.name = QStringLiteral("Empty");
+    QVERIFY(machines.firstStore.saveFolders(machines.space, {first, second}));
+    OMAWEB_VERIFY_SYNC(machines.settleBoth());
+
+    QCOMPARE(
+        machines.secondStore.loadFolders(machines.space), QVector<FolderState>({first, second}));
+
+    // The order comes back the other way, and members with it.
+    machines.secondNow = 2'000;
+    second.tabIds = {a.id, b.id};
+    QVERIFY(machines.secondStore.saveFolders(machines.space, {second, first}));
+    OMAWEB_VERIFY_SYNC(settle(*machines.second, machines.secondStore));
+    OMAWEB_VERIFY_SYNC(settle(*machines.first, machines.firstStore));
+    QCOMPARE(
+        machines.firstStore.loadFolders(machines.space), QVector<FolderState>({second, first}));
+}
+
+void SyncModuleTest::whetherAFolderIsCollapsedStaysOnThisMachine()
+{
+    TwoMachines machines;
+    QVERIFY(machines.open());
+    const auto kept = machines.tab(QStringLiteral("kept"));
+    QVERIFY(machines.firstStore.saveTabs(machines.space, {kept}, kept.id));
+    auto folder = machines.folder({kept.id});
+    folder.collapsed = true;
+    QVERIFY(machines.firstStore.saveFolders(machines.space, {folder}));
+    OMAWEB_VERIFY_SYNC(machines.settleBoth());
+    QVERIFY(!machines.secondStore.loadFolders(machines.space).constFirst().collapsed);
+
+    // A rename from the other machine leaves it collapsed here.
+    machines.secondNow = 2'000;
+    auto renamed = machines.secondStore.loadFolders(machines.space).constFirst();
+    renamed.name = QStringLiteral("Renamed");
+    QVERIFY(machines.secondStore.saveFolders(machines.space, {renamed}));
+    OMAWEB_VERIFY_SYNC(settle(*machines.second, machines.secondStore));
+    OMAWEB_VERIFY_SYNC(settle(*machines.first, machines.firstStore));
+    const auto here = machines.firstStore.loadFolders(machines.space).constFirst();
+    QCOMPARE(here.name, QStringLiteral("Renamed"));
+    QVERIFY(here.collapsed);
+}
+
+void SyncModuleTest::theNewerChangeToAFolderIsKept()
+{
+    TwoMachines machines;
+    QVERIFY(machines.open());
+    const auto a = machines.tab(QStringLiteral("a"));
+    const auto b = machines.tab(QStringLiteral("b"));
+    QVERIFY(machines.firstStore.saveTabs(machines.space, {a, b}, a.id));
+    QVERIFY(machines.firstStore.saveFolders(machines.space, {machines.folder({})}));
+    OMAWEB_VERIFY_SYNC(machines.settleBoth());
+
+    machines.firstNow = 2'000;
+    QVERIFY(machines.firstStore.saveFolders(machines.space, {machines.folder({a.id})}));
+    OMAWEB_VERIFY_SYNC(settle(*machines.first, machines.firstStore));
+    machines.secondNow = 3'000;
+    QVERIFY(machines.secondStore.saveFolders(machines.space, {machines.folder({b.id})}));
+    OMAWEB_VERIFY_SYNC(settle(*machines.second, machines.secondStore));
+    OMAWEB_VERIFY_SYNC(settle(*machines.first, machines.firstStore));
+
+    QCOMPARE(
+        machines.firstStore.loadFolders(machines.space).constFirst().tabIds, QStringList {b.id});
+    QCOMPARE(
+        machines.secondStore.loadFolders(machines.space).constFirst().tabIds, QStringList {b.id});
+}
+
+void SyncModuleTest::removingAFolderLeavesItsTabsOnTheOtherMachine()
+{
+    TwoMachines machines;
+    QVERIFY(machines.open());
+    const auto kept = machines.tab(QStringLiteral("kept"));
+    QVERIFY(machines.firstStore.saveTabs(machines.space, {kept}, kept.id));
+    QVERIFY(machines.firstStore.saveFolders(machines.space, {machines.folder({kept.id})}));
+    OMAWEB_VERIFY_SYNC(machines.settleBoth());
+
+    machines.firstNow = 2'000;
+    QVERIFY(machines.firstStore.saveFolders(machines.space, {}));
+    OMAWEB_VERIFY_SYNC(machines.settleBoth());
+    QVERIFY(machines.secondStore.loadFolders(machines.space).isEmpty());
+    QCOMPARE(machines.secondStore.loadTabs(machines.space).size(), 1);
+}
+
+void SyncModuleTest::closingAFolderClosesItsTabsOnTheOtherMachine()
+{
+    TwoMachines machines;
+    QVERIFY(machines.open());
+    const auto kept = machines.tab(QStringLiteral("kept"));
+    const auto loose = machines.tab(QStringLiteral("loose"));
+    QVERIFY(machines.firstStore.saveTabs(machines.space, {kept, loose}, loose.id));
+    QVERIFY(machines.firstStore.saveFolders(machines.space, {machines.folder({kept.id})}));
+    OMAWEB_VERIFY_SYNC(machines.settleBoth());
+
+    machines.firstNow = 2'000;
+    QVERIFY(machines.firstStore.saveFolders(machines.space, {}));
+    QVERIFY(machines.firstStore.saveTabs(machines.space, {loose}, loose.id));
+    OMAWEB_VERIFY_SYNC(machines.settleBoth());
+    QVERIFY(machines.secondStore.loadFolders(machines.space).isEmpty());
+    const auto tabs = machines.secondStore.loadTabs(machines.space);
+    QCOMPARE(tabs.size(), 1);
+    QCOMPARE(tabs.constFirst().id, loose.id);
+}
+
+void SyncModuleTest::aTabAddedElsewhereStaysWhenAFolderCloses()
+{
+    TwoMachines machines;
+    QVERIFY(machines.open());
+    const auto kept = machines.tab(QStringLiteral("kept"));
+    const auto loose = machines.tab(QStringLiteral("loose"));
+    QVERIFY(machines.firstStore.saveTabs(machines.space, {kept, loose}, loose.id));
+    QVERIFY(machines.firstStore.saveFolders(machines.space, {machines.folder({kept.id})}));
+    OMAWEB_VERIFY_SYNC(machines.settleBoth());
+
+    // The second machine adds a tab, and the first closes the Folder after it
+    // before either hears of the other.
+    machines.secondNow = 2'000;
+    const auto added = machines.tab(QStringLiteral("added"));
+    QVERIFY(machines.secondStore.saveTabs(machines.space, {kept, loose, added}, loose.id));
+    QVERIFY(
+        machines.secondStore.saveFolders(machines.space, {machines.folder({kept.id, added.id})}));
+    machines.firstNow = 3'000;
+    QVERIFY(machines.firstStore.saveFolders(machines.space, {}));
+    QVERIFY(machines.firstStore.saveTabs(machines.space, {loose}, loose.id));
+    OMAWEB_VERIFY_SYNC(settle(*machines.first, machines.firstStore));
+    OMAWEB_VERIFY_SYNC(settle(*machines.second, machines.secondStore));
+    OMAWEB_VERIFY_SYNC(settle(*machines.first, machines.firstStore));
+
+    for (auto *store : {&machines.firstStore, &machines.secondStore}) {
+        QVERIFY(store->loadFolders(machines.space).isEmpty());
+        QStringList ids;
+        for (const auto &tab : store->loadTabs(machines.space)) {
+            ids.append(tab.id);
+        }
+        ids.sort();
+        QCOMPARE(ids, QStringList({added.id, loose.id}));
+    }
+}
+
+void SyncModuleTest::aFolderKeepsTheIdOfATabThisMachineLacks()
+{
+    TwoMachines machines;
+    QVERIFY(machines.open());
+    const auto kept = machines.tab(QStringLiteral("kept"));
+    QVERIFY(machines.firstStore.saveTabs(machines.space, {kept}, kept.id));
+    QVERIFY(machines.firstStore.saveFolders(
+        machines.space, {machines.folder({QStringLiteral("elsewhere"), kept.id})}));
+    OMAWEB_VERIFY_SYNC(machines.settleBoth());
+    QCOMPARE(machines.secondStore.loadFolders(machines.space).constFirst().tabIds,
+        QStringList({QStringLiteral("elsewhere"), kept.id}));
+}
+
+void SyncModuleTest::aFolderMovedToASpaceFollowsOnTheOtherMachine()
+{
+    TwoMachines machines;
+    QVERIFY(machines.open());
+    const auto kept = machines.tab(QStringLiteral("kept"));
+    const auto other = QStringLiteral("space-2");
+    QVERIFY(machines.firstStore.saveSpace(
+        SpaceState {other, QStringLiteral("Work"), QStringLiteral("blue"), false}));
+    QVERIFY(machines.firstStore.saveTabs(machines.space, {kept}, kept.id));
+    QVERIFY(machines.firstStore.saveFolders(machines.space, {machines.folder({kept.id})}));
+    OMAWEB_VERIFY_SYNC(machines.settleBoth());
+
+    machines.firstNow = 2'000;
+    auto moved = machines.folder({kept.id});
+    moved.spaceId = other;
+    auto movedTab = kept;
+    movedTab.spaceId = other;
+    QVERIFY(machines.firstStore.saveSpaceMove(machines.space, {}, {}, other, {movedTab}, kept.id));
+    QVERIFY(machines.firstStore.saveFolders(machines.space, {}));
+    QVERIFY(machines.firstStore.saveFolders(other, {moved}));
+    OMAWEB_VERIFY_SYNC(machines.settleBoth());
+    QVERIFY(machines.secondStore.loadFolders(machines.space).isEmpty());
+    QCOMPARE(machines.secondStore.loadFolders(other), QVector<FolderState> {moved});
 }
 
 void SyncModuleTest::anExistingRepositoryRequiresItsRecoveryKey()

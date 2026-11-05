@@ -200,6 +200,16 @@ bool ThreadedSessionStore::recordPutAwayTabs(
         [this, spaceId, tabs] { return m_store->recordPutAwayTabs(spaceId, tabs); });
 }
 
+QVector<FolderState> ThreadedSessionStore::loadFolders(const QString &spaceId) const
+{
+    return ask([this, &spaceId] { return m_store->loadFolders(spaceId); });
+}
+
+bool ThreadedSessionStore::saveFolders(const QString &spaceId, const QVector<FolderState> &folders)
+{
+    return ask([this, &spaceId, &folders] { return m_store->saveFolders(spaceId, folders); });
+}
+
 bool ThreadedSessionStore::saveTab(const TabState &tab, int position)
 {
     return ask([this, &tab, position] { return m_store->saveTab(tab, position); });

@@ -57,8 +57,15 @@ sleeping tab, discarded tab
 the setting allows, kept in its Space's put-away list for 30 days and opened again from the History
 sheet or the Omnibar. A tab in use some other way is never put away: a Pinned tab, a tab making
 sound, an Agent tab, a split's tab, the tab Developer tools are attached to, a row being dragged,
-and each Space's active tab. The list is not the recently closed stack, which holds only the
-reader's own closes. _Avoid_: Discarded tab, archived tab, auto-closed tab
+and each Space's active tab. A tab in a Folder is never put away either: its page is released. The
+list is not the recently closed stack, which holds only the reader's own closes. _Avoid_: Discarded
+tab, archived tab, auto-closed tab
+
+**Released page**: The page of a tab in a Folder, dropped once the tab has gone unused past the age
+"Put away unused tabs" sets, or by the Folder's Unload tabs. The tab keeps its row, which looks like
+any other, and its page loads again when it next comes on show, as a restored tab's does, so scroll
+position and form state are lost. Hidden pages are frozen already, so only dropping the engine frees
+anything. Which pages are released stays on this machine. _Avoid_: Unloaded tab, sleeping tab
 
 **Sounding tab**: The tab that is making sound, and the one Omaweb announces to the desktop so the
 media keys, the bar's media widget, and anything else that asks reach it. There is one for the whole
@@ -70,9 +77,14 @@ tab announces that something is playing and nothing about what. _Avoid_: Now pla
 active player
 
 **Space at rest**: A Space with nothing open in it, because nothing has been opened yet or the last
-page has been closed. Its only ordinary tab is blank. A Space at rest lists no ordinary tab and
-shows the Start page in place of a webpage; its Pinned tabs are unaffected. _Avoid_: Empty tab,
-blank tab, new tab
+page has been closed. Its only ordinary tab outside a Folder is blank. A Space at rest lists no such
+tab and shows the Start page in place of a webpage; its Pinned tabs are unaffected. _Avoid_: Empty
+tab, blank tab, new tab
+
+**Folder**: A named row in the sidebar that holds a Space's ordinary tabs and splits, and collapses.
+Folders stand in a block between the Pinned tabs and the ordinary tabs, one level deep, and a Folder
+lasts until the reader removes it, with tabs in it or not. A new tab joins none. A Folder is a Sync
+record of its own, and whether it is collapsed stays on this machine. _Avoid_: Tab group, section
 
 **Split**: Two ordinary tabs of one Space shown side by side where one webpage would be, and listed
 as one sidebar row. One of the two is the active tab; the other is the tab beside. A split belongs

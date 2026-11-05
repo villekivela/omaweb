@@ -261,6 +261,28 @@ BrowserController::BrowserController(std::shared_ptr<SessionStore> store, QThrea
     connect(&m_tabs, &QAbstractItemModel::rowsRemoved, this, [this] { refreshAtRest(); });
     connect(&m_tabs, &QAbstractItemModel::dataChanged, this, [this] { refreshAtRest(); });
     connect(&m_tabs, &QAbstractItemModel::modelReset, this, [this] { refreshAtRest(); });
+    // A tab that left the Space leaves its Folder, whichever route took it. A
+    // reset is a Space's tabs arriving, and its Folders come with them.
+    connect(&m_tabs, &QAbstractItemModel::rowsRemoved, this, [this] {
+        auto changed = false;
+        for (auto &folder : m_folders) {
+            changed
+                = folder.tabIds.removeIf([this](const QString &id) { return !m_tabs.find(id); }) > 0
+                || changed;
+        }
+        if (changed) {
+            m_sidebarRows.refresh();
+            emit foldersChanged();
+            persistFolders();
+        }
+    });
+    connect(
+        this, &BrowserController::activeTabChanged, this, &BrowserController::refreshFolderFields);
+    connect(this, &BrowserController::splitChanged, this, &BrowserController::refreshFolderFields);
+    connect(this, &BrowserController::activeSpaceChanged, this,
+        &BrowserController::foldersAvailableChanged);
+    connect(this, &BrowserController::agentSpacesChanged, this,
+        &BrowserController::foldersAvailableChanged);
     // The live half of the Tab window list follows the tabs on show.
     connect(&m_tabs, &QAbstractItemModel::rowsRemoved, this, [this] { refreshTabWindows(); });
     connect(&m_tabs, &QAbstractItemModel::dataChanged, this, [this] { refreshTabWindows(); });
@@ -352,6 +374,8 @@ QAbstractItemModel *BrowserController::tabs() { return &m_tabs; }
 QAbstractItemModel *BrowserController::pinnedTabs() { return &m_pinnedTabs; }
 
 QAbstractItemModel *BrowserController::unpinnedTabs() { return &m_unpinnedTabs; }
+
+QAbstractItemModel *BrowserController::sidebarRows() { return &m_sidebarRows; }
 
 NeighbourSpace *BrowserController::previousSpace() { return &m_previousSpace; }
 
@@ -612,9 +636,15 @@ bool BrowserController::putAwayUnusedTabsIn(const QString &spaceId, qint64 limit
         const auto found = std::ranges::find_if(tabs, &TabState::active);
         return found == tabs.end() ? QString {} : found->id;
     }();
+    // A Folder's tab is kept: past the age its page goes and its row stays.
+    QSet<QString> kept;
+    for (const auto &folder : onShow ? m_folders : m_store->loadFolders(spaceId)) {
+        kept.unite(QSet<QString>(folder.tabIds.cbegin(), folder.tabIds.cend()));
+    }
     auto stamped = false;
     QVector<PutAwayTab> putAway;
     QStringList putAwayIds;
+    QStringList released;
     for (auto &tab : tabs) {
         if (tab.lastShownAt == 0) {
             tab.lastShownAt = time;
@@ -623,6 +653,10 @@ bool BrowserController::putAwayUnusedTabsIn(const QString &spaceId, qint64 limit
         }
         const auto audible = onShow ? tab.audible : m_livePageStates.value(tab.id).audible;
         if (limit <= 0 || tabInUse(tab, active, audible) || time - tab.lastShownAt < limit) {
+            continue;
+        }
+        if (kept.contains(tab.id)) {
+            released.append(tab.id);
             continue;
         }
         // An entry of its own rather than the tab's id: Sync may bring a tab
@@ -645,6 +679,9 @@ bool BrowserController::putAwayUnusedTabsIn(const QString &spaceId, qint64 limit
         list.prepend(*tab);
     }
     const auto listChanged = !putAway.isEmpty() || expired > 0;
+    if (!released.isEmpty()) {
+        emit tabPagesReleased(released);
+    }
     if (!listChanged && !stamped) {
         return false;
     }
@@ -1495,7 +1532,7 @@ void BrowserController::stepTab(int delta)
     const auto &items = m_tabs.items();
     for (qsizetype row = 0; row < items.size(); ++row) {
         const auto &tab = items.at(row);
-        if (!selectable(tab)
+        if (!selectable(tab) || tab.folderHidden
             || (!tab.splitPartnerId.isEmpty() && tabRow(tab.splitPartnerId) < row)) {
             continue;
         }
@@ -1602,11 +1639,16 @@ bool BrowserController::addSplit(const QString &tabId)
         return false;
     }
     const auto activeRow = tabRow(m_activeTabId);
+    const auto leftTabId = m_activeTabId;
+    // A split is one row, so it stands in one Folder: the active tab's, or
+    // else the one the tab beside comes from.
+    auto folderId = active->folderId;
+    QString rightTabId;
     // The tab beside goes to the right of the active tab: the row the split
     // takes is the active tab's, and the partner leaves its own.
     if (tabId.isEmpty() || tabId == m_activeTabId) {
         auto blank = makeBlankTab(m_activeSpaceId);
-        const auto leftTabId = m_activeTabId;
+        rightTabId = blank.id;
         if (auto *current = m_tabs.find(leftTabId)) {
             current->active = false;
             m_tabs.notifyChanged(current->id, {TabListModel::ActiveRole});
@@ -1620,9 +1662,24 @@ bool BrowserController::addSplit(const QString &tabId)
             || !partner->splitPartnerId.isEmpty() || partner->url == agentActivityAddress()) {
             return false;
         }
+        if (folderId.isEmpty()) {
+            folderId = partner->folderId;
+        }
+        rightTabId = tabId;
         const auto partnerRow = tabRow(tabId);
         m_tabs.move(tabId, partnerRow < activeRow ? activeRow : activeRow + 1);
         pairTabs(m_activeTabId, tabId);
+    }
+    if (foldersHeld()) {
+        if (auto *folder = findFolder(folderId)) {
+            const auto held = folder->tabIds.indexOf(leftTabId);
+            const auto at = held >= 0 ? held : folder->tabIds.indexOf(rightTabId);
+            leaveFolders({leftTabId, rightTabId});
+            folder->tabIds.insert(at, leftTabId);
+            folder->tabIds.insert(at + 1, rightTabId);
+        }
+        settleFolders();
+        persistFolders();
     }
     refreshSoundSuppression();
     persistTabs();
@@ -2216,6 +2273,14 @@ bool BrowserController::confirmTabMoveToSpace(
         sourceTabs.append(blankTab);
     } else if (movingActiveTab) {
         sourceActiveTabId = partnerId.isEmpty() ? sourceTabs.first().id : partnerId;
+        if (partnerId.isEmpty() && foldersHeld()) {
+            sourceActiveTabId = tabAfterLeaving({tabId});
+            if (sourceActiveTabId.isEmpty()) {
+                auto blankTab = makeBlankTab(m_activeSpaceId);
+                sourceActiveTabId = blankTab.id;
+                sourceTabs.append(blankTab);
+            }
+        }
     }
 
     auto destinationTabs = m_store->loadTabs(destinationSpaceId);
@@ -2253,6 +2318,9 @@ bool BrowserController::confirmTabMoveToSpace(
     if (m_tabs.rowCount() == 0) {
         m_tabs.append(sourceTabs.constFirst());
     } else if (movingActiveTab) {
+        if (!m_tabs.find(sourceActiveTabId)) {
+            m_tabs.append(sourceTabs.constLast());
+        }
         auto *replacement = m_tabs.find(sourceActiveTabId);
         replacement->active = true;
         m_tabs.notifyChanged(replacement->id, {TabListModel::ActiveRole});
@@ -2497,6 +2565,11 @@ void BrowserController::closeTab(const QString &tabId)
             });
         refreshSoundSuppression();
         schedulePersistTabs();
+        if (foldersHeld()) {
+            leaveFolders({tabId});
+            settleFolders();
+            persistFolders();
+        }
         emit activeTabChanged();
         return;
     }
@@ -2525,6 +2598,14 @@ void BrowserController::closeTab(const QString &tabId)
     }
     if (!partnerId.isEmpty()) {
         nextId = partnerId;
+    } else if (foldersHeld()) {
+        nextId = tabAfterLeaving({tabId});
+        if (nextId.isEmpty()) {
+            auto blank = makeBlankTab(m_activeSpaceId);
+            blank.active = false;
+            nextId = blank.id;
+            m_tabs.append(blank);
+        }
     }
 
     m_tabs.remove(tabId);
@@ -2542,7 +2623,7 @@ void BrowserController::closeOtherTabs(const QString &tabId)
     const auto sparedId = anchor->splitPartnerId;
     QStringList doomed;
     for (const auto &tab : m_tabs.items()) {
-        if (!tab.pinned && tab.id != tabId && tab.id != sparedId) {
+        if (!tab.pinned && tab.folderId.isEmpty() && tab.id != tabId && tab.id != sparedId) {
             doomed.append(tab.id);
         }
     }
@@ -2567,7 +2648,7 @@ void BrowserController::closeTabsBelow(const QString &tabId)
             below = true;
             continue;
         }
-        if (below && !tab.pinned && tab.id != sparedId) {
+        if (below && !tab.pinned && tab.folderId.isEmpty() && tab.id != sparedId) {
             doomed.append(tab.id);
         }
     }
@@ -2701,6 +2782,9 @@ QString BrowserController::duplicateTab(const QString &tabId)
     }
     m_tabs.insert(tab, destination);
     m_activeTabId = tab.id;
+    if (foldersHeld()) {
+        settleFolders();
+    }
     refreshSoundSuppression();
     persistTabs();
     emit activeTabChanged();
@@ -2765,6 +2849,9 @@ bool BrowserController::moveTab(const QString &tabId, int destinationIndex)
     if (!m_tabs.move(tabId, sectionStart + destinationIndex)) {
         return false;
     }
+    if (foldersHeld()) {
+        settleFolders();
+    }
     persistTabs();
     return true;
 }
@@ -2775,11 +2862,572 @@ bool BrowserController::moveTabBy(const QString &tabId, int offset)
     if (index < 0 || offset == 0) {
         return false;
     }
+    if (foldersHeld() && !tabPinned(tabId)) {
+        auto moved = false;
+        for (auto step = 0; step < std::abs(offset); ++step) {
+            if (!stepRowAcrossFolders(tabId, offset > 0 ? 1 : -1)) {
+                break;
+            }
+            moved = true;
+        }
+        return moved;
+    }
     const auto destination = index + offset;
     if (destination < 0 || destination >= tabSectionCount(tabId)) {
         return false;
     }
     return moveTab(tabId, destination);
+}
+
+bool BrowserController::foldersAvailable() const
+{
+    return m_capabilities.allows(Capability::Folders) && !agentSpace(m_activeSpaceId);
+}
+
+int BrowserController::folderCount() const { return static_cast<int>(m_folders.size()); }
+
+bool BrowserController::foldersHeld() const { return !m_folders.isEmpty(); }
+
+FolderState *BrowserController::findFolder(const QString &folderId)
+{
+    const auto found = std::ranges::find(m_folders, folderId, &FolderState::id);
+    return found == m_folders.end() ? nullptr : &*found;
+}
+
+const FolderState *BrowserController::findFolder(const QString &folderId) const
+{
+    const auto found = std::ranges::find(m_folders, folderId, &FolderState::id);
+    return found == m_folders.end() ? nullptr : &*found;
+}
+
+QString BrowserController::folderName(const QString &folderId) const
+{
+    const auto *folder = findFolder(folderId);
+    return folder ? folder->name : QString {};
+}
+
+bool BrowserController::folderCollapsed(const QString &folderId) const
+{
+    const auto *folder = findFolder(folderId);
+    return folder && folder->collapsed;
+}
+
+QStringList BrowserController::folderTabIds(const QString &folderId) const
+{
+    const auto *folder = findFolder(folderId);
+    return folder ? folder->tabIds : QStringList {};
+}
+
+QString BrowserController::tabFolder(const QString &tabId) const
+{
+    const auto *tab = m_tabs.find(tabId);
+    return tab ? tab->folderId : QString {};
+}
+
+QStringList BrowserController::countedTabIds() const
+{
+    QStringList ids;
+    for (const auto &tab : m_tabs.items()) {
+        if (!tab.folderHidden) {
+            ids.append(tab.id);
+        }
+    }
+    return ids;
+}
+
+QStringList BrowserController::wholeRows(const QStringList &tabIds) const
+{
+    QStringList rows;
+    for (const auto &id : tabIds) {
+        const auto *tab = m_tabs.find(id);
+        if (!tab || rows.contains(id)) {
+            continue;
+        }
+        const auto &partnerId = tab->splitPartnerId;
+        if (partnerId.isEmpty()) {
+            rows.append(id);
+        } else if (tabRow(partnerId) < tabRow(id)) {
+            rows.append({partnerId, id});
+        } else {
+            rows.append({id, partnerId});
+        }
+    }
+    return rows;
+}
+
+void BrowserController::leaveFolders(const QStringList &tabIds)
+{
+    for (auto &folder : m_folders) {
+        folder.tabIds.removeIf([&tabIds](const QString &id) { return tabIds.contains(id); });
+    }
+}
+
+void BrowserController::refreshFolderFields()
+{
+    QHash<QString, const FolderState *> holders;
+    for (const auto &folder : std::as_const(m_folders)) {
+        for (const auto &id : folder.tabIds) {
+            holders.insert(id, &folder);
+        }
+    }
+    const auto beside = tabBesideId();
+    QStringList ids;
+    for (const auto &tab : m_tabs.items()) {
+        ids.append(tab.id);
+    }
+    for (const auto &id : std::as_const(ids)) {
+        auto *tab = m_tabs.find(id);
+        const auto *holder = holders.value(id);
+        const auto folderId = holder ? holder->id : QString {};
+        const auto hidden = holder && holder->collapsed && id != m_activeTabId && id != beside;
+        if (tab->folderId != folderId || tab->folderHidden != hidden) {
+            tab->folderId = folderId;
+            tab->folderHidden = hidden;
+            m_tabs.notifyChanged(id, {TabListModel::FolderIdRole, TabListModel::FolderHiddenRole});
+        }
+    }
+}
+
+void BrowserController::settleFolders(const QStringList &looseOrder)
+{
+    QStringList order;
+    QSet<QString> held;
+    for (const auto &tab : m_tabs.items()) {
+        if (tab.pinned) {
+            order.append(tab.id);
+        }
+    }
+    for (const auto &folder : std::as_const(m_folders)) {
+        order.append(folder.tabIds);
+        held.unite(QSet<QString>(folder.tabIds.cbegin(), folder.tabIds.cend()));
+    }
+    if (looseOrder.isEmpty()) {
+        for (const auto &tab : m_tabs.items()) {
+            if (!tab.pinned && !held.contains(tab.id)) {
+                order.append(tab.id);
+            }
+        }
+    } else {
+        order.append(looseOrder);
+    }
+    for (qsizetype row = 0; row < order.size(); ++row) {
+        if (m_tabs.items().at(row).id != order.at(row)) {
+            m_tabs.move(order.at(row), row);
+        }
+    }
+    refreshFolderFields();
+    m_sidebarRows.refresh();
+    emit foldersChanged();
+}
+
+void BrowserController::persistFolders()
+{
+    if (foldersAvailable()) {
+        m_store->saveFolders(m_activeSpaceId, m_folders);
+    }
+}
+
+void BrowserController::loadFolders(QVector<TabState> &tabs, const QString &activeTabId)
+{
+    m_folders
+        = foldersAvailable() ? m_store->loadFolders(m_activeSpaceId) : QVector<FolderState> {};
+    QHash<QString, qsizetype> rows;
+    for (qsizetype row = 0; row < tabs.size(); ++row) {
+        rows.insert(tabs.at(row).id, row);
+    }
+    // A split stands together in one Folder, whatever the record says of its
+    // halves: the pairing is this machine's, and the record may be another's.
+    QSet<QString> held;
+    for (auto &folder : m_folders) {
+        QStringList kept;
+        for (const auto &id : std::as_const(folder.tabIds)) {
+            const auto row = rows.value(id, -1);
+            if (row < 0 || tabs.at(row).pinned || held.contains(id)) {
+                continue;
+            }
+            const auto partnerRow = rows.value(tabs.at(row).splitPartnerId, -1);
+            if (partnerRow < 0) {
+                kept.append(id);
+            } else if (partnerRow < row) {
+                kept.append({tabs.at(partnerRow).id, id});
+            } else {
+                kept.append({id, tabs.at(partnerRow).id});
+            }
+            held.unite(QSet<QString>(kept.cbegin(), kept.cend()));
+        }
+        folder.tabIds = kept;
+    }
+    const auto activeRow = rows.value(activeTabId, -1);
+    const auto beside = activeRow < 0 ? QString {} : tabs.at(activeRow).splitPartnerId;
+    QVector<TabState> ordered;
+    ordered.reserve(tabs.size());
+    for (const auto &tab : std::as_const(tabs)) {
+        if (tab.pinned) {
+            ordered.append(tab);
+        }
+    }
+    for (const auto &folder : std::as_const(m_folders)) {
+        for (const auto &id : folder.tabIds) {
+            auto tab = tabs.at(rows.value(id));
+            tab.folderId = folder.id;
+            tab.folderHidden = folder.collapsed && id != activeTabId && id != beside;
+            ordered.append(std::move(tab));
+        }
+    }
+    for (const auto &tab : std::as_const(tabs)) {
+        if (!tab.pinned && !held.contains(tab.id)) {
+            ordered.append(tab);
+        }
+    }
+    tabs = std::move(ordered);
+}
+
+QString BrowserController::createFolder(const QString &name, const QStringList &tabIds)
+{
+    const auto trimmed = name.trimmed();
+    if (!foldersAvailable() || trimmed.isEmpty()) {
+        return {};
+    }
+    const auto members = wholeRows(tabIds);
+    if (std::ranges::any_of(
+            members, [this](const QString &id) { return m_tabs.find(id)->pinned; })) {
+        return {};
+    }
+    leaveFolders(members);
+    FolderState folder {
+        .id = QUuid::createUuid().toString(QUuid::WithoutBraces),
+        .spaceId = m_activeSpaceId,
+        .name = trimmed,
+        .tabIds = members,
+    };
+    m_folders.append(folder);
+    settleFolders();
+    persistFolders();
+    persistTabs();
+    return folder.id;
+}
+
+bool BrowserController::renameFolder(const QString &folderId, const QString &name)
+{
+    auto *folder = findFolder(folderId);
+    const auto trimmed = name.trimmed();
+    if (!folder || trimmed.isEmpty()) {
+        return false;
+    }
+    folder->name = trimmed;
+    m_sidebarRows.refresh();
+    emit foldersChanged();
+    persistFolders();
+    return true;
+}
+
+bool BrowserController::setFolderCollapsed(const QString &folderId, bool collapsed)
+{
+    auto *folder = findFolder(folderId);
+    if (!folder) {
+        return false;
+    }
+    if (folder->collapsed != collapsed) {
+        folder->collapsed = collapsed;
+        refreshFolderFields();
+        m_sidebarRows.refresh();
+        emit foldersChanged();
+        persistFolders();
+    }
+    return true;
+}
+
+bool BrowserController::moveFolder(const QString &folderId, int destinationIndex)
+{
+    const auto found = std::ranges::find(m_folders, folderId, &FolderState::id);
+    if (found == m_folders.end() || destinationIndex < 0 || destinationIndex >= m_folders.size()) {
+        return false;
+    }
+    m_folders.move(found - m_folders.begin(), destinationIndex);
+    settleFolders();
+    persistFolders();
+    persistTabs();
+    return true;
+}
+
+bool BrowserController::moveFolderBy(const QString &folderId, int offset)
+{
+    const auto found = std::ranges::find(m_folders, folderId, &FolderState::id);
+    return found != m_folders.end() && offset != 0
+        && moveFolder(folderId, static_cast<int>(found - m_folders.begin()) + offset);
+}
+
+bool BrowserController::placeTabs(
+    const QStringList &tabIds, const QString &folderId, const QString &beforeTabId)
+{
+    auto *folder = findFolder(folderId);
+    const auto rows = wholeRows(tabIds);
+    if (rows.isEmpty() || (!folderId.isEmpty() && !folder)
+        || std::ranges::any_of(
+            rows, [this](const QString &id) { return m_tabs.find(id)->pinned; })) {
+        return false;
+    }
+    // A split is one row, so nothing lands between its halves.
+    auto before = beforeTabId;
+    if (const auto whole = wholeRows({beforeTabId}); !whole.isEmpty()) {
+        before = whole.constFirst();
+    }
+    leaveFolders(rows);
+    if (folder) {
+        const auto at = folder->tabIds.indexOf(before);
+        for (qsizetype offset = 0; offset < rows.size(); ++offset) {
+            folder->tabIds.insert((at < 0 ? folder->tabIds.size() : at + offset), rows.at(offset));
+        }
+        settleFolders();
+    } else {
+        QStringList loose;
+        for (const auto &tab : m_tabs.items()) {
+            const auto held = std::ranges::any_of(m_folders,
+                [&tab](const FolderState &each) { return each.tabIds.contains(tab.id); });
+            if (!tab.pinned && !held && !rows.contains(tab.id)) {
+                loose.append(tab.id);
+            }
+        }
+        const auto at = loose.indexOf(before);
+        for (qsizetype offset = 0; offset < rows.size(); ++offset) {
+            loose.insert((at < 0 ? loose.size() : at + offset), rows.at(offset));
+        }
+        settleFolders(loose);
+    }
+    persistFolders();
+    persistTabs();
+    return true;
+}
+
+// One step of a row along the sidebar. Inside its own list a row passes its
+// neighbour, except that a split stays where it is, as it does in a Space with
+// no Folders. At the end of the list it crosses: up into the end of the list
+// above, down into the start of the one below, or the end of a collapsed one,
+// where it would be out of sight either way.
+bool BrowserController::stepRowAcrossFolders(const QString &tabId, int direction)
+{
+    const auto *tab = m_tabs.find(tabId);
+    if (!tab) {
+        return false;
+    }
+    const auto row = wholeRows({tabId});
+    const auto *folder = findFolder(tab->folderId);
+    const auto heads = [this](const QStringList &ids) {
+        QStringList rows;
+        for (const auto &id : ids) {
+            if (const auto whole = wholeRows({id}); whole.constFirst() == id) {
+                rows.append(id);
+            }
+        }
+        return rows;
+    };
+    QStringList loose;
+    for (const auto &item : m_tabs.items()) {
+        if (!item.pinned && item.folderId.isEmpty()) {
+            loose.append(item.id);
+        }
+    }
+    const auto list = heads(folder ? folder->tabIds : loose);
+    const auto at = list.indexOf(row.constFirst());
+    const auto neighbour = at + direction;
+    const auto folderId = folder ? folder->id : QString {};
+    if (neighbour >= 0 && neighbour < list.size()) {
+        if (!tab->splitPartnerId.isEmpty()) {
+            return false;
+        }
+        const auto before = direction < 0 ? list.at(neighbour)
+            : neighbour + 1 < list.size() ? list.at(neighbour + 1)
+                                          : QString {};
+        return placeTabs(row, folderId, before);
+    }
+    const auto place = folder ? folder - m_folders.constData() : m_folders.size();
+    if (direction < 0) {
+        return place > 0 && placeTabs(row, m_folders.at(place - 1).id);
+    }
+    if (!folder) {
+        return false;
+    }
+    if (place + 1 == m_folders.size()) {
+        const auto rest = heads(loose);
+        return placeTabs(row, {}, rest.isEmpty() ? QString {} : rest.constFirst());
+    }
+    const auto &below = m_folders.at(place + 1);
+    return placeTabs(row, below.id,
+        below.collapsed || below.tabIds.isEmpty() ? QString {} : below.tabIds.constFirst());
+}
+
+bool BrowserController::removeFolder(const QString &folderId)
+{
+    if (m_folders.removeIf([&folderId](const FolderState &folder) { return folder.id == folderId; })
+        == 0) {
+        return false;
+    }
+    settleFolders();
+    persistFolders();
+    persistTabs();
+    return true;
+}
+
+bool BrowserController::closeFolder(const QString &folderId)
+{
+    const auto tabIds = folderTabIds(folderId);
+    if (!removeFolder(folderId)) {
+        return false;
+    }
+    for (const auto &id : tabIds) {
+        closeTab(id);
+    }
+    return true;
+}
+
+void BrowserController::unloadFolder(const QString &folderId)
+{
+    QStringList released;
+    for (const auto &id : folderTabIds(folderId)) {
+        const auto *tab = m_tabs.find(id);
+        if (tab && !tabInUse(*tab, m_activeTabId, tab->audible)) {
+            released.append(id);
+        }
+    }
+    if (!released.isEmpty()) {
+        emit tabPagesReleased(released);
+    }
+}
+
+// The neighbour in the Folder the tab on show is leaving, while that Folder is
+// open, or else the nearest tab in no Folder. A pin or a Folder's tab is never
+// fallen back on: a Space left with only those comes to rest.
+QString BrowserController::tabAfterLeaving(const QStringList &leaving) const
+{
+    const auto &items = m_tabs.items();
+    const auto from = tabRow(m_activeTabId);
+    const auto nearest = [&](const QString &folderId) {
+        const auto wanted = [&](const TabState &tab) {
+            return !tab.pinned && selectable(tab) && tab.folderId == folderId
+                && !leaving.contains(tab.id);
+        };
+        for (auto row = from - 1; row >= 0; --row) {
+            if (wanted(items.at(row))) {
+                return items.at(row).id;
+            }
+        }
+        for (auto row = from + 1; row < items.size(); ++row) {
+            if (wanted(items.at(row))) {
+                return items.at(row).id;
+            }
+        }
+        return QString {};
+    };
+    const auto folderId = tabFolder(m_activeTabId);
+    if (!folderId.isEmpty() && !folderCollapsed(folderId)) {
+        if (const auto neighbour = nearest(folderId); !neighbour.isEmpty()) {
+            return neighbour;
+        }
+    }
+    return nearest({});
+}
+
+bool BrowserController::requestFolderMoveToSpace(
+    const QString &folderId, const QString &destinationSpaceId, bool hasEditedFormState)
+{
+    if (!findFolder(folderId) || destinationSpaceId == m_activeSpaceId
+        || agentSpace(destinationSpaceId)
+        || std::ranges::none_of(m_spaces.items(), [&destinationSpaceId](const SpaceState &space) {
+               return space.id == destinationSpaceId;
+           })) {
+        return false;
+    }
+    if (hasEditedFormState && tabFolder(m_activeTabId) == folderId) {
+        emit folderMoveConfirmationRequested(folderId, destinationSpaceId);
+        return true;
+    }
+    return confirmFolderMoveToSpace(folderId, destinationSpaceId);
+}
+
+bool BrowserController::confirmFolderMoveToSpace(
+    const QString &folderId, const QString &destinationSpaceId)
+{
+    const auto *found = findFolder(folderId);
+    if (!found || destinationSpaceId == m_activeSpaceId || agentSpace(destinationSpaceId)
+        || std::ranges::none_of(m_spaces.items(), [&destinationSpaceId](const SpaceState &space) {
+               return space.id == destinationSpaceId;
+           })) {
+        return false;
+    }
+    auto moved = *found;
+    // A Tab window is this Space's and stays with it, as it does for a tab.
+    moved.tabIds.removeIf([this](const QString &id) { return m_tabs.find(id)->poppedOut; });
+    moved.spaceId = destinationSpaceId;
+
+    auto sourceTabs = m_tabs.items();
+    sourceTabs.removeIf([&moved](const TabState &tab) { return moved.tabIds.contains(tab.id); });
+    auto sourceActiveTabId = m_activeTabId;
+    std::optional<TabState> blank;
+    if (moved.tabIds.contains(m_activeTabId)) {
+        sourceActiveTabId = tabAfterLeaving(moved.tabIds);
+        if (sourceActiveTabId.isEmpty()) {
+            blank = makeBlankTab(m_activeSpaceId);
+            sourceActiveTabId = blank->id;
+            sourceTabs.append(*blank);
+        }
+    }
+
+    auto destinationTabs = m_store->loadTabs(destinationSpaceId);
+    const auto destinationActive = std::ranges::find_if(destinationTabs, &TabState::active);
+    auto destinationActiveTabId
+        = destinationActive == destinationTabs.end() ? QString {} : destinationActive->id;
+    for (const auto &id : std::as_const(moved.tabIds)) {
+        auto tab = *m_tabs.find(id);
+        tab.spaceId = destinationSpaceId;
+        tab.active = false;
+        tab.loading = false;
+        tab.folderId.clear();
+        tab.folderHidden = false;
+        tab.rendererFailureReason.clear();
+        destinationTabs.append(tab);
+    }
+    if (destinationActiveTabId.isEmpty() && !destinationTabs.isEmpty()) {
+        destinationActiveTabId = destinationTabs.constFirst().id;
+    }
+
+    // The Folder is written first: a tab landing without its Folder would be
+    // one the reader has to sort again, and a Folder naming tabs that never
+    // came names nothing.
+    const auto destinationFolders = m_store->loadFolders(destinationSpaceId);
+    if (!m_store->saveFolders(destinationSpaceId, destinationFolders + QVector {moved})) {
+        return false;
+    }
+    if (!m_store->saveSpaceMove(m_activeSpaceId, sourceTabs, sourceActiveTabId, destinationSpaceId,
+            destinationTabs, destinationActiveTabId)) {
+        m_store->saveFolders(destinationSpaceId, destinationFolders);
+        return false;
+    }
+    noteAwayTabs(destinationSpaceId, destinationTabs);
+
+    if (moved.tabIds.contains(m_developerToolsTabId)) {
+        closeDeveloperTools();
+    }
+    m_folders.removeIf([&folderId](const FolderState &folder) { return folder.id == folderId; });
+    const auto movingActiveTab = sourceActiveTabId != m_activeTabId;
+    m_activeTabId = sourceActiveTabId;
+    if (blank) {
+        m_tabs.append(*blank);
+    }
+    for (const auto &id : std::as_const(moved.tabIds)) {
+        m_livePageStates.remove(id);
+        m_tabs.remove(id);
+    }
+    if (movingActiveTab) {
+        auto *replacement = m_tabs.find(sourceActiveTabId);
+        replacement->active = true;
+        m_tabs.notifyChanged(replacement->id, {TabListModel::ActiveRole});
+    }
+    settleFolders();
+    persistFolders();
+    refreshRetainedTabs();
+    refreshSplit();
+    emit activeTabChanged();
+    return true;
 }
 
 void BrowserController::toggleActivePinned()
@@ -2823,6 +3471,11 @@ bool BrowserController::setTabPinned(const QString &tabId, bool pinned)
     m_tabs.notifyChanged(tab->id,
         lostKeepActive ? QList<int> {TabListModel::PinnedRole, TabListModel::KeepActiveRole}
                        : QList<int> {TabListModel::PinnedRole});
+    if (foldersHeld()) {
+        leaveFolders({tabId});
+        settleFolders();
+        persistFolders();
+    }
     persistTabs();
     if (tabId == m_activeTabId) {
         emit activeTabChanged();
@@ -5056,7 +5709,9 @@ void BrowserController::reloadSyncedState()
         }
         emit tabsReplacing(keptTabIds);
     }
+    loadFolders(tabs, m_activeTabId);
     m_tabs.reset(std::move(tabs));
+    emit foldersChanged();
     loadClosedTabs();
     loadPutAwayTabs();
     refreshRetainedTabs();
@@ -5181,7 +5836,9 @@ void BrowserController::ensureActiveTab()
         tab.active = tab.id == m_activeTabId;
     }
     repairSplits(tabs, m_activeTabId);
+    loadFolders(tabs, m_activeTabId);
     m_tabs.reset(std::move(tabs));
+    emit foldersChanged();
     refreshSoundSuppression();
     persistTabs();
     refreshSplit();
@@ -5511,12 +6168,13 @@ bool BrowserController::isBlank(const QUrl &url)
 
 // Pinned tabs are the Space's own furniture and say nothing about whether the
 // reader has opened anything, so rest is decided on the ordinary tabs alone. A
+// Folder's tabs are kept rather than open, and say no more than a pin does. A
 // tab shown in its own window leaves nothing in the main window to show.
 bool BrowserController::restingOnBlankTab() const
 {
     const TabState *ordinary = nullptr;
     for (const auto &tab : m_tabs.items()) {
-        if (tab.pinned || tab.poppedOut) {
+        if (tab.pinned || tab.poppedOut || !tab.folderId.isEmpty()) {
             continue;
         }
         if (ordinary) {
@@ -5534,6 +6192,7 @@ void BrowserController::refreshAtRest()
         return;
     }
     m_atRest = resting;
+    m_sidebarRows.setAtRest(resting);
     emit atRestChanged();
 }
 

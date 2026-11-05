@@ -62,6 +62,10 @@ QVariant TabListModel::data(const QModelIndex &index, int role) const
     }
     case PoppedOutRole:
         return tab.poppedOut;
+    case FolderIdRole:
+        return tab.folderId;
+    case FolderHiddenRole:
+        return tab.folderHidden;
     default:
         return {};
     }
@@ -85,6 +89,8 @@ QHash<int, QByteArray> TabListModel::roleNames() const
         {SoundSuppressedRole, "tabSoundSuppressed"},
         {SplitPartnerIdRole, "splitPartnerId"},
         {PoppedOutRole, "poppedOut"},
+        {FolderIdRole, "folderId"},
+        {FolderHiddenRole, "folderHidden"},
         {TabBesideRole, "tabBeside"},
     };
 }

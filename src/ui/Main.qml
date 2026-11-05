@@ -285,6 +285,8 @@ ApplicationWindow {
     // The row the tab menu was opened on, and where it hangs. A menu is about
     // one tab, which is not always the tab on show.
     property string tabMenuTabId: ""
+    // The Folder the tab menu is open on instead, whose row has no tab.
+    property string tabMenuFolderId: ""
     property real tabMenuX: 0
     property real tabMenuY: 0
     property bool tabMenuOpen: false
@@ -819,6 +821,12 @@ ApplicationWindow {
                          "command": "move-tab",
                          "enabled": !window.privateWindow && !poppedOut
                      });
+        if (window.windowBrowser.foldersAvailable) {
+            actions.push({
+                             "label": qsTr("New folder"),
+                             "command": "folder-tab"
+                         });
+        }
         actions.push({
                          "separator": true
                      });
@@ -848,6 +856,12 @@ ApplicationWindow {
                              "label": qsTr("Pin %1 tabs").arg(count),
                              "command": "pin-marked"
                          });
+            if (window.windowBrowser.foldersAvailable) {
+                actions.push({
+                                 "label": qsTr("New folder with %1 tabs").arg(count),
+                                 "command": "folder-marked"
+                             });
+            }
             actions.push({
                              "label": qsTr("Move %1 tabs to a Space").arg(count),
                              "command": "move-marked"
@@ -911,6 +925,8 @@ ApplicationWindow {
     // `x`, `m` and `p` while the sidebar holds the keyboard: they are about the
     // marked rows if there are any, and about the tab on show as ever if not.
     function actOnMarks(command) {
+        if (window.actOnFolderRow(command))
+            return true;
         if (!window.sidebarHoldsKeyboard || sidebar.marks.count === 0)
             return false;
         switch (command) {
@@ -924,6 +940,32 @@ ApplicationWindow {
             return true;
         case "move-tab":
             window.requestMoveMarkedTabs();
+            return true;
+        }
+        return false;
+    }
+
+    // A Folder's row has no page, so `x` and `p` have nothing to act on there,
+    // `m` moves the Folder and `M` opens its menu.
+    function actOnFolderRow(command) {
+        const row = window.sidebarHoldsKeyboard ? sidebar.cursorRow() : null;
+        if (!row || !row.isFolder)
+            return false;
+        switch (command) {
+        case "close-tab":
+        case "pin-tab":
+            return true;
+        case "move-tab":
+            window.requestMoveFolder(row.folderRowId);
+            return true;
+        case "tab-menu":
+            row.openMenu(0, row.height);
+            return true;
+        case "move-tab-up":
+            window.windowBrowser.moveFolderBy(row.folderRowId, -1);
+            return true;
+        case "move-tab-down":
+            window.windowBrowser.moveFolderBy(row.folderRowId, 1);
             return true;
         }
         return false;
@@ -956,7 +998,73 @@ ApplicationWindow {
         window.openTabMenu(window.windowBrowser.activeTabId, window.width / 2, window.height / 2);
     }
 
+    function openFolderMenu(folderId, anchorX, anchorY) {
+        window.tabMenuTabId = "";
+        window.tabMenuFolderId = folderId;
+        window.tabMenuItems = window.folderMenuActions();
+        window.tabMenuX = anchorX;
+        window.tabMenuY = anchorY;
+        window.tabMenuOpen = true;
+    }
+
+    function folderMenuActions() {
+        return [
+                    {
+                        "label": qsTr("Rename", "verb: give a Folder another name"),
+                        "command": "rename-folder"
+                    },
+                    {
+                        "label": qsTr("Unload tabs"),
+                        "command": "unload-folder"
+                    },
+                    {
+                        "label": qsTr("Move to Space"),
+                        "command": "move-folder"
+                    },
+                    {
+                        "separator": true
+                    },
+                    {
+                        "label": qsTr("Close folder"),
+                        "command": "close-folder",
+                        "destructive": true
+                    },
+                    {
+                        "label": qsTr("Remove folder"),
+                        "command": "remove-folder"
+                    }
+                ];
+    }
+
+    function runFolderMenu(command) {
+        const folderId = window.tabMenuFolderId;
+        const browser = window.windowBrowser;
+        switch (command) {
+        case "rename-folder":
+            window.dialogFolderId = folderId;
+            window.dialogFolderName = browser.folderName(folderId);
+            window.dialogMode = "rename-folder";
+            break;
+        case "unload-folder":
+            browser.unloadFolder(folderId);
+            break;
+        case "move-folder":
+            window.requestMoveFolder(folderId);
+            break;
+        case "close-folder":
+            window.dialogFolderId = folderId;
+            window.dialogFolderName = browser.folderName(folderId);
+            window.dialogFolderTabs = browser.folderTabIds(folderId).length;
+            window.dialogMode = "close-folder";
+            break;
+        case "remove-folder":
+            browser.removeFolder(folderId);
+            break;
+        }
+    }
+
     function openTabMenu(tabId, anchorX, anchorY) {
+        window.tabMenuFolderId = "";
         window.tabMenuTabId = tabId;
         window.tabMenuItems = window.tabMenuActionsFor(tabId);
         window.tabMenuX = anchorX;
@@ -971,6 +1079,10 @@ ApplicationWindow {
         const action = window.tabMenuItems[index];
         const tabId = window.tabMenuTabId;
         window.tabMenuOpen = false;
+        if (action && window.tabMenuFolderId.length > 0) {
+            window.runFolderMenu(action.command);
+            return;
+        }
         if (!action || tabId.length === 0)
             return;
         switch (action.command) {
@@ -1013,6 +1125,12 @@ ApplicationWindow {
             break;
         case "move-marked":
             window.requestMoveMarkedTabs();
+            break;
+        case "folder-tab":
+            window.requestNewFolder([tabId]);
+            break;
+        case "folder-marked":
+            window.requestNewFolder(sidebar.marks.ids.slice());
             break;
         default:
             window.windowBrowser.activateTab(tabId);
@@ -1125,6 +1243,52 @@ ApplicationWindow {
                 browser.requestTabMoveToSpace(shown, spaceId, hasEditedFormState);
             });
         }
+    }
+
+    // The Folder the dialog is about, and the tabs a new one will take.
+    property string dialogFolderId: ""
+    property string dialogFolderName: ""
+    property int dialogFolderTabs: 0
+    property var pendingFolderTabs: []
+
+    function requestNewFolder(tabIds) {
+        if (!window.windowBrowser.foldersAvailable)
+            return;
+        window.pendingFolderTabs = tabIds;
+        window.dialogMode = "new-folder";
+    }
+
+    // The Spaces a Folder can go to, which leaves out an Agent's until it is
+    // taken over.
+    function requestMoveFolder(folderId) {
+        const spaces = window.windowBrowser.spaces;
+        const targets = [];
+        for (let row = 0; row < spaces.rowCount(); ++row) {
+            const index = spaces.index(row, 0);
+            const spaceId = spaces.data(index, Qt.UserRole + 1);
+            if (spaceId === window.windowBrowser.activeSpaceId || window.windowBrowser.agentSpace(
+                        spaceId))
+                continue;
+            targets.push({
+                             "id": spaceId,
+                             "label": spaces.data(index, Qt.UserRole + 2)
+                         });
+        }
+        window.moveTargets = targets;
+        window.dialogFolderId = folderId;
+        window.dialogMode = targets.length > 0 ? "move-folder" : "";
+    }
+
+    // As for a tab, the question is about the page on show.
+    function moveFolderToSpace(folderId, spaceId) {
+        const browser = window.windowBrowser;
+        if (browser.tabFolder(browser.activeTabId) !== folderId) {
+            browser.requestFolderMoveToSpace(folderId, spaceId, false);
+            return;
+        }
+        engineLoader.checkForEditedFormState(function (hasEditedFormState) {
+            browser.requestFolderMoveToSpace(folderId, spaceId, hasEditedFormState);
+        });
     }
 
     function requestNewSpace() {
@@ -3270,10 +3434,10 @@ ApplicationWindow {
     }
 
     function activateTabAt(position) {
-        const tabs = window.windowBrowser.tabs;
-        if (position < 0 || position >= tabs.rowCount())
+        const tabIds = window.windowBrowser.countedTabIds();
+        if (position < 0 || position >= tabIds.length)
             return;
-        window.windowBrowser.activateTab(tabs.data(tabs.index(position, 0), Qt.UserRole + 1));
+        window.windowBrowser.activateTab(tabIds[position]);
     }
 
     function stepSpace(delta) {
@@ -3956,6 +4120,15 @@ ApplicationWindow {
                 // The rows that move go to the end of the section, and then each
                 // to its place in turn, in order: the rows that stay, a split's
                 // among them, are never moved, and keep the order they had.
+                onTabsPlaced: function (tabIds, folderId, beforeTabId) {
+                    window.windowBrowser.placeTabs(tabIds, folderId, beforeTabId);
+                }
+                onFolderDropped: function (folderId, destination) {
+                    window.windowBrowser.moveFolder(folderId, destination);
+                }
+                onFolderMenuRequested: function (folderId, anchorX, anchorY) {
+                    window.openFolderMenu(folderId, anchorX, anchorY);
+                }
                 onTabsDropped: function (order, moving) {
                     const browser = window.windowBrowser;
                     const last = order.length - 1;
@@ -5251,6 +5424,12 @@ ApplicationWindow {
                         window.dialogMode = "confirm-move";
                     }
 
+                    function onFolderMoveConfirmationRequested(folderId, destinationSpaceId) {
+                        window.dialogFolderId = folderId;
+                        window.pendingMoveSpaceId = destinationSpaceId;
+                        window.dialogMode = "confirm-move-folder";
+                    }
+
                     // Only the Space on show keeps live pages. Putting one away
                     // takes its renderers with it, except the tabs the core
                     // names: a Pinned tab marked Keep active, and the tab an
@@ -5923,11 +6102,15 @@ ApplicationWindow {
         colors: window.colors
         open: window.dialogMode.length > 0
         destructive: window.dialogMode === "delete" || window.dialogMode === "confirm-move"
-                     || window.dialogMode === "site-storage"
+                     || window.dialogMode === "confirm-move-folder" || window.dialogMode
+                     === "close-folder" || window.dialogMode === "site-storage"
         inputVisible: window.dialogMode === "new" || window.dialogMode === "rename"
-                      || window.dialogMode === "delete"
-        selectPreset: window.dialogMode === "rename"
-        presetText: window.dialogMode === "rename" ? window.dialogSpaceName : ""
+                      || window.dialogMode === "delete" || window.dialogMode === "new-folder"
+                      || window.dialogMode === "rename-folder"
+        selectPreset: window.dialogMode === "rename" || window.dialogMode === "rename-folder"
+        presetText: window.dialogMode === "rename" ? window.dialogSpaceName : window.dialogMode
+                                                     === "rename-folder" ? window.dialogFolderName :
+                                                                           ""
 
         label: {
             switch (window.dialogMode) {
@@ -5941,7 +6124,16 @@ ApplicationWindow {
                 return qsTr("move tab to a space");
             case "split":
                 return qsTr("add split view");
+            case "new-folder":
+                return qsTr("new folder");
+            case "rename-folder":
+                return qsTr("rename folder");
+            case "close-folder":
+                return qsTr("close folder");
+            case "move-folder":
+                return qsTr("move folder to a space");
             case "confirm-move":
+            case "confirm-move-folder":
                 return qsTr("discard edited form state");
             case "site-storage":
                 return qsTr("clear this site's storage");
@@ -5961,6 +6153,10 @@ ApplicationWindow {
                 return window.dialogSpaceName;
             case "delete":
                 return qsTr("type %1 to delete it").arg(window.dialogSpaceName);
+            case "new-folder":
+                return qsTr("name the Folder");
+            case "rename-folder":
+                return window.dialogFolderName;
             }
             return "";
         }
@@ -5980,7 +6176,17 @@ ApplicationWindow {
                                                 rules);
                 return message + " " + named;
             }
-            if (window.dialogMode === "confirm-move") {
+            if (window.dialogMode === "close-folder") {
+                // English has no catalogue, so its plural is two strings.
+                return window.dialogFolderTabs === 1 ? qsTr(
+                                                           "Closing %1 closes its 1 tab and removes the Folder.").arg(
+                                                           window.dialogFolderName) : qsTr(
+                                                           "Closing %1 closes its %2 tabs and removes the Folder.").arg(
+                                                           window.dialogFolderName).arg(
+                                                           window.dialogFolderTabs);
+            }
+            if (window.dialogMode === "confirm-move" || window.dialogMode
+                    === "confirm-move-folder") {
                 return qsTr(
                             "This page has edited form state. Moving it reloads the page under the "
                             + "destination identity and discards those edits.");
@@ -6016,7 +6222,16 @@ ApplicationWindow {
                 return qsTr("↑↓ choose      ⏎ move the tab");
             case "split":
                 return qsTr("↑↓ choose      ⏎ show it beside this tab");
+            case "new-folder":
+                return qsTr("⏎ create the Folder");
+            case "rename-folder":
+                return qsTr("⏎ rename the Folder");
+            case "close-folder":
+                return qsTr("⏎ close %1").arg(window.dialogFolderName);
+            case "move-folder":
+                return qsTr("↑↓ choose      ⏎ move the Folder");
             case "confirm-move":
+            case "confirm-move-folder":
                 return qsTr("⏎ discard the edits and move");
             case "site-storage":
                 return qsTr("⏎ clear %1's storage").arg(siteInformationCard.originLabel);
@@ -6031,6 +6246,7 @@ ApplicationWindow {
         rows: {
             switch (window.dialogMode) {
             case "move":
+            case "move-folder":
                 return window.moveTargets;
             case "split":
                 return window.splitTargets;
@@ -6059,6 +6275,23 @@ ApplicationWindow {
                 window.windowBrowser.confirmTabMoveToSpace(window.pendingMoveTabId,
                                                            window.pendingMoveSpaceId);
                 break;
+            case "new-folder":
+                // An empty name is refused, and the dialog waits for one.
+                if (window.windowBrowser.createFolder(text, window.pendingFolderTabs).length === 0)
+                    return;
+                sidebar.marks.clear();
+                break;
+            case "rename-folder":
+                if (!window.windowBrowser.renameFolder(window.dialogFolderId, text))
+                    return;
+                break;
+            case "close-folder":
+                window.windowBrowser.closeFolder(window.dialogFolderId);
+                break;
+            case "confirm-move-folder":
+                window.windowBrowser.confirmFolderMoveToSpace(window.dialogFolderId,
+                                                              window.pendingMoveSpaceId);
+                break;
             case "site-storage":
                 engineLoader.clearPageSiteData();
                 break;
@@ -6085,7 +6318,10 @@ ApplicationWindow {
             const target = window.moveTargets[index];
             if (!target)
                 return;
-            window.requestMoveToSpace(target.id);
+            if (window.dialogMode === "move-folder")
+                window.moveFolderToSpace(window.dialogFolderId, target.id);
+            else
+                window.requestMoveToSpace(target.id);
             window.dialogMode = "";
         }
     }

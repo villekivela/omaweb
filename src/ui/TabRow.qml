@@ -44,6 +44,14 @@ Item {
     // still the Space's tab and listed here, and the row says where it is.
     required property bool poppedOut
     readonly property bool inSplit: splitPartnerId.length > 0
+    // The Folder holding this tab, and whether a collapsed Folder keeps its row
+    // out of the list.
+    required property string folderId
+    required property bool folderHidden
+    readonly property bool isFolder: false
+    // Whether the list can take a split's row somewhere, which it can once
+    // there is a Folder for the row to move in or out of.
+    property bool splitDrags: false
     // A Glance standing over this tab, as the window reports it, or null. It is
     // not a tab and has no row: the row only says one stands over it, with the
     // page's icon, address and title, and offers to keep it (ADR 0041).
@@ -156,10 +164,13 @@ Item {
     // (#813); a split's right half has no edge to share and keeps the chip 8 px
     // off the half beside it.
     readonly property int chipSize: SiteChip.side(Style.font.caption)
-    readonly property int chipInset: trailingHalf ? Style.space(8) : Style.space(4)
+    // A Folder's tabs stand in by one favicon's width. A split's right half
+    // keeps its place in the row the left half has moved.
+    readonly property int folderIndent: folderId.length > 0 && !trailingHalf ? chipSize : 0
+    readonly property int chipInset: (trailingHalf ? Style.space(8) : Style.space(4)) + folderIndent
     // Where the title starts: as far in as the address box's lock, then past
     // a chip and its gap, so the titles stand under the address text.
-    readonly property int titleInset: Style.space(8) + chipSize + Style.space(9)
+    readonly property int titleInset: Style.space(8) + chipSize + Style.space(9) + folderIndent
     // Where the close button and the Agent mark end: 12 px, scaled with the
     // interface font, inside the edge the row's wash reaches, which for an
     // ordinary row is the sidebar's. Out in the margin, so the glyph does not
@@ -198,6 +209,9 @@ Item {
     // the positioner's to set, and a row that fought it for its own coordinates
     // would be put back the moment anything else in the list changed.
     property bool lifted: false
+    // A drop is moving the rows to the places they were carried to, so they are
+    // there already, and nothing eases.
+    property bool landing: false
     property point carry: Qt.point(0, 0)
     readonly property point grabbedAt: hoverArea.grabbedAt
     z: lifted ? 20 : 0
@@ -211,7 +225,7 @@ Item {
     // in the hand is not eased: it is already following the pointer. Under
     // reduced motion every row steps into its place.
     Behavior on carry {
-        enabled: !root.lifted && !SystemMotion.reduced
+        enabled: !root.lifted && !root.landing && !SystemMotion.reduced
         PropertyAnimation {
             duration: 110
             easing.type: Easing.OutCubic
@@ -573,8 +587,9 @@ Item {
             const scene = hoverArea.mapToItem(null, mouse.x, mouse.y);
             if (!root.lifted) {
                 // A split's half stays with its row: the core refuses to move
-                // it, so the hand is not offered a drag it cannot finish.
-                if (root.inSplit)
+                // it, so the hand is not offered a drag it cannot finish, until
+                // there is a Folder to carry the whole row in or out of.
+                if (root.inSplit && !root.splitDrags)
                     return;
                 const travelled = Math.max(Math.abs(scene.x - hoverArea.pressedAt.x), Math.abs(
                                                scene.y - hoverArea.pressedAt.y));

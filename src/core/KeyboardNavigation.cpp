@@ -60,6 +60,7 @@ namespace {
         QStringLiteral("open-file"),
         QStringLiteral("command-scope"),
         QStringLiteral("new-tab"),
+        QStringLiteral("new-folder"),
         QStringLiteral("close-tab"),
         QStringLiteral("reopen-tab"),
         QStringLiteral("next-tab"),

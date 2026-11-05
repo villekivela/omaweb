@@ -1,5 +1,6 @@
 #pragma once
 
+#include "FolderState.h"
 #include "PutAwayTab.h"
 #include "SpaceProject.h"
 #include "SpaceListModel.h"
@@ -108,6 +109,11 @@ public:
     // list is written at once.
     virtual QVector<PutAwayTab> loadPutAwayTabs(const QString &spaceId) const = 0;
     virtual bool recordPutAwayTabs(const QString &spaceId, const QVector<PutAwayTab> &tabs) = 0;
+    // A Space's Folders, in the order the sidebar stands them. The whole list
+    // is written at once, and answers once it is written. They live with the
+    // Space's tabs, so deleting the Space takes them with it.
+    virtual QVector<FolderState> loadFolders(const QString &spaceId) const = 0;
+    virtual bool saveFolders(const QString &spaceId, const QVector<FolderState> &folders) = 0;
     virtual bool saveTab(const TabState &tab, int position) = 0;
     virtual bool saveTabs(
         const QString &spaceId, const QVector<TabState> &tabs, const QString &activeTabId) = 0;

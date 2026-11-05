@@ -124,6 +124,9 @@ QtObject {
         case "select-space":
             window.activateSpaceAt(argument);
             return true;
+        case "new-folder":
+            window.requestNewFolder([]);
+            return true;
         case "new-space":
             window.requestNewSpace();
             return true;
@@ -282,6 +285,11 @@ QtObject {
                                              "new-tab": {
                                                  group: "tabs",
                                                  title: qsTr("New tab")
+                                             },
+                                             "new-folder": {
+                                                 group: "tabs",
+                                                 title: qsTr("New folder"),
+                                                 requires: "folders"
                                              },
                                              "close-tab": {
                                                  group: "tabs",
@@ -683,6 +691,8 @@ QtObject {
             return !window.privateWindow && window.tabWindowCount > 0;
         case "agent-space":
             return window.agentSpaceOnShow;
+        case "folders":
+            return browser.foldersAvailable;
             // Marking is done from the sidebar's rows, on an ordinary row.
         case "sidebar-cursor":
             return window.sidebarHoldsKeyboard;
@@ -753,7 +763,8 @@ QtObject {
                                          || command === "next-space" || command === "new-space"
                                          || command === "take-over-space" || command === "ask"
                                          || command === "pop-out-tab" || command === "put-back-tab"
-                                         || command === "toggle-tab-window-strip")) {
+                                         || command === "toggle-tab-window-strip" || command
+                                         === "new-folder")) {
                 continue;
             }
             list.push({
