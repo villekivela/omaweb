@@ -937,6 +937,7 @@ set(omaweb_ui_files
     src/ui/DeveloperToolsDock.qml
     src/ui/AddressTrigger.mjs
     src/ui/DevicePixels.mjs
+    src/ui/PageDarkening.mjs
     src/ui/LinkRuleTargets.mjs
     src/ui/SceneColour.mjs
     src/ui/SettingsAttention.mjs
@@ -964,6 +965,7 @@ set(omaweb_ui_files
     src/ui/AgentStopButton.qml
     src/ui/AgentWindowBar.qml
     src/ui/CommandDialog.qml
+    src/ui/DarkeningFollow.qml
     src/ui/DiagnosticBanner.qml
     src/ui/DialogPanel.qml
     src/ui/FolderRow.qml

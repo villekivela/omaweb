@@ -773,59 +773,15 @@ Item {
         root.giveScrollbar(engine);
         if (engine)
             darkeningComponent.createObject(engine, {
-                                                "engine": engine
+                                                "engine": engine,
+                                                "setting": root.pageDarkening,
+                                                "browser": root.browserController
                                             });
         if (engine)
             untiedZoomComponent.createObject(engine, {
                                                  "engine": engine
                                              });
         return engine;
-    }
-
-    // Whether the engine is asked to darken the page it shows: the reader
-    // turned darkening on and has not turned it off for the page's site in the
-    // page's Space. A page that has no site is asked about no choice.
-    function darkenPageFor(engine) {
-        if (!root.pageDarkening || !root.pageDarkening.enabled)
-            return false;
-        return !root.browserController.darkeningOff(engine.currentUrl, engine.spaceId);
-    }
-
-    // Keeps one engine's `darkenPage` where the setting and the site's choice
-    // put it, as the page, the setting or the choice moves. The engine applies
-    // it to the page it shows, so a site turned off in Site information takes
-    // effect in each of its open tabs in that Space.
-    Component {
-        id: darkeningComponent
-
-        Connections {
-            required property var engine
-
-            function apply() {
-                engine.darkenPage = root.darkenPageFor(engine);
-            }
-
-            target: engine
-            function onCurrentUrlChanged() {
-                apply();
-            }
-            Component.onCompleted: apply()
-
-            property Connections setting: Connections {
-                target: root.pageDarkening
-                ignoreUnknownSignals: true
-                function onEnabledChanged() {
-                    apply();
-                }
-            }
-
-            property Connections choice: Connections {
-                target: root.browserController
-                function onDarkeningOffChanged() {
-                    apply();
-                }
-            }
-        }
     }
 
     // Whether a page built now waits before it is pointed at its address.
@@ -956,6 +912,12 @@ Item {
             }
             Component.onCompleted: apply()
         }
+    }
+
+    Component {
+        id: darkeningComponent
+
+        DarkeningFollow {}
     }
 
     function giveScrollbar(engine) {

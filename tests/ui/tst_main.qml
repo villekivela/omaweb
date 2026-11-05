@@ -5081,6 +5081,51 @@ TestCase {
         compare(afterSwitchOff, [false, false, false]);
     }
 
+    // A page that asks for a window, as many sign-ins do, is drawn as a tab's
+    // page is: dark from its first document, which is about:blank, then
+    // following its address, the site's choice in the opener's Space and the
+    // switch.
+    function test_aPopupFollowsDarkeningAsATabDoes() {
+        pageDarkening.enabled = true;
+        const opener = openPage("https://popup-opener.example/start");
+        opener.simulateNewWindowRequest("https://login.acme.com/sign-in", true);
+        const auxiliary = findChild(window, "auxiliaryWindow");
+        tryVerify(function () {
+            return auxiliary !== null && auxiliary.visible;
+        });
+        const loader = findChild(auxiliary.contentItem, "auxiliaryEngineLoader");
+        tryVerify(function () {
+            return loader.item !== null;
+        });
+        const popup = loader.item;
+        const fromTheStart = popup.darkenedAtCreation;
+        tryVerify(function () {
+            return popup.currentUrl.toString().indexOf("login.acme.com") >= 0;
+        });
+        const atItsAddress = popup.darkenPage;
+
+        verify(browser.setDarkeningOff(popup.currentUrl, true));
+        const siteOff = popup.darkenPage;
+        verify(browser.setDarkeningOff(popup.currentUrl, false));
+        const siteOn = popup.darkenPage;
+        pageDarkening.enabled = false;
+        const switchOff = popup.darkenPage;
+        pageDarkening.enabled = true;
+        const switchOn = popup.darkenPage;
+        auxiliary.close();
+        tryVerify(function () {
+            return !auxiliary.visible;
+        });
+        pageDarkening.enabled = false;
+
+        verify(fromTheStart);
+        verify(atItsAddress);
+        verify(!siteOff);
+        verify(siteOn);
+        verify(!switchOff);
+        verify(switchOn);
+    }
+
     // An engine that cannot darken a page, as Ladybird cannot, offers no row to
     // turn it off for a site, and Settings says so beside the switch.
     function test_anEngineWithoutDarkeningOffersNoRowAndReportsItUnavailable() {

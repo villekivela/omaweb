@@ -991,12 +991,10 @@ Omarchy.BorderSurface {
                 width: parent.width - 2 * root.gutter
                 visible: root.darkeningOffered
                 colors: root.colors
-                title: qsTr("Darken %1", "turn page darkening on for a site").arg(String(
-                                                                                      root.darkeningSite).replace(
-                                                                                      /^\*\./, ""))
+                title: qsTr("Darken %1", "turn page darkening on for a site").arg(
+                           root.darkeningDomain)
                 note: qsTr("Pages with no dark theme, in this Space")
-                accessibleName: qsTr("Darken pages from %1").arg(String(root.darkeningSite).replace(
-                                                                     /^\*\./, ""))
+                accessibleName: qsTr("Darken pages from %1").arg(root.darkeningDomain)
                 checked: !root.darkeningOff
                 onClicked: {
                     if (root.browser.setDarkeningOff(root.activeUrl, checked))

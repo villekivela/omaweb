@@ -86,8 +86,10 @@ Rectangle {
     // nothing to stop, so it records the decision and nothing else: which pages
     // are frozen is the shell's rule, and this is where a test reads it.
     property bool pageFrozen: false
-    // The lab draws no page to darken, so it records what the shell asked.
+    // The lab draws no page to darken, so it records what the shell asked, and
+    // what it had asked before the view's first document.
     property bool darkenPage: false
+    property bool darkenedAtCreation: false
     property bool canGoBack: false
     property bool canGoForward: false
     property string pageLocalState: ""
@@ -792,6 +794,7 @@ Rectangle {
     }
 
     Component.onCompleted: {
+        root.darkenedAtCreation = root.darkenPage;
         root.announcePage(root.currentUrl);
         root.certificateChain = root.labCertificateChain(root.currentUrl);
     }

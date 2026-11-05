@@ -5754,6 +5754,8 @@ ApplicationWindow {
             diagnosticOverrideNames: window.diagnosticOverrideNames
             drawnZoom: engineLoader.drawnZoom(1)
             permissionController: window.windowBrowser
+            pageDarkening: window.pageDarkeningSetting
+            browserController: window.windowBrowser
             contentBlocker: contentBlocker
             engineContentBlocker: engineContentBlocker
             cookiePolicy: engineCookiePolicy
