@@ -629,6 +629,11 @@ reports the gap and remains experimental rather than imitating behavior it canno
   site off or on applies to its open tabs in that Space at once, not on their next reload, because
   the engine restyles a page already showing when the setting changes; a tab of the site in another
   Space is not touched.
+- A page that asks for a window, as many sign-ins do, is darkened as a tab's page is. The Auxiliary
+  window's page is dark from its first document, an `about:blank` for a popup, by the opener's
+  Space, and then follows its own address, the switch and the site's choice, by the same rule as a
+  tab. An Agent's window is an Auxiliary window and follows it too, since the setting is the
+  browser's.
 - A page that is darkened is never covered in white. When a window returns, the page area is covered
   in the page's colour until the page has drawn again, and `getComputedStyle` reads a darkened
   page's ground as the white it is written in, so with Page darkening the cover is that colour with
