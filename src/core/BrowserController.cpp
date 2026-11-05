@@ -2784,14 +2784,24 @@ bool BrowserController::moveTabBy(const QString &tabId, int offset)
 
 void BrowserController::toggleActivePinned()
 {
-    if (!m_capabilities.allows(Capability::PinnedTabs)) {
-        return;
+    if (const auto *tab = m_tabs.find(m_activeTabId)) {
+        setTabPinned(m_activeTabId, !tab->pinned);
     }
-    auto *tab = m_tabs.find(m_activeTabId);
+}
+
+bool BrowserController::setTabPinned(const QString &tabId, bool pinned)
+{
+    if (!m_capabilities.allows(Capability::PinnedTabs)) {
+        return false;
+    }
+    auto *tab = m_tabs.find(tabId);
     // A split holds ordinary tabs only, so one of them is separated before it
     // can be pinned.
     if (!tab || !tab->splitPartnerId.isEmpty()) {
-        return;
+        return false;
+    }
+    if (tab->pinned == pinned) {
+        return true;
     }
 
     qsizetype pinnedCount = 0;
@@ -2800,10 +2810,9 @@ void BrowserController::toggleActivePinned()
             ++pinnedCount;
         }
     }
-    const bool pinned = !tab->pinned;
     const auto destinationRow = pinned ? pinnedCount : pinnedCount - 1;
-    m_tabs.move(m_activeTabId, destinationRow);
-    tab = m_tabs.find(m_activeTabId);
+    m_tabs.move(tabId, destinationRow);
+    tab = m_tabs.find(tabId);
     tab->pinned = pinned;
     // Keep active is a Pinned tab's setting, so unpinning gives it up rather
     // than keeping it in reserve for the next time the tab is pinned.
@@ -2815,7 +2824,10 @@ void BrowserController::toggleActivePinned()
         lostKeepActive ? QList<int> {TabListModel::PinnedRole, TabListModel::KeepActiveRole}
                        : QList<int> {TabListModel::PinnedRole});
     persistTabs();
-    emit activeTabChanged();
+    if (tabId == m_activeTabId) {
+        emit activeTabChanged();
+    }
+    return true;
 }
 
 bool BrowserController::setTabKeepActive(const QString &tabId, bool keepActive)

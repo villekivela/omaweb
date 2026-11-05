@@ -104,6 +104,8 @@ Item {
     onActiveFocusChanged: if (!activeFocus)
                               reachedByPointer = false
     readonly property bool cursorShown: activeFocus && !reachedByPointer
+    // Whether the reader has marked the row to act on with others (#917).
+    property bool marked: false
 
     // The Omnibar's bar, on the sidebar's left edge of the row on show. A
     // split is one row on show, so it has one bar, on its left half whichever
@@ -182,6 +184,10 @@ Item {
     // The row's own menu, opened by pointer or by keyboard. Scene coordinates,
     // because the menu hangs in the window rather than inside the row.
     signal menuRequested(string tabId, real anchorX, real anchorY)
+    // Primary and a click, and Shift and a click: the row is added to the marks
+    // or removed, or the marks reach to it.
+    signal markToggled(string tabId)
+    signal markRangeRequested(string tabId)
 
     // A held row is drawn where the hand has carried it rather than where the
     // list put it, and over the rows it is passing. The rows it passes are
@@ -215,6 +221,8 @@ Item {
     height: Style.space(pinned ? 44 : 36)
     activeFocusOnTab: true
     Accessible.role: Accessible.PageTab
+    Accessible.selectable: !pinned
+    Accessible.selected: marked
     Accessible.name: (pinned ? qsTr("Pinned: %1").arg(tabTitle) : tabTitle) + (tabBeside ? " "
                                                                                            + qsTr("(beside)") :
                                                                                            "") + (tabMuted
@@ -287,6 +295,17 @@ Item {
                                                                                           0.07)
     }
 
+    // A marked row, softer than the row on show and with no bar, so the row on
+    // show stays the strongest mark and nothing moves (#917).
+    Rectangle {
+        objectName: "tabMark-" + root.tabId
+        anchors.fill: parent
+        anchors.leftMargin: -root.reachLeft
+        anchors.rightMargin: -root.reachRight
+        visible: root.marked && !root.pinned
+        color: Qt.alpha(root.colors.accent, 0.09)
+    }
+
     // A tab that arrived from a Glance flashes the accent where it landed and
     // fades, so the reader sees where in the list the page went (#704).
     property real arrivalWash: 0
@@ -301,13 +320,15 @@ Item {
     }
 
     // The Omnibar's hover on an ordinary row, edge to edge. The Sidebar cursor
-    // brings its own, so a row under both is not washed twice.
+    // brings its own, so a row under both is not washed twice, and a marked row
+    // already has its wash: the pointer that marked it must not make it
+    // stronger than the row on show.
     Rectangle {
         objectName: "tabHover-" + root.tabId
         anchors.fill: parent
         anchors.leftMargin: -root.reachLeft
         anchors.rightMargin: -root.reachRight
-        visible: !root.pinned && hoverArea.containsMouse && !root.cursorShown
+        visible: !root.pinned && hoverArea.containsMouse && !root.cursorShown && !root.marked
         color: Qt.alpha(root.colors.accent, 0.07)
     }
 
@@ -599,6 +620,12 @@ Item {
                 root.muteToggled(root.tabId);
             } else if (overClose) {
                 root.closeRequested(root.tabId);
+            } else if (mouse.modifiers & Qt.ControlModifier) {
+                if (!root.pinned)
+                    root.markToggled(root.tabId);
+            } else if (mouse.modifiers & Qt.ShiftModifier) {
+                if (!root.pinned)
+                    root.markRangeRequested(root.tabId);
             } else {
                 root.activated(root.tabId);
             }

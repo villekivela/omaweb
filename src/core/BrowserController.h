@@ -397,6 +397,10 @@ public:
     Q_INVOKABLE int tabSectionIndex(const QString &tabId) const;
     Q_INVOKABLE int tabSectionCount(const QString &tabId) const;
     Q_INVOKABLE void toggleActivePinned();
+    // Pins or unpins one tab, on show or not, and leaves what is on show where
+    // it was. Refused for a tab in a split, which is separated first, and for a
+    // tab that is not there. Asking for the state a tab is in is true.
+    Q_INVOKABLE bool setTabPinned(const QString &tabId, bool pinned);
     // Keep active belongs to one Pinned tab and survives restart. Asking it of
     // an ordinary tab is refused rather than remembered: an ordinary tab
     // belongs to the session the reader is looking at.

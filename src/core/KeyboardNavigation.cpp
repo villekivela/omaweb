@@ -76,6 +76,8 @@ namespace {
         QStringLiteral("close-other-tabs"),
         QStringLiteral("close-tabs-below"),
         QStringLiteral("tab-menu"),
+        QStringLiteral("mark-tab"),
+        QStringLiteral("mark-range"),
         QStringLiteral("move-tab"),
         QStringLiteral("add-split"),
         QStringLiteral("separate-split"),

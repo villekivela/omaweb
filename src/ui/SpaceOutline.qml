@@ -447,6 +447,9 @@ Rectangle {
     // owns this because placing rows is the list's: a row knows how tall it is
     // and nothing about the rows around it.
     signal tabDropped(string tabId, int destination)
+    // The same for a marked row, which takes every marked row with it: the
+    // whole section as it is to be, by tab id, and the tabs that move to it.
+    signal tabsDropped(var order, var moving)
     signal spaceActivated(string spaceId)
     // The count of Spaces the footer had no room for was pressed: those
     // Spaces, each as `{ spaceId, spaceName, spaceColor, active, agentMade,
@@ -660,6 +663,82 @@ Rectangle {
         return Qt.point(at.x - row.carry.x, at.y - row.carry.y);
     }
 
+    // The rows the reader has marked to act on together (#917).
+    readonly property alias marks: tabMarks
+
+    TabMarks {
+        id: tabMarks
+    }
+
+    // The ordinary rows as marks count them, in the order of the list: a split
+    // is one row of both its tabs.
+    function markRows() {
+        const groups = [];
+        for (const row of root.sectionRows(ordinarySection)) {
+            if (!row || !row.visible)
+                continue;
+            const previous = groups.length > 0 ? groups[groups.length - 1] : null;
+            if (row.inSplit && previous && previous[0] === row.splitPartnerId)
+                previous.push(row.tabId);
+            else
+                groups.push([row.tabId]);
+        }
+        return groups;
+    }
+
+    function markGroupOf(tabId) {
+        return root.markRows().find(function (group) {
+            return group.indexOf(tabId) >= 0;
+        }) || [tabId];
+    }
+
+    // The row that holds the keyboard, or nothing when none does.
+    function cursorRow() {
+        return root.cursorRows().find(function (row) {
+            return row.activeFocus;
+        }) || null;
+    }
+
+    // `v` and `V`: the row under the Sidebar cursor is added or removed, or the
+    // marks reach to it. A pin is not an ordinary row, so it is neither.
+    function markAtCursor(range) {
+        const row = root.cursorRow();
+        if (!row || row.pinned)
+            return false;
+        if (range)
+            tabMarks.extendTo(root.markGroupOf(row.tabId), root.markRows(),
+                              root.browser.activeTabId);
+        else
+            tabMarks.toggle(root.markGroupOf(row.tabId));
+        return true;
+    }
+
+    // A tab leaving the list, or the Space, takes its mark with it.
+    function pruneMarks() {
+        const tabs = root.browser.unpinnedTabs;
+        const present = [];
+        for (let row = 0; row < tabs.rowCount(); ++row)
+            present.push(tabs.data(tabs.index(row, 0), Qt.UserRole + 1));
+        tabMarks.keepOnly(present);
+    }
+
+    Connections {
+        target: root.browser ? root.browser.unpinnedTabs : null
+        function onRowsRemoved() {
+            root.pruneMarks();
+        }
+        function onModelReset() {
+            root.pruneMarks();
+        }
+    }
+
+    Connections {
+        target: root.browser
+        function onActiveSpaceChanged() {
+            tabMarks.clear();
+        }
+    }
+
     function beginTabDrag(row) {
         root.draggedRow = row;
         root.dropDestination = row.placeInSection;
@@ -759,7 +838,22 @@ Rectangle {
                 rows[place].carry = Qt.point(0, 0);
         }
         if (destination >= 0 && destination !== row.placeInSection) {
-            root.tabDropped(row.tabId, destination);
+            if (!row.pinned && tabMarks.has(row.tabId) && tabMarks.count > 1) {
+                // A split's tabs stay where they are, as they do when one is
+                // dragged alone.
+                const ids = rows.map(function (placed) {
+                    return placed.tabId;
+                });
+                const moving = rows.filter(function (placed) {
+                    return tabMarks.has(placed.tabId) && !placed.inSplit;
+                }).map(function (placed) {
+                    return placed.tabId;
+                });
+                root.tabsDropped(tabMarks.dropOrder(ids, moving, row.placeInSection, destination),
+                                 moving);
+            } else {
+                root.tabDropped(row.tabId, destination);
+            }
         }
     }
 
@@ -834,6 +928,7 @@ Rectangle {
             });
             if (!row)
                 return;
+            tabMarks.clear();
             root.tabActivated(row.tabId);
             root.pageFocusRequested();
         } else if (event.key === Qt.Key_H) {
@@ -845,9 +940,13 @@ Rectangle {
     }
 
     // Key events climb from the focused row to here, so one handler covers the
-    // whole outline: Escape is the way back to the page.
+    // whole outline: Escape is the way back to the page, once the marked rows
+    // have been let go.
     Keys.onEscapePressed: function (event) {
-        root.pageFocusRequested();
+        if (tabMarks.count > 0)
+            tabMarks.clear();
+        else
+            root.pageFocusRequested();
         event.accepted = true;
     }
 
@@ -1335,7 +1434,16 @@ Rectangle {
                         glance: root.glanceOf(tabId)
                         onGlanceKeepRequested: root.glanceKeepRequested()
                         arrivalWash: tabId === root.washTabId ? root.washLevel : 0
+                        marked: tabMarks.has(tabId)
+                        onMarkToggled: function (id) {
+                            tabMarks.toggle(root.markGroupOf(id));
+                        }
+                        onMarkRangeRequested: function (id) {
+                            tabMarks.extendTo(root.markGroupOf(id), root.markRows(),
+                                              root.browser.activeTabId);
+                        }
                         onActivated: function (id) {
+                            tabMarks.clear();
                             root.tabActivated(id);
                         }
                         onCloseRequested: function (id) {

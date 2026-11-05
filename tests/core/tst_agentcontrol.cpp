@@ -2549,12 +2549,14 @@ void AgentControlTest::decidesEveryCommandOfTheRegistry()
     // A Tab window's strip is the reader's to hide in that window. A Problem
     // recording watches the reader's tabs, and a report from the window may
     // take their clipboard: an Agent reads the report with `report` instead.
+    // Marking a row is done where the reader's Sidebar cursor is, which an
+    // Agent has none of.
     const QStringList keptIn {QStringLiteral("screenshot-page"), QStringLiteral("copy-screenshot"),
         QStringLiteral("screenshot-full-page"), QStringLiteral("copy-full-page-screenshot"),
         QStringLiteral("private-window"), QStringLiteral("take-over-space"),
         QStringLiteral("agent-activity"), QStringLiteral("ask"),
         QStringLiteral("toggle-tab-window-strip"), QStringLiteral("report-problem"),
-        QStringLiteral("record-problem")};
+        QStringLiteral("record-problem"), QStringLiteral("mark-tab"), QStringLiteral("mark-range")};
     QStringList decided = AgentControl::publicCommands() + keptIn;
     decided.sort();
     registry.sort();

@@ -180,6 +180,11 @@ It is never the mark of the tab on show, and no row carries it while the page ha
 same mark shows which of a Glance's controls holds the keyboard. _Avoid_: Selection, highlight,
 focused tab
 
+**Mark**: The accent wash that puts an ordinary sidebar row among the rows an action acts on
+together. A marked row draws a softer wash than the row on show, with no bar, and does not hold the
+keyboard: the Sidebar cursor does, so a row can have one, the other or both. Marks are kept for the
+Space on show only, never saved or synced. _Avoid_: Selection, selected tab, multi-select
+
 **Key label**: The key a control answers to, laid over the control while Primary is held on its own.
 A chord on Primary alone is labelled by the key that finishes it, a chord with more keys in it
 whole, and a single key by itself, only while single keys are answered. The labels read the live

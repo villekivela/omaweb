@@ -191,6 +191,14 @@
         <translation>Avaa välilehden valikko</translation>
     </message>
     <message>
+        <source>Mark or unmark the row under the Sidebar cursor</source>
+        <translation>Merkitse tai poista merkintä sivupalkin kohdistimen alla olevalta riviltä</translation>
+    </message>
+    <message>
+        <source>Mark the rows up to the Sidebar cursor</source>
+        <translation>Merkitse rivit sivupalkin kohdistimeen asti</translation>
+    </message>
+    <message>
         <source>Move tab to another Space</source>
         <translation>Siirrä välilehti toiseen Tilaan</translation>
     </message>
@@ -1345,6 +1353,18 @@
     <message>
         <source>Close tab</source>
         <translation>Sulje välilehti</translation>
+    </message>
+    <message>
+        <source>Pin %1 tabs</source>
+        <translation>Kiinnitä %1 välilehteä</translation>
+    </message>
+    <message>
+        <source>Move %1 tabs to a Space</source>
+        <translation>Siirrä %1 välilehteä Tilaan</translation>
+    </message>
+    <message>
+        <source>Close %1 tabs</source>
+        <translation>Sulje %1 välilehteä</translation>
     </message>
     <message>
         <source>Put back in the sidebar</source>

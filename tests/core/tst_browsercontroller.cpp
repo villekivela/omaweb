@@ -195,6 +195,7 @@ private slots:
     void persistsTabsAndPins();
     void landsThePendingTabWriteAtQuit();
     void pinningMovesTabIntoPinnedBlock();
+    void pinsAndUnpinsATabThatIsNotOnShow();
     void keepsFinalTabAsBlankTab();
     void restsUntilSomethingIsOpenedInTheSpace();
     void appliesAddresslessPageReportsWithoutBlankingTheTab();
@@ -908,6 +909,39 @@ void BrowserControllerTest::pinningMovesTabIntoPinnedBlock()
     BrowserController restored(SpaceStorage(root.path(), QStringLiteral("test")));
     QCOMPARE(restored.tabs()->data(restored.tabs()->index(1, 0), TabListModel::IdRole).toString(),
         newlyPinnedId);
+}
+
+// Pinning several marked rows pins the tabs the reader named, not the ones they
+// were shown, so the tab on show stays on show.
+void BrowserControllerTest::pinsAndUnpinsATabThatIsNotOnShow()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    controller.openInput(QStringLiteral("https://first.example"), false);
+    const auto firstId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://second.example"), true);
+    const auto secondId = controller.activeTabId();
+    controller.openInput(QStringLiteral("https://third.example"), true);
+    const auto thirdId = controller.activeTabId();
+
+    QVERIFY(controller.setTabPinned(firstId, true));
+    QCOMPARE(controller.activeTabId(), thirdId);
+    QVERIFY(controller.tabPinned(firstId));
+    QCOMPARE(controller.pinnedTabs()->rowCount(), 1);
+    QVERIFY(controller.setTabPinned(secondId, true));
+    QCOMPARE(
+        controller.tabs()->data(controller.tabs()->index(1, 0), TabListModel::IdRole).toString(),
+        secondId);
+    QVERIFY(controller.setTabPinned(secondId, true));
+
+    QVERIFY(controller.setTabPinned(firstId, false));
+    QVERIFY(!controller.tabPinned(firstId));
+    QCOMPARE(controller.activeTabId(), thirdId);
+
+    // A split's tab is separated before it is pinned.
+    QVERIFY(controller.addSplit(firstId));
+    QVERIFY(!controller.setTabPinned(thirdId, true));
+    QVERIFY(!controller.setTabPinned(QStringLiteral("no-such-tab"), true));
 }
 
 void BrowserControllerTest::keepsFinalTabAsBlankTab()
