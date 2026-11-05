@@ -102,6 +102,7 @@ Omarchy.BorderSurface {
     // and whether it is off for it in this Space.
     property string darkeningSite: ""
     property bool darkeningOff: false
+    readonly property string darkeningDomain: String(root.darkeningSite).replace(/^\*\./, "")
     readonly property bool darkeningOffered: !root.blank && root.darkeningSite.length > 0 && root.pageDarkeningAvailable
                                              && !!root.pageDarkening && root.pageDarkening.enabled
     readonly property int refusalTally: refusals.count

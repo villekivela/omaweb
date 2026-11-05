@@ -3154,6 +3154,10 @@ void BrowserControllerTest::turnsDarkeningOffForOneSiteInOneSpaceAcrossARestart(
         QVERIFY(!restored.darkeningOff(app));
         QVERIFY(restored.setDarkeningOff(app, false));
         QCOMPARE(changed.count(), 1);
+        // Clear browsing data's site permissions take it with the others.
+        QVERIFY(restored.setDarkeningOff(app, true));
+        QVERIFY(restored.clearBrowsingData({QStringLiteral("permissions")}, 0));
+        QVERIFY(!restored.darkeningOff(app));
     }
     BrowserController again(SpaceStorage(root.path(), QStringLiteral("test")), config.path());
     QVERIFY(!again.darkeningOff(app));

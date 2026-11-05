@@ -421,9 +421,9 @@ add_library(omaweb-core STATIC
     src/core/FontSettings.h
     src/core/GlobalPrivacyControl.cpp
     src/core/HttpsOnly.cpp
+    src/core/HttpsOnly.h
     src/core/PageDarkening.cpp
     src/core/PageDarkening.h
-    src/core/HttpsOnly.h
     src/core/GlobalPrivacyControl.h
     src/core/SecureDns.cpp
     src/core/SecureDns.h

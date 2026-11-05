@@ -3184,6 +3184,9 @@ void QtEngineContractTest::qtDarkensAPageWithNoDarkThemeAndLeavesADarkOneAlone()
         {"/light",
             SiteServer::html(
                 "<!doctype html><body style=\"margin:0;background:#f5f5f5\"><p>hi</p>")},
+        {"/lightdark",
+            SiteServer::html("<!doctype html><meta name=color-scheme content=\"light dark\"><body "
+                             "style=\"margin:0;background:#f5f5f5\"><p>hi</p>")},
         {"/declared",
             SiteServer::html("<!doctype html><meta name=color-scheme content=dark><body "
                              "style=\"margin:0;background:#334455;color:#eee\"><p>hi</p>")},
@@ -3207,6 +3210,9 @@ void QtEngineContractTest::qtDarkensAPageWithNoDarkThemeAndLeavesADarkOneAlone()
     QCOMPARE(show("/bare"), QColor(0x12, 0x12, 0x12));
     QVERIFY(isDark(show("/light")));
     QCOMPARE(show("/declared"), QColor(0x33, 0x44, 0x55));
+    // A page that allows both schemes has not declared a dark one, and
+    // Chromium treats it as it treats a page with none.
+    QVERIFY(isDark(show("/lightdark")));
 }
 
 // The setting reaches the page already open: no navigation is made for it, so

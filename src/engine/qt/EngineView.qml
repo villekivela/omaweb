@@ -4512,16 +4512,11 @@ Item {
     // depend on the page saying so: a page the script does not reach, such as
     // an error page, never will.
     property color pageGroundColor: "white"
-    // The ground as it is drawn. `getComputedStyle` reads the page's own colour
-    // and a darkened page still computes as white, so the colour the page
-    // reported would cover a darkened page in a white it is not drawn in.
-    // Chromium darkens a background whose brightness is above 205 of 255 and
-    // leaves any other alone. The cover follows that by inverting the
-    // lightness down to a floor of about 7%, which is dark and near what the
-    // engine draws but not the same: it draws #f5f5f5 as #222222 and white as
-    // #121212. What matters is that the cover is dark where the page is. A page
-    // that declares a dark colour scheme reports the dark ground it is drawn
-    // in, which is not light, so it keeps it.
+    // The ground as it is drawn. `getComputedStyle` reads a darkened page's ground
+    // as the white it is written in, so the cover would be white over a dark page.
+    // Chromium darkens only a background brighter than 205 of 255. The inverted
+    // lightness, floored at about 7%, is dark where the page is but approximate:
+    // the engine draws #f5f5f5 as #222222 and white as #121212.
     readonly property color coverGroundColor: {
         const ground = root.pageGroundColor;
         const brightness = 255 * (0.299 * ground.r + 0.587 * ground.g + 0.114 * ground.b);
