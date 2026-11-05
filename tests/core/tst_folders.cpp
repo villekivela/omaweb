@@ -153,8 +153,8 @@ void FoldersTest::aFolderStandsBetweenThePinsAndTheOrdinaryTabs()
     auto controller = openWindow(root);
     const auto pin = open(*controller, "pin", false);
     QVERIFY(controller->setTabPinned(pin, true));
-    const auto kept = open(*controller, "kept");
     open(*controller, "loose");
+    const auto kept = open(*controller, "kept");
 
     const auto folder = controller->createFolder(QStringLiteral("Reading"), {kept});
     QVERIFY(!folder.isEmpty());

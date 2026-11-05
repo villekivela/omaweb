@@ -9764,7 +9764,7 @@ TestCase {
         compare(browser.tabs.rowCount(), before);
         compare(browser.activeTabId, ids[2]);
         verify(!browser.tabPinned(ids[2]));
-        compare(markedTabs(), []);
+        compare(findChild(window.contentItem, "sidebar").marks.count, 0);
         compare(browser.folderTabIds(folder), [ids[0]]);
         removeFolders([folder]);
         closeMarkableTabs(ids);
