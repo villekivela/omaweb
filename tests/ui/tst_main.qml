@@ -10019,6 +10019,93 @@ TestCase {
         closeMarkableTabs(ids);
     }
 
+    function test_movingMarkedRowsTakesAMarkedSplitWithItsTwoTabs() {
+        const ids = openMarkableTabs(4);
+        const home = browser.activeSpaceId;
+        const other = browser.createSpace("Elsewhere");
+        browser.activateTab(ids[1]);
+        verify(browser.addSplit(ids[2]));
+        settleMotion();
+        // The tab on show is in the selection, in its split.
+        clickRow(ids[1], Qt.ControlModifier);
+        clickRow(ids[0], Qt.ControlModifier);
+        openMenuOn(ids[0]);
+        runMenuEntry("Move 3 tabs to a Space");
+        window.requestMoveToSpace(other);
+        tryVerify(function () {
+            return rowOrNull(ids[0]) === null && rowOrNull(ids[1]) === null && rowOrNull(ids[2])
+                    === null;
+        });
+        // The move keeps the rule it has for the tab on show.
+        verify(ids.slice(0, 3).indexOf(browser.activeTabId) === -1);
+        browser.switchSpace(other);
+        tryCompare(browser, "activeSpaceId", other);
+        compare(browser.tabs.rowCount(), 3);
+        browser.switchSpace(home);
+        tryCompare(browser, "activeSpaceId", home);
+        closeMarkableTabs([ids[3]]);
+        verify(browser.deleteSpace(other, "Elsewhere"));
+    }
+
+    function test_draggingMarkedRowsLeavesAMarkedSplitWhereItIs() {
+        const ids = openMarkableTabs(5);
+        browser.activateTab(ids[1]);
+        verify(browser.addSplit(ids[2]));
+        settleMotion();
+        clickRow(ids[0], Qt.ControlModifier);
+        clickRow(ids[2], Qt.ControlModifier);
+        clickRow(ids[3], Qt.ControlModifier);
+        dragRowOver(ids[3], 1);
+        compare(orderOf(ids), [ids[1], ids[2], ids[4], ids[0], ids[3]]);
+        compare(markedTabs(), orderOf([ids[0], ids[1], ids[2], ids[3]]));
+        verify(browser.tabInSplit(ids[1]));
+        browser.separateSplit(ids[1]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_pinningMarkedRowsThatHoldTheTabOnShowKeepsItOnShow() {
+        const ids = openMarkableTabs(3);
+        clickRow(ids[2], Qt.ControlModifier);
+        clickRow(ids[0], Qt.ControlModifier);
+        openMenuOn(ids[0]);
+        runMenuEntry("Pin 2 tabs");
+        tryVerify(function () {
+            return browser.tabPinned(ids[0]) && browser.tabPinned(ids[2]);
+        });
+        compare(browser.activeTabId, ids[2]);
+        for (const id of [ids[0], ids[2]])
+            browser.setTabPinned(id, false);
+        closeMarkableTabs(ids);
+    }
+
+    function test_cancellingTheMoveChooserForgetsTheMarkedRows() {
+        const ids = openMarkableTabs(3);
+        const other = browser.createSpace("Elsewhere");
+        clickRow(ids[0], Qt.ControlModifier);
+        holdTheSidebarOn(ids[0]);
+        keyClick(Qt.Key_M);
+        compare(window.dialogMode, "move");
+        compare(window.movingTabIds, [ids[0]]);
+        window.dialogMode = "";
+        compare(window.movingTabIds, []);
+        verify(browser.deleteSpace(other, "Elsewhere"));
+        keyClick(Qt.Key_Escape);
+        keyClick(Qt.Key_Escape);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aTabClosedByAnotherRouteLosesItsMark() {
+        const ids = openMarkableTabs(3);
+        clickRow(ids[0], Qt.ControlModifier);
+        clickRow(ids[1], Qt.ControlModifier);
+        const outline = findChild(window.contentItem, "sidebar");
+        compare(outline.marks.count, 2);
+        browser.closeTab(ids[0]);
+        tryCompare(outline.marks, "count", 1);
+        compare(markedTabs(), [ids[1]]);
+        closeMarkableTabs(ids);
+    }
+
     function test_aPinnedTabCannotBeMarked() {
         const ids = openMarkableTabs(2);
         browser.activateTab(ids[0]);

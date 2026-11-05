@@ -448,8 +448,8 @@ Rectangle {
     // and nothing about the rows around it.
     signal tabDropped(string tabId, int destination)
     // The same for a marked row, which takes every marked row with it: the
-    // whole section as it is to be, by tab id.
-    signal tabsDropped(var order)
+    // whole section as it is to be, by tab id, and the tabs that move to it.
+    signal tabsDropped(var order, var moving)
     signal spaceActivated(string spaceId)
     // The count of Spaces the footer had no room for was pressed: those
     // Spaces, each as `{ spaceId, spaceName, spaceColor, active, agentMade,
@@ -715,7 +715,11 @@ Rectangle {
 
     // A tab leaving the list, or the Space, takes its mark with it.
     function pruneMarks() {
-        tabMarks.keepOnly(root.markRows().flat());
+        const tabs = root.browser.unpinnedTabs;
+        const present = [];
+        for (let row = 0; row < tabs.rowCount(); ++row)
+            present.push(tabs.data(tabs.index(row, 0), Qt.UserRole + 1));
+        tabMarks.keepOnly(present);
     }
 
     Connections {
@@ -845,7 +849,8 @@ Rectangle {
                 }).map(function (placed) {
                     return placed.tabId;
                 });
-                root.tabsDropped(tabMarks.dropOrder(ids, moving, row.placeInSection, destination));
+                root.tabsDropped(tabMarks.dropOrder(ids, moving, row.placeInSection, destination),
+                                 moving);
             } else {
                 root.tabDropped(row.tabId, destination);
             }
@@ -935,8 +940,8 @@ Rectangle {
     }
 
     // Key events climb from the focused row to here, so one handler covers the
-    // whole outline: Escape is the way back to the page.
-    // Marked rows are let go first: only the next Escape does what it did.
+    // whole outline: Escape is the way back to the page, once the marked rows
+    // have been let go.
     Keys.onEscapePressed: function (event) {
         if (tabMarks.count > 0)
             tabMarks.clear();

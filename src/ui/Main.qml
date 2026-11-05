@@ -864,8 +864,7 @@ ApplicationWindow {
         return actions;
     }
 
-    // The marked rows' tabs, by the room the sidebar gives them, and where the
-    // marks are let go: acting on them finishes the marking.
+    // The marked tabs, and the marks let go: acting on them finishes the marking.
     function takeMarkedTabs() {
         const ids = sidebar.marks.ids.slice();
         sidebar.marks.clear();
@@ -1037,6 +1036,8 @@ ApplicationWindow {
     // The tabs the chooser is moving when it was opened for the marked rows,
     // and none when it was opened for the tab on show.
     property var movingTabIds: []
+    onDialogModeChanged: if (window.dialogMode !== "move")
+                             window.movingTabIds = []
 
     function requestMoveMarkedTabs() {
         if (privateWindow)
@@ -1475,11 +1476,11 @@ ApplicationWindow {
         sidebar.focusOutline();
     }
 
-    // Whether the keyboard is on something in the sidebar: a row, or a control
-    // beside the rows.
     // The commands a key answers only while the sidebar has the keyboard, so
     // the page keeps the key otherwise.
     readonly property var sidebarKeyCommands: ["mark-tab", "mark-range"]
+    // Whether the keyboard is on something in the sidebar: a row, or a control
+    // beside the rows.
     readonly property bool sidebarHoldsKeyboard: {
         for (let item = window.activeFocusItem; item; item = item.parent) {
             if (item === sidebar)
@@ -3952,13 +3953,19 @@ ApplicationWindow {
                 onTabDropped: function (tabId, destination) {
                     window.windowBrowser.moveTab(tabId, destination);
                 }
-                // Each row to its place in turn, from the first one that is
-                // not already there.
-                onTabsDropped: function (order) {
-                    for (let place = 0; place < order.length; ++place) {
-                        if (window.windowBrowser.tabSectionIndex(order[place]) !== place)
-                            window.windowBrowser.moveTab(order[place], place);
-                    }
+                // The rows that move go to the end of the section, and then each
+                // to its place in turn, in order: the rows that stay, a split's
+                // among them, are never moved, and keep the order they had.
+                onTabsDropped: function (order, moving) {
+                    const browser = window.windowBrowser;
+                    const last = order.length - 1;
+                    const group = order.filter(function (id) {
+                        return moving.indexOf(id) >= 0;
+                    });
+                    for (const id of group)
+                        browser.moveTab(id, last);
+                    for (const id of group)
+                        browser.moveTab(id, order.indexOf(id));
                 }
                 onTabMenuRequested: function (tabId, anchorX, anchorY) {
                     window.openTabMenu(tabId, anchorX, anchorY);
@@ -6078,8 +6085,8 @@ ApplicationWindow {
             const target = window.moveTargets[index];
             if (!target)
                 return;
-            window.dialogMode = "";
             window.requestMoveToSpace(target.id);
+            window.dialogMode = "";
         }
     }
 
