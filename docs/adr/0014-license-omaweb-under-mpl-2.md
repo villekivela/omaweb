@@ -1,5 +1,7 @@
 # License Omaweb under MPL 2.0
 
+status: superseded in part by ADR-0071
+
 Omaweb-owned code uses the Mozilla Public License 2.0. This keeps modifications to Omaweb source
 files open while allowing independently developed Feature modules to use other licenses. Keyboard
 navigation is implemented independently without copying Vimium code, assets, or branding.
