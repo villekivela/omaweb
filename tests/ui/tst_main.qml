@@ -1137,6 +1137,24 @@ TestCase {
         });
     }
 
+    // A test about the Spaces a link can go to starts from the Space on show
+    // alone, whatever an earlier test left behind.
+    function leaveOnlyTheSpaceOnShow() {
+        const spaces = browser.spaces;
+        const leftovers = [];
+        for (let row = 0; row < spaces.rowCount(); ++row) {
+            const index = spaces.index(row, 0);
+            if (spaces.data(index, Qt.UserRole + 1) !== browser.activeSpaceId)
+                leftovers.push({
+                                   "id": spaces.data(index, Qt.UserRole + 1),
+                                   "name": spaces.data(index, Qt.UserRole + 2)
+                               });
+        }
+        leftovers.forEach(function (space) {
+            verify(browser.deleteSpace(space.id, space.name));
+        });
+    }
+
     function tabUrls(controller) {
         const urls = [];
         for (let row = 0; row < controller.tabs.rowCount(); ++row)
@@ -1193,6 +1211,10 @@ TestCase {
         const reread = new URL(browser.activeUrl.toString());
         compare(reread.host, "duckduckgo.com");
         compare(reread.search, "?q=example.com");
+
+        // The tabs the searches opened go with the test.
+        while (browser.tabs.rowCount() > before)
+            browser.closeActiveTab();
     }
 
     function test_privateWindowSearchesForASelectionInItself() {
@@ -1236,6 +1258,7 @@ TestCase {
     // Space, a switch to it, and the Space notice. The list leaves out the
     // Space on show and draws each Space in its colour, in the footer's order.
     function test_pageContextMenuSendsALinkToASpace() {
+        leaveOnlyTheSpaceOnShow();
         const homeId = browser.activeSpaceId;
         const workId = browser.createSpace("Link Work");
         const playId = browser.createSpace("Link Play");
@@ -1282,6 +1305,7 @@ TestCase {
     }
 
     function test_pageContextMenuListsSendingALinkAsUnavailableWithOneSpace() {
+        leaveOnlyTheSpaceOnShow();
         compare(browser.spaces.rowCount(), 1);
         const engine = openPage("https://one-space.example/");
         openPageMenuOn(engine, {
