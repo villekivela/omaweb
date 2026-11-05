@@ -2452,7 +2452,7 @@ public:
                     return;
                 }
                 // A clip from tests/engine/media, whole, since the page asks for no range.
-                if (path.startsWith("/media/")) {
+                if (path.startsWith("/media/") && !path.contains("..")) {
                     QFile clip(QStringLiteral(OMAWEB_CODEC_MEDIA_DIRECTORY "/")
                         + QString::fromUtf8(path.mid(QByteArrayLiteral("/media/").size())));
                     const bool found = clip.open(QIODevice::ReadOnly);
@@ -10731,8 +10731,8 @@ void QtEngineContractTest::qtDecodesProprietaryCodecs_data()
 // `testsrc=size=64x64:rate=10` and `sine=frequency=440:sample_rate=24000`, encoded with
 // `-c:v libx264 -profile:v baseline -pix_fmt yuv420p` and `-c:a aac -b:a 24k`, with
 // `-movflags +faststart`.
-// The requirements state that Omaweb ships proprietary codecs, so the engine this build runs on
-// must decode H.264 and AAC. An engine built without the flag, or whose FFmpeg lacks the decoders,
+// Omaweb ships proprietary codecs (ADR 0071), so the engine this build runs on must decode H.264
+// and AAC. An engine built without the flag, or whose FFmpeg lacks the decoders,
 // gives the page an error where a frame or a sample should be.
 void QtEngineContractTest::qtDecodesProprietaryCodecs()
 {
