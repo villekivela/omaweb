@@ -9922,11 +9922,12 @@ TestCase {
         tryVerify(function () {
             return engineHost.item.activeFocus;
         });
-        verify(window.commands.run("close-tab", -1));
+        keyClick(Qt.Key_X);
         tryVerify(function () {
             return rowOrNull(ids[2]) === null;
         });
         verify(rowOrNull(ids[0]) !== null);
+        compare(markedTabs(), [ids[0]]);
         closeMarkableTabs(ids);
     }
 
@@ -10027,8 +10028,10 @@ TestCase {
         verify(pin !== null);
         settleRow(pin);
         mouseClick(pin, pin.width / 2, pin.height / 2, Qt.LeftButton, Qt.ControlModifier);
+        compare(findChild(window.contentItem, "sidebar").marks.count, 0);
         compare(markedTabs(), []);
         verify(!markDrawn(ids[0]));
+        verify(!pin.Accessible.selected);
         browser.toggleActivePinned();
         closeMarkableTabs(ids);
     }
