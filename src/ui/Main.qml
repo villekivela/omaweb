@@ -1132,6 +1132,18 @@ ApplicationWindow {
             window.dialogMode = "new";
     }
 
+    // The dialog Settings' × opens, for the Space on show. It names the Space
+    // and asks for its name, so the command adds no confirmation of its own.
+    function requestDeleteSpace() {
+        const browser = window.windowBrowser;
+        if (window.privateWindow || browser.spaces.rowCount() < 2)
+            return false;
+        window.dialogSpaceId = browser.activeSpaceId;
+        window.dialogSpaceName = browser.activeSpaceName;
+        window.dialogMode = "delete";
+        return true;
+    }
+
     function requestSettings() {
         window.historyOpen = false;
         window.settingsOpen = true;
