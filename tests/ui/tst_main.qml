@@ -1380,6 +1380,102 @@ TestCase {
         });
     }
 
+    // A launch with --remote-debugging has no Private windows, and a row that
+    // would do nothing is listed unavailable, as every other command is.
+    function test_pageContextMenuListsPrivateWindowAsUnavailableWhenNoneCanOpen() {
+        const engine = openPage("https://no-private.example/");
+        window.privateWindowsAvailable = false;
+        openPageMenuOn(engine, {
+                           "linkUrl": "https://sent-private.example/page"
+                       });
+        const row = window.pageMenuActions[rowIndex("Open link in Private window")];
+        compare(row.enabled, false);
+        window.runPageMenu(rowIndex("Open link in Private window"));
+        compare(windowManager.privateWindowCount, 0);
+        window.privateWindowsAvailable = true;
+    }
+
+    // A reader reaches a Space through the menu's own rows: the first Return
+    // swaps them for the Spaces, the second sends the link.
+    function test_pageContextMenuSendsALinkToASpaceFromTheKeyboard() {
+        leaveOnlyTheSpaceOnShow();
+        const homeId = browser.activeSpaceId;
+        const destinationId = browser.createSpace("Keys Destination");
+        verify(browser.switchSpace(homeId));
+        tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
+        const engine = openPage("https://keys-send-link.example/");
+        const menu = findChild(window.contentItem, "pageMenu");
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+
+        openPageMenuOn(engine, {
+                           "linkUrl": "https://sent-by-keys.example/page"
+                       });
+        tryVerify(function () {
+            return menu.activeFocus;
+        });
+        keyClick(Qt.Key_Down);
+        keyClick(Qt.Key_Down);
+        compare(window.pageMenuActions[menu.selected].label, "Open link in Space");
+        keyClick(Qt.Key_Return);
+        tryVerify(function () {
+            return menu.visible && window.pageMenuActions[0].label === "Keys Destination";
+        });
+        tryVerify(function () {
+            return menu.activeFocus;
+        });
+        keyClick(Qt.Key_Return);
+
+        tryCompare(browser, "activeSpaceId", destinationId);
+        tryCompare(browser, "activeUrl", "https://sent-by-keys.example/page");
+        tryVerify(function () {
+            return !menu.visible;
+        });
+        verify(browser.switchSpace(homeId));
+        tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
+        tryCompare(findChild(window.contentItem, "spaceNotice"), "visible", false, 5000);
+        verify(browser.deleteSpace(destinationId, "Keys Destination"));
+    }
+
+    function test_pageContextMenuSendsALinkToASpaceWithThePointer() {
+        leaveOnlyTheSpaceOnShow();
+        const homeId = browser.activeSpaceId;
+        const destinationId = browser.createSpace("Click Destination");
+        verify(browser.switchSpace(homeId));
+        tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
+        const engine = openPage("https://click-send-link.example/");
+        const menu = findChild(window.contentItem, "pageMenu");
+
+        openPageMenuOn(engine, {
+                           "linkUrl": "https://sent-by-click.example/page"
+                       });
+        const open = findChild(menu, "chromeMenuItem" + rowIndex("Open link in Space"));
+        // Laid out, which a reader's pointer arrives long after.
+        tryVerify(function () {
+            return open.mapToItem(menu, 0, 0).y > 2 * open.height;
+        });
+        mouseMove(open, open.width / 2, open.height / 2);
+        tryCompare(menu, "selected", rowIndex("Open link in Space"));
+        mouseClick(open, open.width / 2, open.height / 2);
+        tryVerify(function () {
+            return menu.visible && window.pageMenuActions[0].label === "Click Destination";
+        });
+        const destination = findChild(menu, "chromeMenuItem0");
+        mouseClick(destination, destination.width / 2, destination.height / 2);
+
+        tryCompare(browser, "activeSpaceId", destinationId);
+        tryCompare(browser, "activeUrl", "https://sent-by-click.example/page");
+        tryVerify(function () {
+            return !menu.visible;
+        });
+        verify(browser.switchSpace(homeId));
+        tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
+        tryCompare(findChild(window.contentItem, "spaceNotice"), "visible", false, 5000);
+        verify(browser.deleteSpace(destinationId, "Click Destination"));
+    }
+
     function test_pageContextMenuListsLinkRowsAsUnavailableInAnAgentSpace() {
         const otherId = browser.createSpace("Beside Agent");
         const drive = driveAnAgentSpace(false);

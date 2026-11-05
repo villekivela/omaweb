@@ -31,6 +31,8 @@ ApplicationWindow {
     property var windowBrowser: browser
     readonly property var syncLauncherService: syncLauncher
     property bool privateWindow: false
+    // False for a launch with --remote-debugging, which has no Private windows.
+    property bool privateWindowsAvailable: windowManager.privateWindowsAvailable
     property string profilePathOverride: ""
     property var sharedEngineProfile: null
     property var colors: privateWindow ? privatePalette(theme.palette) : theme.palette
@@ -1876,8 +1878,8 @@ ApplicationWindow {
         return rows;
     }
 
-    // A link goes where the reader asks only from their own Spaces: an Agent's
-    // pages are not theirs to route, and a Private window has no other Space.
+    // Whether the Space on show is the reader's own rather than an Agent's,
+    // whose pages the menu does not send links from.
     function linkRowsAvailable() {
         return !window.windowBrowser.agentSpace(window.windowBrowser.activeSpaceId);
     }
@@ -1905,7 +1907,7 @@ ApplicationWindow {
             rows.push({
                           "label": qsTr("Open link in Private window"),
                           "run": "open-link-private",
-                          "enabled": window.linkRowsAvailable()
+                          "enabled": window.privateWindowsAvailable && window.linkRowsAvailable()
                       });
             rows.push({
                           "label": qsTr("Copy link address"),
