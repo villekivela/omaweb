@@ -31,14 +31,14 @@ ApplicationWindow {
     property real drawnZoom: 1
     onDrawnZoomChanged: if (engineLoader.item)
                             engineLoader.item.setZoomFactor(auxiliary.drawnZoom)
-    // The core's Agent rules and the id this window has there, when an Agent
-    // tab's page opened it (ADR 0051). The Agent drives it by that id as it
-    // drives the tab, and it is the Agent's for as long as the core lists it.
     // The browser's PageDarkening and the window's BrowserController, which
     // decide whether this window's page is darkened as a tab's is. An Agent's
     // window follows them too: the setting is the browser's.
     property var pageDarkening: null
     property var browserController: null
+    // The core's Agent rules and the id this window has there, when an Agent
+    // tab's page opened it (ADR 0051). The Agent drives it by that id as it
+    // drives the tab, and it is the Agent's for as long as the core lists it.
     property var agentControl: null
     property string agentWindowId: ""
     readonly property bool agentDriven: auxiliary.agentWindowId.length > 0

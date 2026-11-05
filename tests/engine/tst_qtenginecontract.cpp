@@ -11685,7 +11685,9 @@ void QtEngineContractTest::qtKeepsADocumentsOwnCookiesAcrossARedirect()
     QVERIFY(adapter->setProperty("currentUrl", bounce));
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString(), QStringLiteral("kept"), 20000);
-    QCOMPARE(adapter->property("currentUrl").toUrl(), QUrl(page));
+    // The title can arrive before the address does: CI's clang run read the
+    // address of the redirect that had just been left.
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("currentUrl").toUrl(), QUrl(page), 5000);
     QCOMPARE(policy.refusedCount(), 0);
 }
 
