@@ -10106,6 +10106,39 @@ TestCase {
         closeMarkableTabs(ids);
     }
 
+    // What the sidebar draws at the right of a row, clear of its text.
+    function lightnessOfRow(image, outline, tabId) {
+        const row = rowOf(tabId);
+        const at = row.mapToItem(outline, row.width * 0.9, row.height / 2);
+        return image.pixel(Math.round(at.x), Math.round(at.y)).hslLightness;
+    }
+
+    function test_aMarkedRowIsDrawnLighterThanTheRowOnShowEvenUnderThePointer() {
+        const ids = openMarkableTabs(4);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        clickRow(ids[0], Qt.ControlModifier);
+        clickRow(ids[3], Qt.ControlModifier);
+        const outline = findChild(window.contentItem, "sidebar");
+        // The pointer rests on a marked row, as it does after the click that marked it.
+        const marked = rowOf(ids[3]);
+        mouseMove(marked, marked.width * 0.9, marked.height / 2);
+        tryVerify(function () {
+            return marked.pointed;
+        });
+        wait(100);
+        const image = grabImage(outline);
+        const plain = lightnessOfRow(image, outline, ids[1]);
+        const onShow = lightnessOfRow(image, outline, ids[2]);
+        const underPointer = lightnessOfRow(image, outline, ids[3]);
+        const away = lightnessOfRow(image, outline, ids[0]);
+        verify(onShow > plain);
+        verify(underPointer > plain);
+        verify(underPointer < onShow, underPointer + " < " + onShow);
+        verify(away < onShow, away + " < " + onShow);
+        closeMarkableTabs(ids);
+    }
+
     function test_aPinnedTabCannotBeMarked() {
         const ids = openMarkableTabs(2);
         browser.activateTab(ids[0]);

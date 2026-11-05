@@ -320,13 +320,15 @@ Item {
     }
 
     // The Omnibar's hover on an ordinary row, edge to edge. The Sidebar cursor
-    // brings its own, so a row under both is not washed twice.
+    // brings its own, so a row under both is not washed twice, and a marked row
+    // already has its wash: the pointer that marked it must not make it
+    // stronger than the row on show.
     Rectangle {
         objectName: "tabHover-" + root.tabId
         anchors.fill: parent
         anchors.leftMargin: -root.reachLeft
         anchors.rightMargin: -root.reachRight
-        visible: !root.pinned && hoverArea.containsMouse && !root.cursorShown
+        visible: !root.pinned && hoverArea.containsMouse && !root.cursorShown && !root.marked
         color: Qt.alpha(root.colors.accent, 0.07)
     }
 

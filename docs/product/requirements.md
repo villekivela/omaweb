@@ -215,15 +215,18 @@ reports the gap and remains experimental rather than imitating behavior it canno
   tab on show counts only if it was marked or a `Shift` range took it in, and marking changes
   nothing on show.
 - A marked row is washed in the accent at 9%, softer than the row on show's 14%, with no bar, and a
-  screen reader hears it as selected. Nothing moves.
+  screen reader hears it as selected. The pointer adds nothing to a marked row, so it stays lighter
+  than the row on show. Nothing moves.
 - The tab menu on a marked row, when two or more tabs are marked, acts on all of them: Pin, Move to
   another Space and Close, with the count in the label. A Private window offers Close alone. The
   menu on an unmarked row acts on that row alone and leaves the marks. While the sidebar holds the
   keyboard, `x`, `m` and `p` act on the marked rows; with the keyboard on the page they act on the
   tab on show. Closing asks nothing, and every tab enters the recently closed stack, so `X` reopens
   them one at a time. If the tab on show closes, the nearest unmarked row below it comes on show, or
-  else the nearest above. A split's tab is separated before it is pinned, and a split's tabs stay
-  where they are when marked rows are dragged, as they do when dragged alone.
+  else the nearest above. Moving to a Space asks about edited forms only for the tab on show, as
+  moving that tab alone does, and moves the other tabs without asking. A split's tab is separated
+  before it is pinned, and a split's tabs stay where they are when marked rows are dragged, as they
+  do when dragged alone.
 - Dragging a marked row moves every marked row, which close up at the drop point in their existing
   order. Dragging an unmarked row moves that row alone. The marks stay in both.
 - A plain click on a row, opening a row with `Space`, `l` or `Return`, a Space switch, and finishing
