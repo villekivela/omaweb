@@ -13,6 +13,7 @@
 #include "LocaleReport.h"
 #include "KeyboardNavigation.h"
 #include "HttpsOnly.h"
+#include "PageDarkening.h"
 #include "EngineSuggestions.h"
 #include "../core/SuggestServer.h"
 #include "SecureDns.h"
@@ -842,6 +843,8 @@ public slots:
             = std::make_unique<omaweb::SecureDns>(m_dataRoot->filePath(QStringLiteral("config")));
         m_httpsOnly
             = std::make_unique<omaweb::HttpsOnly>(m_dataRoot->filePath(QStringLiteral("config")));
+        m_pageDarkening = std::make_unique<omaweb::PageDarkening>(
+            m_dataRoot->filePath(QStringLiteral("config")));
         // Two Agents' lines, a minute apart, for the Agent activity page to
         // list and filter.
         m_agentActivity = std::make_unique<omaweb::AgentActivityLog>(
@@ -925,6 +928,8 @@ public slots:
             QStringLiteral("engineSecureDns"), &m_engineSecureDns);
         engine->rootContext()->setContextProperty(QStringLiteral("httpsOnly"), m_httpsOnly.get());
         engine->rootContext()->setContextProperty(
+            QStringLiteral("pageDarkening"), m_pageDarkening.get());
+        engine->rootContext()->setContextProperty(
             QStringLiteral("engineSuggestions"), m_engineSuggestions.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("suggestServer"), &m_suggestServer);
@@ -1005,6 +1010,7 @@ public slots:
         m_contentBlocker.reset();
         m_secureDns.reset();
         m_httpsOnly.reset();
+        m_pageDarkening.reset();
         m_keymapProbe.reset();
         m_keyboardNavigation.reset();
         m_imageProbe.reset();
@@ -1024,6 +1030,7 @@ private:
     std::unique_ptr<QTemporaryDir> m_dataRoot;
     SuggestServerProbe m_suggestServer;
     std::unique_ptr<omaweb::EngineSuggestions> m_engineSuggestions;
+    std::unique_ptr<omaweb::PageDarkening> m_pageDarkening;
     std::unique_ptr<omaweb::PaymentCards> m_paymentCards;
     std::unique_ptr<omaweb::BrowserController> m_browser;
     std::unique_ptr<AgentSpaceProbe> m_agentSpaceProbe;

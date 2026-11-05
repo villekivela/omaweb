@@ -5046,6 +5046,99 @@ TestCase {
         verify(renamed.indexOf("Site Moved") >= 0 && renamed.indexOf("Site Work") < 0, renamed);
     }
 
+    // Darkening off for the site is a row of Site information, there while the
+    // switch is on and the page has a registrable domain, and it reaches the
+    // page of every tab of the site in the Space: the engine is asked not to
+    // darken it and asked again when the row is turned back.
+    function test_siteInformationTurnsDarkeningOffForTheSite() {
+        pageDarkening.enabled = true;
+        const elsewhere = openPage("https://other.example/");
+        const sibling = openPageInNewTab("https://www.acme.com/");
+        const page = openPageInNewTab("https://app.acme.com/dashboard");
+        const wasDarkened = [page.darkenPage, sibling.darkenPage, elsewhere.darkenPage];
+
+        const card = openSiteCard("");
+        const toggle = findChild(card, "siteDarkening");
+        const shown = toggle.visible && toggle.checked;
+        const title = toggle.title;
+        toggle.clicked();
+        const afterOff = [page.darkenPage, sibling.darkenPage, elsewhere.darkenPage];
+        const stored = browser.darkeningOff(page.currentUrl);
+        const stillChecked = toggle.checked;
+        toggle.clicked();
+        const afterOn = [page.darkenPage, sibling.darkenPage, elsewhere.darkenPage];
+        closeSiteCard();
+        pageDarkening.enabled = false;
+        const afterSwitchOff = [page.darkenPage, sibling.darkenPage, elsewhere.darkenPage];
+
+        verify(shown);
+        compare(title, "Darken acme.com");
+        compare(wasDarkened, [true, true, true]);
+        compare(afterOff, [false, false, true]);
+        verify(stored);
+        verify(!stillChecked);
+        compare(afterOn, [true, true, true]);
+        compare(afterSwitchOff, [false, false, false]);
+    }
+
+    // An engine that cannot darken a page, as Ladybird cannot, offers no row to
+    // turn it off for a site, and Settings says so beside the switch.
+    function test_anEngineWithoutDarkeningOffersNoRowAndReportsItUnavailable() {
+        pageDarkening.enabled = true;
+        const engine = openPage("https://app.acme.com/dashboard");
+        engine.pageDarkeningAvailable = false;
+        const card = openSiteCard("");
+        const rowShown = findChild(card, "siteDarkening").visible;
+        closeSiteCard();
+        engine.pageDarkeningAvailable = true;
+        const rowShownAgain = (function () {
+            const again = openSiteCard("");
+            const shown = findChild(again, "siteDarkening").visible;
+            closeSiteCard();
+            return shown;
+        })();
+        engine.pageDarkeningAvailable = false;
+        const unavailable = window.pageDarkeningAvailable;
+        engine.pageDarkeningAvailable = true;
+        pageDarkening.enabled = false;
+
+        verify(!rowShown);
+        verify(rowShownAgain);
+        verify(!unavailable);
+    }
+
+    // The row is absent while the switch is off, on Omaweb's own pages and for
+    // an address with no registrable domain.
+    function test_siteInformationOffersDarkeningOnlyForASiteWhileTheSwitchIsOn() {
+        const rowShown = function () {
+            const card = openSiteCard("");
+            const shown = findChild(card, "siteDarkening").visible;
+            closeSiteCard();
+            return shown;
+        };
+        openPage("https://app.acme.com/dashboard");
+        pageDarkening.enabled = false;
+        const switchOff = rowShown();
+        pageDarkening.enabled = true;
+        const onASite = rowShown();
+        openPage("http://127.0.0.1:8000/");
+        const onAnIpAddress = rowShown();
+        openPage("https://app.acme.com/dashboard");
+        browser.openInput("about:blank", true);
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        tryVerify(function () {
+            return engineHost.item === null;
+        });
+        const onTheStartPage = rowShown();
+        browser.closeActiveTab();
+        pageDarkening.enabled = false;
+
+        verify(!switchOff);
+        verify(onASite);
+        verify(!onAnIpAddress);
+        verify(!onTheStartPage);
+    }
+
     // A narrower rule that takes the page first is the one the row shows and
     // edits, and the note under it names its pattern. Choosing a target
     // changes that rule, and choosing the Space on show removes it.

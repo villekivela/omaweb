@@ -50,6 +50,7 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | Problem report      | Ongelmaraportti       | The text a reader files an issue with. Filing it is "ilmoittaa ongelmasta".                     |
 | Problem recording   | Ongelman nauhoitus    | What happened while the reader reproduced a problem. Recording is "nauhoittaa".                 |
 | Link rule           | Linkkisääntö          | Where a link from another app opens. Its pattern is "kaava".                                    |
+| Page darkening      | Sivujen tummennus     | The engine drawing a page with no dark theme dark. Darkening is "tummentaa".                    |
 | Diagnostic override | Diagnostinen ohitus   | A change to what sites see for one run, from `omaweb --diagnose`. A run is "ajokerta".          |
 
 Add a row when a batch has to translate a new Omaweb term.

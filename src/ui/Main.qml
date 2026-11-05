@@ -2327,6 +2327,13 @@ ApplicationWindow {
     // HTTPS-only mode's policy, where this window has one: the lab and the
     // tests run without it.
     readonly property var httpsOnlyPolicy: typeof httpsOnly !== "undefined" ? httpsOnly : null
+    // Whether pages with no dark theme are darkened, and whether the engine on
+    // show can do it.
+    readonly property var pageDarkeningSetting: typeof pageDarkening !== "undefined"
+                                                ? pageDarkening : null
+    readonly property bool pageDarkeningAvailable: engineLoader.item !== null && (
+                                                       engineLoader.item.capabilities
+                                                       & EngineCapabilities.PageDarkening) !== 0
     // What an Agent may do through the socket, which reaches only the ordinary
     // window: a Private window is never an Agent's.
     readonly property var agentControlSource: !window.privateWindow && typeof agentControl
@@ -4392,6 +4399,7 @@ ApplicationWindow {
                     browserController: window.windowBrowser
                     agentControl: window.agentControlSource
                     pageScale: window.readerPageScale
+                    pageDarkening: window.pageDarkeningSetting
                     problemRecording: window.recording
                     engineSource: engineViewSource
                     spaceProfiles: spaceProfiles
@@ -5363,6 +5371,8 @@ ApplicationWindow {
                             releaseWatch: window.releases
                             globalPrivacyControl: window.privacyControl
                             httpsOnly: window.httpsOnlyPolicy
+                            pageDarkening: window.pageDarkeningSetting
+                            pageDarkeningAvailable: window.pageDarkeningAvailable
                             engineSuggestions: window.engineSuggestionSetting
                             webRtcPolicy: window.webRtcAddressPolicy
                             secureDns: window.dnsResolver
@@ -6195,6 +6205,8 @@ ApplicationWindow {
             certificateVerified: !window.siteInformationFromQuestion && window.connectionState
                                  === "secure"
             thirdPartyCookieControlAvailable: window.thirdPartyCookieControlAvailable
+            pageDarkening: window.pageDarkeningSetting
+            pageDarkeningAvailable: window.pageDarkeningAvailable
             siteDataOnDisk: window.siteDataOnDisk
             siteDataEntries: window.spaceProfileHost ? window.spaceProfileHost.siteDataEntries : []
             retainedDataEntries: window.spaceProfileHost

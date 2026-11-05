@@ -52,6 +52,11 @@ Omarchy.BorderSurface {
     property bool certificateVerified: true
     property bool thirdPartyCookieControlAvailable: false
     property bool siteDataOnDisk: false
+    // Whether pages with no dark theme are darkened, and whether the engine
+    // can darken one. The row that turns it off for this site is offered only
+    // while both hold.
+    property var pageDarkening: null
+    property bool pageDarkeningAvailable: false
     // The files and directories the engine says its site data lives in, and a
     // count the window bumps when the engine reports it has finished clearing.
     property var siteDataEntries: []
@@ -93,6 +98,12 @@ Omarchy.BorderSurface {
     readonly property bool siteLinksNarrower: root.siteLinksPattern.length > 0
                                               && root.siteLinksPattern !== root.siteLinks.site
 
+    // The site darkening can be turned off for, empty where the page has none,
+    // and whether it is off for it in this Space.
+    property string darkeningSite: ""
+    property bool darkeningOff: false
+    readonly property bool darkeningOffered: !root.blank && root.darkeningSite.length > 0 && root.pageDarkeningAvailable
+                                             && !!root.pageDarkening && root.pageDarkening.enabled
     readonly property int refusalTally: refusals.count
     property RefusalTally refusals: RefusalTally {
         blocker: root.blocker
@@ -378,6 +389,13 @@ Omarchy.BorderSurface {
                                                            {});
     }
 
+    function readDarkening() {
+        root.darkeningSite = root.browser && !root.blank ? root.browser.darkeningSite(
+                                                               root.activeUrl) : "";
+        root.darkeningOff = root.darkeningSite.length > 0 && root.browser.darkeningOff(
+                    root.activeUrl);
+    }
+
     // Cookies, storage and cache, measured as the engine can measure them.
     function formatBytes(bytes) {
         const units = ["B", "kB", "MB", "GB"];
@@ -437,6 +455,17 @@ Omarchy.BorderSurface {
                                                            root.browser.activeSpaceId,
                                                            root.retainedDataEntries) : -1;
         root.readSiteLinks();
+        root.readDarkening();
+    }
+
+    // The choice made from another window of the Space while the card is open.
+    Connections {
+        target: root.browser
+        enabled: root.open
+        ignoreUnknownSignals: true
+        function onDarkeningOffChanged() {
+            root.readDarkening();
+        }
     }
 
     // A rule changed in Settings or in the file while the card is open.
@@ -951,6 +980,26 @@ Omarchy.BorderSurface {
                             return root.siteLinksTarget;
                         });
                     }
+                }
+            }
+
+            // Darkening is on for the browser; this leaves the site's pages as
+            // they were written, in each of its tabs in this Space.
+            SettingToggle {
+                objectName: "siteDarkening"
+                width: parent.width - 2 * root.gutter
+                visible: root.darkeningOffered
+                colors: root.colors
+                title: qsTr("Darken %1", "turn page darkening on for a site").arg(String(
+                                                                                      root.darkeningSite).replace(
+                                                                                      /^\*\./, ""))
+                note: qsTr("Pages with no dark theme, in this Space")
+                accessibleName: qsTr("Darken pages from %1").arg(String(root.darkeningSite).replace(
+                                                                     /^\*\./, ""))
+                checked: !root.darkeningOff
+                onClicked: {
+                    if (root.browser.setDarkeningOff(root.activeUrl, checked))
+                        root.readDarkening();
                 }
             }
 

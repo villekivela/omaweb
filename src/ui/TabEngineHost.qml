@@ -27,6 +27,9 @@ Item {
     // `PageScale` the browser keeps (ADR 0067). Without one, pages are drawn
     // at their zoom alone.
     property var pageScale: null
+    // Whether pages with no dark theme are darkened (`PageDarkening`). Without
+    // one, no page is.
+    property var pageDarkening: null
     // The window's Problem recording, which a Private window has none of.
     property var problemRecording: null
     readonly property real pageScaleValue: root.pageScale ? root.pageScale.value : 1
@@ -769,10 +772,60 @@ Item {
             root.releaseWhenReady(engine, host, tabUrl);
         root.giveScrollbar(engine);
         if (engine)
+            darkeningComponent.createObject(engine, {
+                                                "engine": engine
+                                            });
+        if (engine)
             untiedZoomComponent.createObject(engine, {
                                                  "engine": engine
                                              });
         return engine;
+    }
+
+    // Whether the engine is asked to darken the page it shows: the reader
+    // turned darkening on and has not turned it off for the page's site in the
+    // page's Space. A page that has no site is asked about no choice.
+    function darkenPageFor(engine) {
+        if (!root.pageDarkening || !root.pageDarkening.enabled)
+            return false;
+        return !root.browserController.darkeningOff(engine.currentUrl, engine.spaceId);
+    }
+
+    // Keeps one engine's `darkenPage` where the setting and the site's choice
+    // put it, as the page, the setting or the choice moves. The engine applies
+    // it to the page it shows, so a site turned off in Site information takes
+    // effect in each of its open tabs in that Space.
+    Component {
+        id: darkeningComponent
+
+        Connections {
+            required property var engine
+
+            function apply() {
+                engine.darkenPage = root.darkenPageFor(engine);
+            }
+
+            target: engine
+            function onCurrentUrlChanged() {
+                apply();
+            }
+            Component.onCompleted: apply()
+
+            property Connections setting: Connections {
+                target: root.pageDarkening
+                ignoreUnknownSignals: true
+                function onEnabledChanged() {
+                    apply();
+                }
+            }
+
+            property Connections choice: Connections {
+                target: root.browserController
+                function onDarkeningOffChanged() {
+                    apply();
+                }
+            }
+        }
     }
 
     // Whether a page built now waits before it is pointed at its address.

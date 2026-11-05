@@ -252,6 +252,10 @@ private slots:
     void qtShowsThePageAsItWasUntilItDrawsAgain();
     void qtShowsAPageResizedWhileAwayInItsOwnColour();
     void qtShowsAPageThatMovedOnWhileAwayInItsOwnColour();
+    void qtDarkensAPageWithNoDarkThemeAndLeavesADarkOneAlone();
+    void qtAppliesDarkeningToTheOpenPageWithoutAReload();
+    void qtCoversADarkenedPageInADarkColourWhenItsWindowReturns();
+    void qtShowsNoWhiteFrameWhileADarkenedPageRedirects();
     void qtProfilesIsolateSiteStorage();
     void qtPrivateWindowsShareOneProfile();
     void qtSpaceProfilesKeepSiteStorageOnDisk();
@@ -3073,6 +3077,253 @@ void QtEngineContractTest::qtShowsAPageThatMovedOnWhileAwayInItsOwnColour()
     }));
 
     QCOMPARE(page.covered.constFirst(), QColor(20, 60, 210));
+}
+
+namespace {
+
+// Pages by path. A page may redirect, and may be held for a while before it
+// answers, which is how a sign-in's chain of bare pages is stood in for.
+class SiteServer final : public QTcpServer {
+public:
+    struct Page {
+        QByteArray body;
+        QByteArray redirectTo;
+        int delayMs;
+    };
+
+    static Page html(QByteArray body, int delayMs = 0) { return {std::move(body), {}, delayMs}; }
+    static Page redirect(QByteArray to, int delayMs = 0) { return {{}, std::move(to), delayMs}; }
+
+    explicit SiteServer(QMap<QByteArray, Page> pages)
+        : m_pages(std::move(pages))
+    {
+        connect(this, &QTcpServer::newConnection, this, [this] {
+            auto *socket = nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [this, socket] {
+                const auto fields = socket->readAll().split(' ');
+                const auto path = fields.value(1);
+                ++m_requested[path];
+                const auto found = m_pages.constFind(path);
+                if (found == m_pages.cend()) {
+                    socket->write(
+                        "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                    socket->disconnectFromHost();
+                    return;
+                }
+                const auto page = found.value();
+                const auto answer = [socket, page] {
+                    if (socket->state() != QAbstractSocket::ConnectedState) {
+                        return;
+                    }
+                    if (!page.redirectTo.isEmpty()) {
+                        socket->write("HTTP/1.1 302 Found\r\nLocation: " + page.redirectTo
+                            + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                    } else {
+                        socket->write(
+                            "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: "
+                            + QByteArray::number(page.body.size()) + "\r\nConnection: close\r\n\r\n"
+                            + page.body);
+                    }
+                    socket->flush();
+                    socket->disconnectFromHost();
+                };
+                if (page.delayMs > 0) {
+                    QTimer::singleShot(page.delayMs, socket, answer);
+                } else {
+                    answer();
+                }
+            });
+        });
+    }
+
+    // How many times a path was asked for, which a page that was reloaded
+    // raises and one that was only restyled does not.
+    int requestsFor(const QByteArray &path) const { return m_requested.value(path); }
+
+    QUrl url(const QByteArray &path) const
+    {
+        return QUrl(
+            QStringLiteral("http://127.0.0.1:%1%2").arg(serverPort()).arg(QString::fromUtf8(path)));
+    }
+
+private:
+    QMap<QByteArray, Page> m_pages;
+    QMap<QByteArray, int> m_requested;
+};
+
+} // namespace
+
+namespace {
+
+// What a page area shows at a point away from any text.
+QColor pageAreaColour(QQuickWindow &window, QPoint at = QPoint(500, 400))
+{
+    return window.grabWindow().pixelColor(at * window.effectiveDevicePixelRatio());
+}
+
+bool isDark(const QColor &colour)
+{
+    return colour.red() < 64 && colour.green() < 64 && colour.blue() < 64;
+}
+
+bool isWhite(const QColor &colour)
+{
+    return colour.red() > 230 && colour.green() > 230 && colour.blue() > 230;
+}
+
+} // namespace
+
+// Chromium's forced dark mode draws a page that brings no dark theme of its own
+// dark, and leaves one that declares a dark colour scheme as its author drew it.
+// The second is told apart by its own light-on-dark colours: a dark page the
+// engine had darkened again would come out light.
+void QtEngineContractTest::qtDarkensAPageWithNoDarkThemeAndLeavesADarkOneAlone()
+{
+    SiteServer server({
+        {"/bare", SiteServer::html("<!doctype html><p>hello</p>")},
+        {"/light",
+            SiteServer::html(
+                "<!doctype html><body style=\"margin:0;background:#f5f5f5\"><p>hi</p>")},
+        {"/declared",
+            SiteServer::html("<!doctype html><meta name=color-scheme content=dark><body "
+                             "style=\"margin:0;background:#334455;color:#eee\"><p>hi</p>")},
+    });
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ViewInWindow shown;
+    QVERIFY(shown.create(server.url("/bare")));
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    const auto show = [&](const char *path) {
+        shown.adapter->setProperty("currentUrl", server.url(path));
+        QTest::qWait(900);
+        return pageAreaColour(shown.window);
+    };
+
+    // Left as it was written until darkening is asked for.
+    QTRY_VERIFY_WITH_TIMEOUT(isWhite(pageAreaColour(shown.window)), 5000);
+    QCOMPARE(show("/light"), QColor(0xf5, 0xf5, 0xf5));
+    QCOMPARE(show("/declared"), QColor(0x33, 0x44, 0x55));
+
+    shown.adapter->setProperty("darkenPage", true);
+    QCOMPARE(show("/bare"), QColor(0x12, 0x12, 0x12));
+    QVERIFY(isDark(show("/light")));
+    QCOMPARE(show("/declared"), QColor(0x33, 0x44, 0x55));
+}
+
+// The setting reaches the page already open: no navigation is made for it, so
+// turning a site off in Site information darkens or restores each of its open
+// tabs at once.
+void QtEngineContractTest::qtAppliesDarkeningToTheOpenPageWithoutAReload()
+{
+    SiteServer server({{"/bare", SiteServer::html("<!doctype html><p>hello</p>")}});
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ViewInWindow shown;
+    QVERIFY(shown.create(server.url("/bare")));
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        server.requestsFor("/bare") == 1 && !shown.adapter->property("loading").toBool(), 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(isWhite(pageAreaColour(shown.window)), 5000);
+
+    shown.adapter->setProperty("darkenPage", true);
+    QTRY_VERIFY_WITH_TIMEOUT(isDark(pageAreaColour(shown.window)), 5000);
+    shown.adapter->setProperty("darkenPage", false);
+    QTRY_VERIFY_WITH_TIMEOUT(isWhite(pageAreaColour(shown.window)), 5000);
+
+    QCOMPARE(server.requestsFor("/bare"), 1);
+}
+
+// The page's colour covers the page from a window's return until the page has
+// drawn again, and a darkened page's colour is not the white its style says: a
+// page resized while the window was away has no picture to cover it with, and
+// was covered in white.
+void QtEngineContractTest::qtCoversADarkenedPageInADarkColourWhenItsWindowReturns()
+{
+    for (const bool darken : {false, true}) {
+        PageServer server(QByteArrayLiteral("<!doctype html><p>hello</p>"));
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        ViewInWindow shown;
+        QVERIFY(shown.create(
+            QUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()))));
+        shown.adapter->setProperty("darkenPage", darken);
+        QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+        QTRY_VERIFY_WITH_TIMEOUT(
+            darken ? isDark(pageAreaColour(shown.window)) : isWhite(pageAreaColour(shown.window)),
+            5000);
+        QTRY_VERIFY_WITH_TIMEOUT(shown.adapter->property("documentPainted").toBool(), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(
+            shown.adapter->property("pageGroundColor").value<QColor>(), QColor(Qt::white), 5000);
+        QList<QColor> covered;
+        QObject::connect(shown.adapter.get(), SIGNAL(awaitingPageFrameChanged()), &shown.window,
+            SLOT(requestUpdate()));
+        QObject::connect(&shown.window, &QQuickWindow::frameSwapped, &shown.window, [&] {
+            if (shown.adapter->property("awaitingPageFrame").toBool() && covered.isEmpty()) {
+                // Inside the smaller page area the view is resized to.
+                QTimer::singleShot(0, &shown.window,
+                    [&] { covered.append(pageAreaColour(shown.window, QPoint(300, 200))); });
+            }
+        });
+
+        shown.window.hide();
+        QVERIFY(QTest::qWaitFor([&] { return !shown.window.isExposed(); }));
+        shown.view->setSize(QSizeF(400, 300));
+        shown.window.show();
+        QVERIFY(QTest::qWaitFor([&] { return !covered.isEmpty(); }));
+
+        QVERIFY2(darken ? isDark(covered.constFirst()) : isWhite(covered.constFirst()),
+            qPrintable(covered.constFirst().name()));
+    }
+}
+
+// A sign-in runs through pages that are bare or blank before the one that is
+// drawn, and the maintainer saw white between them. The window is sampled
+// across a chain of an HTTP redirect, a script's redirect, a refresh and a
+// white page at the end. With darkening off the samples are white, which is
+// what shows the sampling can see white; with it on, none is.
+void QtEngineContractTest::qtShowsNoWhiteFrameWhileADarkenedPageRedirects()
+{
+    SiteServer server({
+        {"/start", SiteServer::redirect("/hop1", 150)},
+        {"/hop1",
+            SiteServer::html("<!doctype html><script>location.replace('/hop2')</script>", 250)},
+        {"/hop2",
+            SiteServer::html(
+                "<!doctype html><meta http-equiv=refresh content=\"0;url=/final\">", 200)},
+        {"/final",
+            SiteServer::html(
+                "<!doctype html><body style=\"margin:0;background:#fff\"><p>done</p>", 300)},
+        {"/bare", SiteServer::html("<!doctype html><p>hello</p>")},
+    });
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    for (const bool darken : {false, true}) {
+        ViewInWindow shown;
+        QVERIFY(shown.create(server.url("/bare")));
+        shown.adapter->setProperty("darkenPage", darken);
+        QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+        QTRY_VERIFY_WITH_TIMEOUT(
+            darken ? isDark(pageAreaColour(shown.window)) : isWhite(pageAreaColour(shown.window)),
+            5000);
+        int samples = 0;
+        int whites = 0;
+        QTimer sampler;
+        QObject::connect(&sampler, &QTimer::timeout, &sampler, [&] {
+            ++samples;
+            whites += isWhite(pageAreaColour(shown.window)) ? 1 : 0;
+        });
+        sampler.start(15);
+        shown.adapter->setProperty("currentUrl", server.url("/start"));
+        QTRY_VERIFY_WITH_TIMEOUT(
+            shown.adapter->property("currentUrl").toUrl().path() == QStringLiteral("/final")
+                && !shown.adapter->property("loading").toBool(),
+            10000);
+        QTest::qWait(500);
+        sampler.stop();
+
+        QVERIFY2(samples > 20, qPrintable(QString::number(samples)));
+        if (darken) {
+            QCOMPARE(whites, 0);
+        } else {
+            QVERIFY(whites > 0);
+        }
+    }
 }
 
 // A tracker served from a subdomain of the page's own site, whose CNAME chain ends at the tracker's

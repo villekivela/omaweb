@@ -352,6 +352,17 @@ public:
     // removes that rule and every copy of its pattern. False, writing nothing,
     // where the row is not offered.
     Q_INVOKABLE bool routeSiteLinks(const QUrl &url, const QString &target);
+    // The site Site information's page darkening row turns darkening off for:
+    // the page's registrable domain as `*.acme.com`, as the Link rule row
+    // reads it. Empty on Omaweb's own pages and for an address with none.
+    Q_INVOKABLE QString darkeningSite(const QUrl &url) const;
+    // Whether the reader turned darkening off for the page's site in a Space,
+    // the Space on show unless one is named. That choice is the Space's: it is
+    // kept in its store, outside the settings file Sync carries, and a Private
+    // window keeps it in memory for the session alone. False, writing nothing,
+    // where the page has no site.
+    Q_INVOKABLE bool darkeningOff(const QUrl &url, const QString &spaceId = {}) const;
+    Q_INVOKABLE bool setDarkeningOff(const QUrl &url, bool off);
     // Whether a Link rule's pattern is one Omaweb reads (linkrules::parses).
     Q_INVOKABLE static bool linkPatternParses(const QString &pattern);
     Q_INVOKABLE void openInputInBackground(const QUrl &url);
@@ -893,6 +904,8 @@ signals:
     // A Link rule sent a link to a Space by a name no Space of the reader's
     // has, so it opened in the Space on show.
     void linkRuleSpaceMissing(const QString &spaceName);
+    // Darkening was turned off or on for a site in a Space, named by id.
+    void darkeningOffChanged(const QString &spaceId);
     void agentSpacesChanged();
     void spaceGrantsChanged();
     void spaceProjectsChanged();

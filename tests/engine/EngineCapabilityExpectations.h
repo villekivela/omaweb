@@ -12,7 +12,7 @@ inline int expectedMockCapabilities()
         | EngineCapabilities::PageFind | EngineCapabilities::PageZoom | EngineCapabilities::Printing
         | EngineCapabilities::SiteFullscreen | EngineCapabilities::InlinePdfViewing
         | EngineCapabilities::CertificateDecisions | EngineCapabilities::ThirdPartyCookieControl
-        | EngineCapabilities::PageCertificates;
+        | EngineCapabilities::PageCertificates | EngineCapabilities::PageDarkening;
 }
 
 inline int expectedQtCapabilities()

@@ -2373,6 +2373,56 @@ QString BrowserController::siteLinkPattern(const QUrl &url) const
     return linkrules::sitePattern(url).value_or(QString());
 }
 
+namespace {
+
+    // Kept as a site permission under the pattern in place of an origin, which
+    // no origin can spell, so nothing that lists or resets an origin's
+    // permissions reaches it.
+    const QString darkeningPermission = QStringLiteral("darkening");
+
+} // namespace
+
+QString BrowserController::darkeningSite(const QUrl &url) const
+{
+    return linkrules::sitePattern(url).value_or(QString());
+}
+
+bool BrowserController::darkeningOff(const QUrl &url, const QString &spaceId) const
+{
+    const auto site = darkeningSite(url);
+    if (site.isEmpty()) {
+        return false;
+    }
+    const auto space = spaceId.isEmpty() ? m_activeSpaceId : spaceId;
+    if (m_privateBrowsing) {
+        return m_sessionPermissionDecisions->value(
+                   omaweb::sessionPermissionKey(space, site, darkeningPermission), Ask)
+            == Block;
+    }
+    return m_store->permissionDecision(space, site, darkeningPermission) == Block;
+}
+
+bool BrowserController::setDarkeningOff(const QUrl &url, bool off)
+{
+    const auto site = darkeningSite(url);
+    if (site.isEmpty()) {
+        return false;
+    }
+    if (darkeningOff(url) == off) {
+        return true;
+    }
+    const auto decision = off ? Block : Ask;
+    if (m_privateBrowsing) {
+        m_sessionPermissionDecisions->insert(
+            omaweb::sessionPermissionKey(m_activeSpaceId, site, darkeningPermission), decision);
+    } else if (!m_store->savePermissionDecision(
+                   m_activeSpaceId, site, darkeningPermission, decision)) {
+        return false;
+    }
+    emit darkeningOffChanged(m_activeSpaceId);
+    return true;
+}
+
 BrowserController::SiteLinkRoute BrowserController::siteLinkRouteFor(const QUrl &url) const
 {
     SiteLinkRoute route {.site = siteLinkPattern(url), .rules = linkRules(), .taking = -1};

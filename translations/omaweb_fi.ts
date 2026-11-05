@@ -3950,6 +3950,22 @@ Päivitykset osoitteesta %3</translation>
         <translation>työpöydän</translation>
     </message>
     <message>
+        <source>Darken pages with no dark theme</source>
+        <translation>Tummenna sivut, joilla ei ole omaa tummaa teemaa</translation>
+    </message>
+    <message>
+        <source>Has the engine draw a page dark when it brings no dark theme of its own. A page that has one is left as it is, and Site information turns this off for one site.</source>
+        <translation>Moottori piirtää sivun tummana, jos sillä ei ole omaa tummaa teemaa. Sivu, jolla sellainen on, jätetään ennalleen, ja Sivuston tiedot -kortista tämän voi poistaa käytöstä yhdeltä sivustolta.</translation>
+    </message>
+    <message>
+        <source>This engine cannot darken a page</source>
+        <translation>Tämä moottori ei voi tummentaa sivua</translation>
+    </message>
+    <message>
+        <source>Pages are drawn as they were written, whatever this switch says.</source>
+        <translation>Sivut piirretään sellaisina kuin ne on kirjoitettu, mitä tämä kytkin sanookaan.</translation>
+    </message>
+    <message>
         <source>No text on a page is drawn smaller than this, whatever size the page asks for. The page scale and a tab&apos;s zoom multiply it. A page already open takes it when it next lays out; reload to see it now.</source>
         <translation>Mitään sivun tekstiä ei piirretä tätä pienemmäksi, vaikka sivu pyytäisi pienempää. Sivujen skaalaus ja välilehden zoomaus kertovat sen. Jo avoin sivu ottaa sen käyttöön seuraavan asettelun yhteydessä; lataa uudelleen nähdäksesi sen heti.</translation>
     </message>
@@ -4617,6 +4633,19 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Where links to %1 from other apps open</source>
         <translation>Minne linkit sivustolle %1 muista sovelluksista avautuvat</translation>
+    </message>
+    <message>
+        <source>Darken %1</source>
+        <comment>turn page darkening on for a site</comment>
+        <translation>Tummenna %1</translation>
+    </message>
+    <message>
+        <source>Pages with no dark theme, in this Space</source>
+        <translation>Sivut, joilla ei ole omaa tummaa teemaa, tässä Tilassa</translation>
+    </message>
+    <message>
+        <source>Darken pages from %1</source>
+        <translation>Tummenna sivuston %1 sivut</translation>
     </message>
     <message>
         <source>Clear site data</source>

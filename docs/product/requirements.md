@@ -603,6 +603,37 @@ reports the gap and remains experimental rather than imitating behavior it canno
   the Page scale and a tab's zoom multiply that. The values apply to every Space and Private window,
   reach open pages without a reload, and survive a restart. A page's own declarations are never
   overridden. The controls name their value, their default and their actions to accessibility tools.
+- A page with no dark theme of its own stays bright under a dark Browser theme, and Page darkening
+  draws it dark. Settings' interface section has a "Darken pages with no dark theme" switch in the
+  pages group, above the page fonts. It is off by default, it does not follow the Browser theme, and
+  it is `"darken-pages"` in `settings.json`, so an edit of the file applies at once and Sync carries
+  it with the group's other settings. It reaches every Space and Private window. The engine darkens:
+  Chromium's forced dark mode inverts the lightness of a background whose brightness is above 205 of
+  255, so white becomes `#121212` and `#f5f5f5` becomes `#222222`, and leaves a darker one, such as
+  `#336699`, as it is. A page that declares `color-scheme: dark`, in a `<meta>` or in CSS, is left
+  alone, and so is a page's own dark colours. When Chromium treats a page otherwise the engine's
+  behaviour holds, since the engine alone decides what is a dark theme: a page that declares
+  `light dark` is darkened. The setting applies to a page already open, with no reload. Pages of an
+  engine that cannot darken are drawn as written: the engine contract's `darkenPage` is ignored and
+  its capabilities lack `PageDarkening`, which Ladybird's do, so Settings says "This engine cannot
+  darken a page" beside the switch and Site information offers no row.
+- Site information turns darkening off for one site while the switch is on. The row reads "Darken
+  acme.com", a switch, with a muted line under it, "Pages with no dark theme, in this Space". The
+  site is the page's registrable domain, as the Link rule row reads it. The row is absent while the
+  switch is off, on Omaweb's own pages, for an address with no registrable domain such as an IP
+  address, and when the engine cannot darken. A site's off choice belongs to its Space: another
+  Space darkens the site still, and the choice is kept with the Space's other site permissions under
+  the pattern `*.acme.com`, so Sync, which carries settings and no site permissions, never sees it,
+  deleting the Space deletes it, and Clear browsing data's site permissions clear it. A Private
+  window keeps it in memory for the shared session, and a new session starts without it. Turning a
+  site off or on applies to its open tabs in that Space at once, not on their next reload, because
+  the engine restyles a page already showing when the setting changes; a tab of the site in another
+  Space is not touched.
+- A page that is darkened is never covered in white. When a window returns, the page area is covered
+  in the page's colour until the page has drawn again, and `getComputedStyle` reads a darkened
+  page's ground as the white it is written in, so with Page darkening the cover is that colour with
+  its lightness inverted, down to a floor of 7%: dark where the page is. The white a page without a
+  ground is written against is drawn dark as well, since the engine darkens it.
 - The sidebar's width belongs to the reader. The seam between it and the page drags, and
   `Primary+Shift+]` and `Primary+Shift+[` move that same seam from the keyboard, so a resize never
   depends on a pointer. The width is clamped so a tab row stays readable and the page keeps at least
@@ -773,10 +804,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
   learns it only by asking where the reader can see the asking. The website asks.
 - A page is painted on the canvas every browser gives it: white, or the dark canvas the engine draws
   under a page that declares `color-scheme: dark`. A page that sets no background of its own is
-  white under a dark theme, as its author saw it. The theme's colour is shown only where no page has
-  painted yet, from the moment a document is created until its first paint, so a navigation under a
-  dark theme never flashes a bright rectangle through the chrome, and the page on show keeps its
-  canvas while the next document is fetched.
+  white under a dark theme, as its author saw it, unless Page darkening is on and the engine can
+  darken: then it is drawn on the dark canvas, `#121212`, for every site the reader has not turned
+  it off for, and the cover that stands in for it is dark too. The theme's colour is shown only
+  where no page has painted yet, from the moment a document is created until its first paint, so a
+  navigation under a dark theme never flashes a bright rectangle through the chrome, and the page on
+  show keeps its canvas while the next document is fetched.
 
 ## Daily browser operations
 

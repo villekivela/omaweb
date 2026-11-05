@@ -421,6 +421,8 @@ add_library(omaweb-core STATIC
     src/core/FontSettings.h
     src/core/GlobalPrivacyControl.cpp
     src/core/HttpsOnly.cpp
+    src/core/PageDarkening.cpp
+    src/core/PageDarkening.h
     src/core/HttpsOnly.h
     src/core/GlobalPrivacyControl.h
     src/core/SecureDns.cpp
@@ -1899,6 +1901,11 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-global-privacy-control-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-global-privacy-control-tests)
     add_test(NAME omaweb-global-privacy-control COMMAND omaweb-global-privacy-control-tests)
+
+    qt_add_executable(omaweb-page-darkening-tests tests/core/tst_pagedarkening.cpp)
+    target_link_libraries(omaweb-page-darkening-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-page-darkening-tests)
+    add_test(NAME omaweb-page-darkening COMMAND omaweb-page-darkening-tests)
 
     qt_add_executable(omaweb-engine-suggestions-tests tests/core/tst_enginesuggestions.cpp)
     target_link_libraries(omaweb-engine-suggestions-tests PRIVATE omaweb-core Qt6::Test)

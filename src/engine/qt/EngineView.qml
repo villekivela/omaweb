@@ -83,6 +83,9 @@ Item {
     // would take the page away, which is the shell's other policy and reaches
     // an engine as a destroyed adapter.
     property bool pageFrozen: false
+    // Chromium's forced dark mode, which darkens a page that has no dark theme
+    // of its own and leaves one that declares `color-scheme: dark` alone.
+    property bool darkenPage: false
     onPageFrozenChanged: root.applyPageLifecycle()
 
     // Chromium refuses to freeze a page it is still drawing, and refuses
@@ -131,6 +134,7 @@ Item {
                                             ? EngineCapabilities.ProceduralCosmeticFiltering : 0) | (
                                             QtCertificates.arrivedChainReported
                                             ? EngineCapabilities.PageCertificates : 0)
+                                        | EngineCapabilities.PageDarkening
     // Which Space's browsing identity these pages belong to. Handed down with
     // the profile, because it is the profile that decides it: Content blocking
     // keys the Refusal tally by it, and its interception is attached per
@@ -2332,7 +2336,7 @@ Item {
         anchors.fill: parent
         z: 1
         visible: root.awaitingPageFrame
-        color: root.documentPainted ? root.pageGroundColor : root.pageBackgroundColor
+        color: root.documentPainted ? root.coverGroundColor : root.pageBackgroundColor
     }
     // Over the colour while the page is awaited: the page as the window last
     // showed it.
@@ -4508,6 +4512,24 @@ Item {
     // depend on the page saying so: a page the script does not reach, such as
     // an error page, never will.
     property color pageGroundColor: "white"
+    // The ground as it is drawn. `getComputedStyle` reads the page's own colour
+    // and a darkened page still computes as white, so the colour the page
+    // reported would cover a darkened page in a white it is not drawn in.
+    // Chromium darkens a background whose brightness is above 205 of 255 and
+    // leaves any other alone. The cover follows that by inverting the
+    // lightness down to a floor of about 7%, which is dark and near what the
+    // engine draws but not the same: it draws #f5f5f5 as #222222 and white as
+    // #121212. What matters is that the cover is dark where the page is. A page
+    // that declares a dark colour scheme reports the dark ground it is drawn
+    // in, which is not light, so it keeps it.
+    readonly property color coverGroundColor: {
+        const ground = root.pageGroundColor;
+        const brightness = 255 * (0.299 * ground.r + 0.587 * ground.g + 0.114 * ground.b);
+        if (!root.darkenPage || brightness <= 205)
+            return ground;
+        return Qt.hsla(Math.max(0, ground.hslHue), ground.hslSaturation, Math.max(0.07, 1 - ground.hslLightness),
+                       1);
+    }
     property bool awaitingPageFrame: false
     function readPageGround(body) {
         let css = "";
@@ -4596,6 +4618,7 @@ Item {
         // to gain by starting — either the tab is muted or the reader has
         // already dealt with the origin.
         settings.playbackRequiresUserGesture: !root.autoplayAllowed
+        settings.forceDarkMode: root.darkenPage
 
         onRecommendedStateChanged: root.applyPageLifecycle()
 

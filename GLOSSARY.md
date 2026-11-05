@@ -480,6 +480,11 @@ it from its text size. _Avoid_: DPI, display scale, font scaling
 **Page scale**: The size every page is drawn at before a tab's own zoom. It is the Desktop text
 scaling until the reader sets it. _Avoid_: Default zoom, global zoom, page zoom
 
+**Page darkening**: The engine drawing a page that has no dark theme of its own dark, when the
+reader has turned it on in Settings. It is off by default, does not follow the Browser theme, leaves
+a page that declares a dark colour scheme alone, and can be turned off for one site in a Space from
+Site information. _Avoid_: Dark mode, force dark, dark reader
+
 **Zoom**: A tab's own enlargement of its page over the Page scale. It belongs to the tab and never
 to a site. _Avoid_: Site zoom, page scale
 
