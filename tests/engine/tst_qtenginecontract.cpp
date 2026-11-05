@@ -254,6 +254,7 @@ private slots:
     void qtShowsAPageThatMovedOnWhileAwayInItsOwnColour();
     void qtDarkensAPageWithNoDarkThemeAndLeavesADarkOneAlone();
     void qtAppliesDarkeningToTheOpenPageWithoutAReload();
+    void qtLeavesAPagesOwnDarkThemeAloneUnderADarkScheme();
     void qtCoversADarkenedPageInADarkColourWhenItsWindowReturns();
     void qtShowsNoWhiteFrameWhileADarkenedPageRedirects();
     void qtProfilesIsolateSiteStorage();
@@ -3210,9 +3211,103 @@ void QtEngineContractTest::qtDarkensAPageWithNoDarkThemeAndLeavesADarkOneAlone()
     QCOMPARE(show("/bare"), QColor(0x12, 0x12, 0x12));
     QVERIFY(isDark(show("/light")));
     QCOMPARE(show("/declared"), QColor(0x33, 0x44, 0x55));
-    // A page that allows both schemes has not declared a dark one, and
-    // Chromium treats it as it treats a page with none.
+    // Under a light scheme, a page that allows both schemes has not declared a
+    // dark one, and Chromium treats it as it treats a page with none. A dark
+    // scheme is measured in qtLeavesAPagesOwnDarkThemeAloneUnderADarkScheme.
     QVERIFY(isDark(show("/lightdark")));
+}
+
+// Anyone who turns darkening on runs a dark theme, which Omaweb hands Chromium as
+// Qt's colour scheme. The setting's note promises a page with a dark theme of
+// its own is left as it is, so this measures what a page that answers
+// `prefers-color-scheme` is given under a dark scheme, with darkening off and on,
+// and says what matchMedia read each time, because a colour alone would not
+// show whether the scheme reached the page.
+//
+// A page whose dark theme sits behind the media query keeps it, with or without
+// `color-scheme: light dark`. A page that declares `light dark` and brings no
+// dark colours of its own is not darkened under a dark scheme, though it is
+// under a light one: it stays as bright as it was written.
+void QtEngineContractTest::qtLeavesAPagesOwnDarkThemeAloneUnderADarkScheme()
+{
+    const QByteArray probe = "<script>const q = matchMedia('(prefers-color-scheme: dark)');"
+                             "document.title = q.matches ? 'dark' : 'light';</script>";
+    const QByteArray themed = "<style>body{margin:0;background:#f5f5f5;color:#222}"
+                              "@media (prefers-color-scheme: dark){"
+                              "body{background:#334455;color:#eee}}</style><p>hi</p>";
+    const QByteArray both = "<meta name=color-scheme content=\"light dark\">";
+    SiteServer server({
+        {"/probe", SiteServer::html("<!doctype html><p>x</p>" + probe)},
+        {"/media", SiteServer::html("<!doctype html>" + themed + probe)},
+        {"/media-light-dark", SiteServer::html("<!doctype html>" + both + themed + probe)},
+        {"/light-dark",
+            SiteServer::html("<!doctype html>" + both
+                + "<body style=\"margin:0;background:#f5f5f5\"><p>hi</p>" + probe)},
+        {"/plain",
+            SiteServer::html("<!doctype html><body style=\"margin:0;background:#f5f5f5\">"
+                             "<p>hi</p>"
+                + probe)},
+    });
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    // A platform that does not take Qt's request is told by the test, as it
+    // would be by a desktop.
+    auto *styleHints = QGuiApplication::styleHints();
+    const auto useScheme = [styleHints](Qt::ColorScheme scheme) {
+        styleHints->setColorScheme(scheme);
+        if (styleHints->colorScheme() != scheme) {
+            emit styleHints->colorSchemeChanged(scheme);
+        }
+    };
+    const auto restoreScheme = qScopeGuard([styleHints] {
+        styleHints->unsetColorScheme();
+        emit styleHints->colorSchemeChanged(styleHints->colorScheme());
+    });
+    useScheme(Qt::ColorScheme::Light);
+    ViewInWindow shown;
+    QVERIFY(shown.create(server.url("/probe")));
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        shown.adapter->property("pageTitle").toString(), QStringLiteral("light"), 10000);
+    useScheme(Qt::ColorScheme::Dark);
+    // A document made after the change reads the dark scheme.
+    // What the page read with matchMedia is its title, which it sets on load.
+    const auto show = [&](const char *path) {
+        QTest::qWait(300);
+        shown.adapter->setProperty("currentUrl", server.url(path));
+        Q_UNUSED(QTest::qWaitFor(
+            [&] {
+                return shown.adapter->property("currentUrl").toUrl().path()
+                    == QString::fromLatin1(path)
+                    && !shown.adapter->property("loading").toBool()
+                    && !shown.adapter->property("pageTitle").toString().isEmpty();
+            },
+            10000));
+        QTest::qWait(700);
+        return pageAreaColour(shown.window);
+    };
+    const auto read = [&shown] { return shown.adapter->property("pageTitle").toString(); };
+    shown.adapter->setProperty("currentUrl", server.url("/probe"));
+    QTRY_COMPARE_WITH_TIMEOUT(read(), QStringLiteral("dark"), 10000);
+
+    for (const bool darken : {false, true}) {
+        shown.adapter->setProperty("darkenPage", darken);
+        // The page's own dark theme, found by its media query.
+        QCOMPARE(show("/media"), QColor(0x33, 0x44, 0x55));
+        QCOMPARE(read(), QStringLiteral("dark"));
+        QCOMPARE(show("/media-light-dark"), QColor(0x33, 0x44, 0x55));
+        QCOMPARE(read(), QStringLiteral("dark"));
+        // `light dark` and no dark colours of its own: left as written.
+        QCOMPARE(show("/light-dark"), QColor(0xf5, 0xf5, 0xf5));
+        QCOMPARE(read(), QStringLiteral("dark"));
+        // A page that answers nothing is darkened, only when asked to be.
+        const auto plain = show("/plain");
+        QCOMPARE(read(), QStringLiteral("dark"));
+        if (darken) {
+            QVERIFY2(isDark(plain), qPrintable(plain.name()));
+        } else {
+            QCOMPARE(plain, QColor(0xf5, 0xf5, 0xf5));
+        }
+    }
 }
 
 // The setting reaches the page already open: no navigation is made for it, so
