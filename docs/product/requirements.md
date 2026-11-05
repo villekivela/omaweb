@@ -230,10 +230,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - Dragging a marked row moves every marked row, which close up at the drop point in their existing
   order. Dragging an unmarked row moves that row alone. The marks stay in both.
 - Folders stand in a block between the Pinned tabs and the ordinary tabs, one level deep. A Folder's
-  row is a chevron, a folder glyph and its name in the quiet text colour, with a count of its rows
-  while collapsed, and no colour of its own. Its tabs are indented by one favicon's width. A
-  hairline separates the block from the ordinary tabs, drawn only when both are there. Folders
-  reorder within the block, and a Folder drags as a whole.
+  row is a chevron, a folder glyph, drawn open while the Folder is, and its name in the quiet text
+  colour, with a count of its rows while collapsed, and no colour of its own. Its tabs are indented
+  by one favicon's width. A hairline separates the block from the ordinary tabs, drawn only when
+  both are there. Folders reorder within the block, and a Folder drags as a whole.
 - A Folder holds ordinary tabs and splits, a split's row counting as one. It lasts until the reader
   removes it, with tabs in it or not. A new, duplicated or reopened tab joins no Folder. Pinning a
   tab takes it out, and a popped-out tab keeps its row, with the window mark. Add split view with a

@@ -9634,8 +9634,10 @@ TestCase {
         const chevron = findChild(row, "folderChevron-" + folder);
         const count = findChild(row, "folderCount-" + folder);
         compare(name.text, "Reading");
-        compare(glyph.text, "folder");
+        compare(glyph.text, "folder_open");
         compare(chevron.text, "expand_more");
+        // The icon font draws the name as one glyph, not as the letters of it.
+        verify(Math.abs(glyph.contentWidth - glyph.font.pixelSize) < 1);
         compare(String(name.color), String(window.colors.mutedText));
         compare(String(glyph.color), String(window.colors.mutedText));
         compare(String(chevron.color), String(window.colors.mutedText));
@@ -9649,6 +9651,8 @@ TestCase {
         });
         compare(count.text, "2");
         compare(chevron.text, "chevron_right");
+        compare(glyph.text, "folder");
+        verify(Math.abs(glyph.contentWidth - glyph.font.pixelSize) < 1);
         removeFolders([folder]);
         closeMarkableTabs(ids);
     }

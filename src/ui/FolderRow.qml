@@ -4,11 +4,12 @@ import qs.Commons
 import qs.Ui as Omarchy
 import "SiteChip.mjs" as SiteChip
 
-// A Folder's row: a chevron, a folder glyph and the Folder's name in the quiet
-// text colour, with a count of its rows while it is collapsed. It has no colour
-// of its own, because only Space colours mark Spaces, and it has no page, so it
-// is never on show and never marked. It stands in the ordinary list and answers
-// the pointer and the Sidebar cursor as a tab's row does.
+// A Folder's row: a chevron, a folder glyph, open while the Folder is, and the
+// Folder's name in the quiet text colour, with a count of its rows while it is
+// collapsed. It has no colour of its own, because only Space colours mark
+// Spaces, and it has no page, so it is never on show and never marked. It stands
+// in the ordinary list and answers the pointer and the Sidebar cursor as a tab's
+// row does.
 Item {
     id: root
     objectName: "folder-" + folderRowId
@@ -134,7 +135,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         width: root.chipSize
         horizontalAlignment: Text.AlignHCenter
-        text: "folder"
+        text: root.folderCollapsed ? "folder" : "folder_open"
         color: root.colors.mutedText
         font.family: root.iconFontFamily
         font.pixelSize: root.chipSize
