@@ -746,6 +746,9 @@ ApplicationWindow {
     function tabMenuActionsFor(tabId) {
         if (tabId.length === 0)
             return [];
+        // A marked row is asked for what the marked rows are asked together.
+        if (sidebar.marks.count > 1 && sidebar.marks.has(tabId))
+            return window.markedMenuActions();
         // A tab in a Tab window is still this Space's, and its row is asked
         // what any row is, except what would move it or show it here.
         const poppedOut = !window.privateWindow && window.windowBrowser.tabPoppedOut(tabId);
@@ -835,6 +838,98 @@ ApplicationWindow {
         return actions;
     }
 
+    // What the marked rows can be asked at once: a Private window has no pins
+    // and no Spaces to offer.
+    function markedMenuActions() {
+        const count = sidebar.marks.count;
+        const actions = [];
+        if (!window.privateWindow) {
+            actions.push({
+                             "label": qsTr("Pin %1 tabs").arg(count),
+                             "command": "pin-marked"
+                         });
+            actions.push({
+                             "label": qsTr("Move %1 tabs to another Space").arg(count),
+                             "command": "move-marked"
+                         });
+            actions.push({
+                             "separator": true
+                         });
+        }
+        actions.push({
+                         "label": qsTr("Close %1 tabs").arg(count),
+                         "command": "close-marked",
+                         "destructive": true
+                     });
+        return actions;
+    }
+
+    // The marked rows' tabs, by the room the sidebar gives them, and where the
+    // marks are let go: acting on them finishes the marking.
+    function takeMarkedTabs() {
+        const ids = sidebar.marks.ids.slice();
+        sidebar.marks.clear();
+        return ids;
+    }
+
+    // Closing asks nothing. If the tab on show is among them, the nearest
+    // unmarked row below comes on show, or else the nearest above.
+    function closeMarkedTabs() {
+        const marks = sidebar.marks;
+        const rows = sidebar.markRows();
+        const shown = window.windowBrowser.activeTabId;
+        const unmarked = function (row) {
+            return !row.some(function (id) {
+                return marks.has(id);
+            });
+        };
+        if (marks.has(shown)) {
+            const at = rows.findIndex(function (row) {
+                return row.indexOf(shown) >= 0;
+            });
+            const next = rows.slice(at + 1).find(unmarked) || rows.slice(0, Math.max(0, at)).reverse(
+                      ).find(unmarked);
+            if (next)
+                window.windowBrowser.activateTab(next[0]);
+        }
+        for (const id of window.takeMarkedTabs())
+            window.windowBrowser.closeTab(id);
+    }
+
+    // Each tab goes through the rule pinning already has: a split's tab is
+    // separated first, and a tab in a Tab window is left where it is.
+    function pinMarkedTabs() {
+        const browser = window.windowBrowser;
+        for (const id of window.takeMarkedTabs()) {
+            if (browser.tabPoppedOut(id))
+                continue;
+            if (browser.tabInSplit(id))
+                browser.separateSplit(id);
+            browser.setTabPinned(id, true);
+        }
+    }
+
+    // `x`, `m` and `p` while the sidebar holds the keyboard: they are about the
+    // marked rows if there are any, and about the tab on show as ever if not.
+    function actOnMarks(command) {
+        if (!window.sidebarHoldsKeyboard || sidebar.marks.count === 0)
+            return false;
+        switch (command) {
+        case "close-tab":
+            window.closeMarkedTabs();
+            return true;
+        case "pin-tab":
+            if (window.privateWindow)
+                return false;
+            window.pinMarkedTabs();
+            return true;
+        case "move-tab":
+            window.requestMoveMarkedTabs();
+            return true;
+        }
+        return false;
+    }
+
     // Pop out, or put back, whichever the row's tab can be asked.
     function tabWindowMenuAction(tabId) {
         if (window.windowBrowser.tabPoppedOut(tabId)) {
@@ -911,6 +1006,15 @@ ApplicationWindow {
         case "put-back-tab":
             window.putBackTab(tabId);
             break;
+        case "close-marked":
+            window.closeMarkedTabs();
+            break;
+        case "pin-marked":
+            window.pinMarkedTabs();
+            break;
+        case "move-marked":
+            window.requestMoveMarkedTabs();
+            break;
         default:
             window.windowBrowser.activateTab(tabId);
             window.commands.run(action.command, -1);
@@ -930,7 +1034,19 @@ ApplicationWindow {
         window.refreshRetainedTabs();
     }
 
+    // The tabs the chooser is moving when it was opened for the marked rows,
+    // and none when it was opened for the tab on show.
+    property var movingTabIds: []
+
+    function requestMoveMarkedTabs() {
+        if (privateWindow)
+            return;
+        window.requestMoveTab();
+        window.movingTabIds = window.dialogMode === "move" ? sidebar.marks.ids.slice() : [];
+    }
+
     function requestMoveTab() {
+        window.movingTabIds = [];
         if (privateWindow)
             return;
         const spaces = window.windowBrowser.spaces;
@@ -981,10 +1097,33 @@ ApplicationWindow {
     }
 
     function requestMoveToSpace(spaceId) {
+        const moving = window.movingTabIds;
+        window.movingTabIds = [];
+        if (moving.length > 0) {
+            window.moveTabsToSpace(moving, spaceId);
+            return;
+        }
         const tabId = window.windowBrowser.activeTabId;
         engineLoader.checkForEditedFormState(function (hasEditedFormState) {
             window.windowBrowser.requestTabMoveToSpace(tabId, spaceId, hasEditedFormState);
         });
+    }
+
+    // The tab on show is asked about edited forms as it always is, and goes
+    // last, so the others are not waiting on the answer.
+    function moveTabsToSpace(tabIds, spaceId) {
+        sidebar.marks.clear();
+        const browser = window.windowBrowser;
+        const shown = browser.activeTabId;
+        for (const id of tabIds) {
+            if (id !== shown)
+                browser.requestTabMoveToSpace(id, spaceId, false);
+        }
+        if (tabIds.indexOf(shown) >= 0) {
+            engineLoader.checkForEditedFormState(function (hasEditedFormState) {
+                browser.requestTabMoveToSpace(shown, spaceId, hasEditedFormState);
+            });
+        }
     }
 
     function requestNewSpace() {
@@ -1334,6 +1473,23 @@ ApplicationWindow {
     function focusSidebar() {
         window.sidebarCollapsed = false;
         sidebar.focusOutline();
+    }
+
+    // Whether the keyboard is on something in the sidebar: a row, or a control
+    // beside the rows.
+    // The commands a key answers only while the sidebar has the keyboard, so
+    // the page keeps the key otherwise.
+    readonly property var sidebarKeyCommands: ["mark-tab", "mark-range"]
+    readonly property bool sidebarHoldsKeyboard: {
+        for (let item = window.activeFocusItem; item; item = item.parent) {
+            if (item === sidebar)
+                return true;
+        }
+        return false;
+    }
+
+    function markAtCursor(range) {
+        return window.sidebarHoldsKeyboard && sidebar.markAtCursor(range);
     }
 
     function focusPage() {
@@ -3567,10 +3723,16 @@ ApplicationWindow {
                 sequences: keymap.keySequences(modelData)
                 enabled: !window.settingsOpen && (keymap.isChord(modelData) || (
                                                       keymap.pageCommandsEnabled &&
-                                                      !engineLoader.hintModeActive))
+                                                      !engineLoader.hintModeActive)) && (
+                             window.sidebarHoldsKeyboard || window.sidebarKeyCommands.indexOf(
+                                 keymap.commandFor(modelData)) < 0)
                 context: Qt.WindowShortcut
-                onActivated: browserCommands.run(keymap.commandFor(modelData), parseInt(
-                                                     modelData.slice(-1), 10) - 1)
+                onActivated: {
+                    const command = keymap.commandFor(modelData);
+                    if (!keymap.isChord(modelData) && window.actOnMarks(command))
+                        return;
+                    browserCommands.run(command, parseInt(modelData.slice(-1), 10) - 1);
+                }
             }
         }
     }
@@ -3789,6 +3951,14 @@ ApplicationWindow {
                 }
                 onTabDropped: function (tabId, destination) {
                     window.windowBrowser.moveTab(tabId, destination);
+                }
+                // Each row to its place in turn, from the first one that is
+                // not already there.
+                onTabsDropped: function (order) {
+                    for (let place = 0; place < order.length; ++place) {
+                        if (window.windowBrowser.tabSectionIndex(order[place]) !== place)
+                            window.windowBrowser.moveTab(order[place], place);
+                    }
                 }
                 onTabMenuRequested: function (tabId, anchorX, anchorY) {
                     window.openTabMenu(tabId, anchorX, anchorY);

@@ -94,6 +94,10 @@ QtObject {
         case "tab-menu":
             window.openActiveTabMenu();
             return true;
+        case "mark-tab":
+            return window.markAtCursor(false);
+        case "mark-range":
+            return window.markAtCursor(true);
         case "move-tab":
             window.requestMoveTab();
             return true;
@@ -359,6 +363,18 @@ QtObject {
                                              "tab-menu": {
                                                  group: "tabs",
                                                  title: qsTr("Open tab menu")
+                                             },
+                                             "mark-tab": {
+                                                 group: "tabs",
+                                                 title: qsTr(
+                                                            "Mark or unmark the row under the Sidebar cursor"),
+                                                 requires: "sidebar-cursor"
+                                             },
+                                             "mark-range": {
+                                                 group: "tabs",
+                                                 title: qsTr(
+                                                            "Mark the rows up to the Sidebar cursor"),
+                                                 requires: "sidebar-cursor"
                                              },
                                              "move-tab": {
                                                  group: "tabs",
@@ -667,6 +683,9 @@ QtObject {
             return !window.privateWindow && window.tabWindowCount > 0;
         case "agent-space":
             return window.agentSpaceOnShow;
+            // Marking is done from the sidebar's rows, on an ordinary row.
+        case "sidebar-cursor":
+            return window.sidebarHoldsKeyboard;
         }
         return true;
     }

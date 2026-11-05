@@ -1016,6 +1016,7 @@ set(omaweb_ui_files
     src/ui/StartPage.qml
     src/ui/SuggestionList.qml
     src/ui/TabEngineHost.qml
+    src/ui/TabMarks.qml
     src/ui/TabRow.qml
     src/ui/TabWindow.qml
     src/ui/ThemeDropdown.qml

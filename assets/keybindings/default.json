@@ -85,6 +85,8 @@
     "y": "duplicate-tab",
     "m": "move-tab",
     "M": "tab-menu",
+    "v": "mark-tab",
+    "V": "mark-range",
     "1": "select-tab",
     "2": "select-tab",
     "3": "select-tab",
