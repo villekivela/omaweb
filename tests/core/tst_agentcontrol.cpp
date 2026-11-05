@@ -2555,7 +2555,7 @@ void AgentControlTest::decidesEveryCommandOfTheRegistry()
     const QStringList keptIn {QStringLiteral("screenshot-page"), QStringLiteral("copy-screenshot"),
         QStringLiteral("screenshot-full-page"), QStringLiteral("copy-full-page-screenshot"),
         QStringLiteral("private-window"), QStringLiteral("take-over-space"),
-        QStringLiteral("agent-activity"), QStringLiteral("ask"),
+        QStringLiteral("delete-space"), QStringLiteral("agent-activity"), QStringLiteral("ask"),
         QStringLiteral("toggle-tab-window-strip"), QStringLiteral("report-problem"),
         QStringLiteral("record-problem"), QStringLiteral("mark-tab"), QStringLiteral("mark-range"),
         QStringLiteral("new-folder")};

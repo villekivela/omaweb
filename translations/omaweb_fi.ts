@@ -247,6 +247,10 @@
         <translation>Ota Tila haltuun</translation>
     </message>
     <message>
+        <source>Delete Space</source>
+        <translation>Poista Tila</translation>
+    </message>
+    <message>
         <source>Hide or show the sidebar</source>
         <translation>Piilota tai näytä sivupalkki</translation>
     </message>

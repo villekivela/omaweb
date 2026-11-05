@@ -132,6 +132,8 @@ QtObject {
             return true;
         case "take-over-space":
             return window.takeOverSpace();
+        case "delete-space":
+            return window.requestDeleteSpace();
         case "toggle-sidebar":
             window.sidebarCollapsed = !window.sidebarCollapsed;
             return true;
@@ -435,6 +437,11 @@ QtObject {
                                                  title: qsTr("Take over Space"),
                                                  requires: "agent-space"
                                              },
+                                             "delete-space": {
+                                                 group: "spaces",
+                                                 title: qsTr("Delete Space"),
+                                                 requires: "several-spaces"
+                                             },
                                              "toggle-sidebar": {
                                                  group: "interface",
                                                  title: qsTr("Hide or show the sidebar")
@@ -693,6 +700,10 @@ QtObject {
             return window.agentSpaceOnShow;
         case "folders":
             return browser.foldersAvailable;
+            // Settings' × is off with one Space left, and a Private window has
+            // no Spaces to delete.
+        case "several-spaces":
+            return !window.privateWindow && browser.spaces.rowCount() > 1;
             // Marking is done from the sidebar's rows, on an ordinary row.
         case "sidebar-cursor":
             return window.sidebarHoldsKeyboard;
@@ -761,9 +772,10 @@ QtObject {
             if (window.privateWindow && (command === "pin-tab" || command === "move-tab" || command
                                          === "keep-tab-active" || command === "select-space"
                                          || command === "next-space" || command === "new-space"
-                                         || command === "take-over-space" || command === "ask"
-                                         || command === "pop-out-tab" || command === "put-back-tab"
-                                         || command === "toggle-tab-window-strip" || command
+                                         || command === "take-over-space" || command
+                                         === "delete-space" || command === "ask" || command
+                                         === "pop-out-tab" || command === "put-back-tab" || command
+                                         === "toggle-tab-window-strip" || command
                                          === "new-folder")) {
                 continue;
             }

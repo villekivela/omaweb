@@ -9083,6 +9083,39 @@ TestCase {
         endAgentDrive(drive);
     }
 
+    // Delete Space is the command list's way to Settings' ×: it opens the same
+    // dialog for the Space on show, and is not on offer with one Space left.
+    function test_deleteSpaceCommandOpensTheDialogForTheSpaceOnShow() {
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const homeSpaceId = browser.activeSpaceId;
+        verify(!window.commands.available("delete-space"));
+        verify(!window.commands.run("delete-space", -1));
+        compare(window.dialogMode, "");
+
+        const doomedId = browser.createSpace("Doomed Space");
+        verify(window.commands.available("delete-space"));
+        verify(window.commands.actions().some(function (action) {
+            return action.command === "delete-space" && action.group === "spaces" && action.title
+                    === "Delete Space";
+        }));
+        verify(browser.switchSpace(doomedId));
+        tryCompare(sidebar, "arriving", false);
+        verify(window.commands.run("delete-space", -1));
+        compare(window.dialogMode, "delete");
+        compare(window.dialogSpaceId, doomedId);
+        compare(window.dialogSpaceName, "Doomed Space");
+
+        // The dialog asks for the name; a wrong one deletes nothing.
+        const dialog = findChild(window.contentItem, "spaceDialog");
+        dialog.accepted("Wrong name");
+        compare(browser.activeSpaceId, doomedId);
+        verify(window.commands.run("delete-space", -1));
+        dialog.accepted("Doomed Space");
+        tryCompare(browser, "activeSpaceId", homeSpaceId);
+        verify(!window.commands.available("delete-space"));
+        window.dialogMode = "";
+    }
+
     // The window reads the Agent activity log by its context name, so nothing
     // of the window's own may take that name: a property called
     // `agentActivity` would be what the window found instead of the log.

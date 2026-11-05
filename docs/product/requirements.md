@@ -308,6 +308,9 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - An Agent Space shows the mark in the Agent accent while an Agent is attached and muted otherwise,
   and one of the reader's Spaces holding an Agent tab shows it in the Space's own colour. Each mark
   pulses only while one of the Agent's commands is in flight, so idle chrome draws no frames.
+- The command list's Spaces group has Delete Space. It opens the delete dialog Settings' × opens,
+  for the Space on show, where the reader types the Space's name. It is not offered with one Space
+  left or in a Private window. `omaweb space delete` is unchanged.
 - Opening an Agent Space shows a notice at the top of the page that an Agent made it, with Take over
   and Dismiss, and the Take over Space command does the same. Taking it over removes the mark and
   keeps a temporary Agent Space after its connection closes. A Private window is never an Agent's
