@@ -849,7 +849,7 @@ ApplicationWindow {
                              "command": "pin-marked"
                          });
             actions.push({
-                             "label": qsTr("Move %1 tabs to another Space").arg(count),
+                             "label": qsTr("Move %1 tabs to a Space").arg(count),
                              "command": "move-marked"
                          });
             actions.push({

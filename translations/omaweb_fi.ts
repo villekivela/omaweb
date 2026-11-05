@@ -1359,8 +1359,8 @@
         <translation>Kiinnitä %1 välilehteä</translation>
     </message>
     <message>
-        <source>Move %1 tabs to another Space</source>
-        <translation>Siirrä %1 välilehteä toiseen Tilaan</translation>
+        <source>Move %1 tabs to a Space</source>
+        <translation>Siirrä %1 välilehteä Tilaan</translation>
     </message>
     <message>
         <source>Close %1 tabs</source>

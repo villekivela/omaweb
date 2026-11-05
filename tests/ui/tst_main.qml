@@ -9744,8 +9744,7 @@ TestCase {
         clickRow(ids[0], Qt.ControlModifier);
         clickRow(ids[2], Qt.ControlModifier);
         const labels = openMenuOn(ids[2]);
-        compare(labels.filter(Boolean), ["Pin 2 tabs", "Move 2 tabs to another Space",
-                                         "Close 2 tabs"]);
+        compare(labels.filter(Boolean), ["Pin 2 tabs", "Move 2 tabs to a Space", "Close 2 tabs"]);
         window.tabMenuOpen = false;
         openMenuOn(ids[0]);
         runMenuEntry("Close 2 tabs");
@@ -9860,8 +9859,8 @@ TestCase {
         clickRow(ids[0], Qt.ControlModifier);
         clickRow(ids[1], Qt.ControlModifier);
         const labels = openMenuOn(ids[1]);
-        verify(labels.indexOf("Move 2 tabs to another Space") >= 0);
-        runMenuEntry("Move 2 tabs to another Space");
+        verify(labels.indexOf("Move 2 tabs to a Space") >= 0);
+        runMenuEntry("Move 2 tabs to a Space");
         compare(window.dialogMode, "move");
         window.requestMoveToSpace(other);
         tryVerify(function () {
