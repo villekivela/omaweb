@@ -1476,6 +1476,64 @@ TestCase {
         verify(browser.deleteSpace(destinationId, "Click Destination"));
     }
 
+    // The menu grows to fit the Search label, so all of it shows, closing quote
+    // included, at the reader's text size. A menu without that row keeps its
+    // width, and none outgrows the window.
+    function test_pageContextMenuWidensToShowTheWholeSearchLabel() {
+        const engine = openPage("https://widen-menu.example/");
+        const menu = findChild(window.contentItem, "pageMenu");
+        const panel = findChild(menu, "chromeMenuPanel");
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+
+        function shownIn(context) {
+            openPageMenuOn(engine, context);
+            tryVerify(function () {
+                return panel.height > 60;
+            });
+            const row = findChild(menu, "chromeMenuItem" + rowIndex(
+                                      "Search for \"The quick brown fox jumps over\u2026\""));
+            const result = {
+                "width": panel.width,
+                "inside": panel.mapToItem(window.contentItem, 0, 0).x + panel.width
+                          <= window.contentItem.width,
+                "label": null
+            };
+            if (row !== null)
+                result.label = row.children.filter(function (child) {
+                    return child.text !== undefined && child.text.indexOf("Search for") === 0;
+                })[0];
+            return result;
+        }
+
+        for (const larger of [0, 6]) {
+            fontSettings.setInterfaceFontSize(fontSettings.themeFontSize + larger);
+            const withSearch = shownIn({
+                                           "selectedText":
+                                           "The quick brown fox jumps over the lazy dog"
+                                       });
+            verify(withSearch.label !== null && withSearch.label !== undefined);
+            verify(!withSearch.label.truncated, "the label is cut at +" + larger);
+            verify(withSearch.width > 248);
+            verify(withSearch.inside);
+            keyClick(Qt.Key_Escape);
+            tryVerify(function () {
+                return !menu.visible;
+            });
+
+            compare(shownIn({
+                                "linkUrl": "https://sent.example/page"
+                            }).width, 248);
+            keyClick(Qt.Key_Escape);
+            tryVerify(function () {
+                return !menu.visible;
+            });
+        }
+        fontSettings.resetInterfaceFontSize();
+    }
+
     function test_pageContextMenuListsLinkRowsAsUnavailableInAnAgentSpace() {
         const otherId = browser.createSpace("Beside Agent");
         const drive = driveAnAgentSpace(false);

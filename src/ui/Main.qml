@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Window
 import Omaweb
 import Omaweb.Engine
+import qs.Commons
 import "DevicePixels.mjs" as DevicePixels
 import "SpaceColour.mjs" as SpaceColour
 import "SettingsAttention.mjs" as SettingsAttention
@@ -6089,6 +6090,18 @@ ApplicationWindow {
         }
     }
 
+    TextMetrics {
+        id: pageMenuSearchMetrics
+        font.family: Style.font.family
+        font.pixelSize: Style.font.body
+        text: {
+            const row = window.pageMenuActions.find(function (action) {
+                return action.run === "search-selection";
+            });
+            return row ? row.label : "";
+        }
+    }
+
     ChromeMenu {
         id: pageMenu
         objectName: "pageMenu"
@@ -6097,7 +6110,13 @@ ApplicationWindow {
         colors: window.colors
         open: window.pageMenuOpen
         fromPointer: true
-        itemWidth: 248
+        // The menu keeps its width unless the Search row's label is wider, and
+        // then grows to fit it, measured in the type the rows are set in, so
+        // it holds at the reader's text size. The row's inset is 14 on each
+        // side, and the panel's border one. It stays inside the window.
+        itemWidth: Math.min(window.width - 16, Math.max(248, Math.ceil(
+                                                            pageMenuSearchMetrics.advanceWidth)
+                                                        + 30))
         anchorX: window.pageMenuX
         anchorY: window.pageMenuY
         items: window.pageMenuActions

@@ -988,10 +988,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
   tab, its address copies, and Save link as saves it; an image or media address opens, copies and
   saves, and an image also copies as a picture with Copy image; a selection copies. Navigation, the
   page address, and Inspect element are always listed.
-- A selection also offers `Search for "<selection>"`, which opens a new tab with the default search
-  engine, whatever the selection reads as, so a selected domain is searched for rather than opened.
-  The label collapses whitespace and elides at about 32 characters. A Private window searches in
-  that window.
+- A selection also offers `Search for "<selection>"`, which opens a new tab at the end of the
+  Space's tabs, as Open link in new tab does, with the default search engine, whatever the selection
+  reads as, so a selected domain is searched for rather than opened. The label collapses whitespace
+  and elides at about 32 characters. The menu widens to fit that label, measured in the type the
+  rows are set in, so all of it shows, closing quote included, at the reader's text size and inside
+  the window. A menu without the row keeps its width. A Private window searches in that window.
 - A link also offers Open link in Space and Open link in Private window, which send it where a Link
   rule would: a link clicked in a page is never rerouted, so the reader chooses. Open link in Space
   lists the reader's own Spaces except the one on show, in the footer's order, each with its Space
