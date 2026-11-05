@@ -122,7 +122,9 @@ own. `--tabs --browse --show glance` opens a Glance over the last seeded tab's p
 `--glance-keep-at <ms>` keeps it as a tab and holds the movement that many milliseconds in, so a
 series of captures shows the Glance growing into its tab a frame at a time. `--glance-keyboard` puts
 the keyboard in the Glance's controls, and `--glance-labels` shows their Key labels as holding
-Primary does. `--text-scaling <factor>` stands in for the desktop's text scaling, 1.3636 for
+Primary does. `--show page-menu:link`, `page-menu:link-spaces` and `page-menu:selection` open the
+page menu over the last seeded tab's page, on a link, on a link with the Spaces it can go to listed,
+and on a selection. `--text-scaling <factor>` stands in for the desktop's text scaling, 1.3636 for
 Omarchy's 16 px, so the Page scale and the interface size are reviewed under it. Pass
 `--capture <path>` to render one frame to a PNG and exit, `--capture-delay <ms>` after 700 ms by
 default, which works headlessly with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for

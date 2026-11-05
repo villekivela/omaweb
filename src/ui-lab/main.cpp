@@ -1473,6 +1473,12 @@ int main(int argc, char *argv[])
             // movement.
             {QStringLiteral("swipe"), {}},
             {QStringLiteral("swipe-back"), {}},
+            // The page menu over the last seeded tab's page: on a link, on
+            // a link with the Spaces it can be sent to listed, and on a
+            // selection.
+            {QStringLiteral("page-menu:link"), {}},
+            {QStringLiteral("page-menu:link-spaces"), {}},
+            {QStringLiteral("page-menu:selection"), {}},
         };
         const auto requested = arguments.at(showIndex + 1);
         auto *root = engine.rootObjects().constFirst();
@@ -1492,7 +1498,8 @@ int main(int argc, char *argv[])
             || requested == QLatin1String("form-suggestions")
             || requested == QLatin1String("address-suggestions")
             || requested == QLatin1String("card-suggestions")
-            || requested == QLatin1String("card-save-offer") || securityKey;
+            || requested == QLatin1String("card-save-offer") || securityKey
+            || requested.startsWith(QLatin1String("page-menu:"));
         if (pageAsks) {
             const auto tabId = lastTabId(browser.unpinnedTabs());
             if (tabId.isEmpty()) {
@@ -1513,6 +1520,31 @@ int main(int argc, char *argv[])
                     = view->property("currentUrl")
                           .toUrl()
                           .adjusted(QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment);
+                if (requested.startsWith(QLatin1String("page-menu:"))) {
+                    QVariantMap context;
+                    if (requested == QLatin1String("page-menu:selection")) {
+                        context.insert(QStringLiteral("selectedText"),
+                            QStringLiteral("a line the reader\n  selected on the page, and more"));
+                    } else {
+                        context.insert(
+                            QStringLiteral("linkUrl"), QStringLiteral("https://example.test/read"));
+                    }
+                    QMetaObject::invokeMethod(
+                        view, "simulateContextMenu", Q_ARG(QVariant, context));
+                    if (requested == QLatin1String("page-menu:link-spaces")) {
+                        QTimer::singleShot(100, root, [root] {
+                            const auto rows = root->property("pageMenuActions").toList();
+                            for (qsizetype row = 0; row < rows.size(); ++row) {
+                                if (rows.at(row).toMap().value(QStringLiteral("run"))
+                                    == QStringLiteral("open-link-space")) {
+                                    QMetaObject::invokeMethod(
+                                        root, "runPageMenu", Q_ARG(QVariant, int(row)));
+                                }
+                            }
+                        });
+                    }
+                    return;
+                }
                 if (securityKey) {
                     QMetaObject::invokeMethod(view, "simulateSecurityKey",
                         Q_ARG(QVariant, securityKeyStep(requested.section(QLatin1Char(':'), 1))));

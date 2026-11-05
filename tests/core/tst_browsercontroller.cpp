@@ -188,6 +188,7 @@ private slots:
     void saysWhereAnEngineProfileBelongsWithoutMakingOne();
     void makesAnEngineProfileOnlyWhenAskedToPrepareOne();
     void createsTabOnlyAfterCommittedInput();
+    void searchesForTextWithTheDefaultEngineWhateverItLooksLike();
     void opensAHandedOverLinkWhole_data();
     void opensAHandedOverLinkWhole();
     void opensKeyboardHintTargetsInBackground();
@@ -820,6 +821,30 @@ void BrowserControllerTest::createsTabOnlyAfterCommittedInput()
     controller.openInput(QStringLiteral("omaweb browser"), true);
     QCOMPARE(controller.tabs()->rowCount(), 2);
     QCOMPARE(controller.activeUrl().host(), QStringLiteral("duckduckgo.com"));
+}
+
+void BrowserControllerTest::searchesForTextWithTheDefaultEngineWhateverItLooksLike()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+
+    // Typed into the Omnibar, a domain is an address and a leading keyword
+    // picks another engine. A selection is neither: it is what to look for.
+    controller.searchFor(QStringLiteral("example.com"));
+    QCOMPARE(controller.tabs()->rowCount(), 2);
+    QCOMPARE(controller.activeUrl().host(), QStringLiteral("duckduckgo.com"));
+    QCOMPARE(QUrlQuery(controller.activeUrl()).queryItemValue(QStringLiteral("q")),
+        QStringLiteral("example.com"));
+
+    controller.searchFor(QStringLiteral("g omaweb"));
+    QCOMPARE(controller.tabs()->rowCount(), 3);
+    QCOMPARE(controller.activeUrl().host(), QStringLiteral("duckduckgo.com"));
+    QCOMPARE(
+        QUrlQuery(controller.activeUrl()).queryItemValue(QStringLiteral("q"), QUrl::FullyDecoded),
+        QStringLiteral("g omaweb"));
+
+    controller.searchFor(QStringLiteral("   "));
+    QCOMPARE(controller.tabs()->rowCount(), 3);
 }
 
 void BrowserControllerTest::opensAHandedOverLinkWhole_data()

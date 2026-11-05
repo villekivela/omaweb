@@ -2462,6 +2462,20 @@ void BrowserController::openInput(const QString &input, bool inNewTab)
     emit activeTabChanged();
 }
 
+void BrowserController::searchFor(const QString &text)
+{
+    const auto terms = text.trimmed();
+    const auto engine = searchEngine(m_defaultSearchEngineId);
+    if (terms.isEmpty() || engine.isEmpty()) {
+        return;
+    }
+    const auto url = filledTemplate(engine.value(QStringLiteral("queryUrl")).toString(), terms);
+    appendActiveTab(url, addressTitle(url));
+    refreshSoundSuppression();
+    schedulePersistTabs();
+    emit activeTabChanged();
+}
+
 bool BrowserController::retryActiveUrlInsecurely()
 {
     auto url = activeUrl();

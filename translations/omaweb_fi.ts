@@ -1475,12 +1475,24 @@
         <translation>Tallenna media nimellä</translation>
     </message>
     <message>
+        <source>Search for &quot;%1&quot;</source>
+        <translation>Hae &quot;%1&quot;</translation>
+    </message>
+    <message>
         <source>Open link in new tab</source>
         <translation>Avaa linkki uudessa välilehdessä</translation>
     </message>
     <message>
         <source>Open link in background</source>
         <translation>Avaa linkki taustalla</translation>
+    </message>
+    <message>
+        <source>Open link in Space</source>
+        <translation>Avaa linkki Tilassa</translation>
+    </message>
+    <message>
+        <source>Open link in Private window</source>
+        <translation>Avaa linkki yksityisessä ikkunassa</translation>
     </message>
     <message>
         <source>Copy link address</source>
