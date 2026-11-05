@@ -902,8 +902,9 @@ reports the gap and remains experimental rather than imitating behavior it canno
   under the pointer as plain values, a position, the addresses under it, the selection and whether
   the target takes typing, and draws no menu of its own.
 - The menu offers what Omaweb can do with what was pointed at: a link opens in a new or background
-  tab and its address copies; an image or media address opens and copies; a selection copies.
-  Navigation, the page address, and Inspect element are always listed.
+  tab, its address copies, and Save link as saves it; an image or media address opens, copies and
+  saves, and an image also copies as a picture with Copy image; a selection copies. Navigation, the
+  page address, and Inspect element are always listed.
 - A command that cannot run here is listed and unavailable rather than hidden, and the keyboard
   passes over it. Arrow keys move, `Return` runs, `Escape` closes and hands the keyboard back to the
   page.
@@ -928,11 +929,11 @@ all page-level keys.
 The default browser commands include:
 
 - `H` and `L` for history, `r` to reload, `o` to open an address.
-- `gt` and `gT` to move between tabs, `1`–`9` to jump to one, `x` to close, `u` to reopen, `t` for a
+- `J` and `K` to move between tabs, `1`–`9` to jump to one, `x` to close, `X` to reopen, `t` for a
   new tab, `p` to pin.
 - `Primary+O` and `Primary+I` to jump back and forward through the Tab jump list. Opening a file has
   no default key and stays in the command scope.
-- `gs` for the next Space and `Primary+1`–`Primary+9` for a specific one.
+- `Primary+1`–`Primary+9` for a specific Space.
 - `Primary+B` to hide the sidebar, `Primary+E` to focus it, `Primary+,` for settings, and
   `Primary+K` or `:` for the Omnibar's command scope.
 - `Alt+H`, `Alt+J`, `Alt+K` and `Alt+L` to move the keyboard between the regions on screen.
@@ -1125,7 +1126,8 @@ The default page commands include:
 - CI checks the approved QtWebEngine and Chromium security baseline weekly. Settings reads the same
   baseline file. A Qt patch with security fixes requires an Omaweb update within seven days.
   Settings marks builds below the baseline as unsupported previews.
-- Public builds do not enable proprietary media codecs until distribution rights receive review.
+- Public builds ship the engine's proprietary media codecs, H.264 and AAC among them, and an engine
+  test holds that. Omaweb does not ship or download a DRM module (see Distribution).
 - Omaweb offers no custom user agent, globally or per site. A changed user agent makes a reader
   easier to tell apart, and mostly works around sites that turn away browsers other than Chrome.
 
@@ -1138,9 +1140,15 @@ The default page commands include:
   application-level updater.
 - macOS application bundles are development and test artifacts. Omaweb does not sign, notarize,
   publish, or qualify them for end-user distribution.
-- Open-codec audio and video, camera, microphone, and screen sharing belong to the daily-driver
-  contract. DRM streaming and proprietary codecs remain unsupported until their distribution rights
-  are resolved.
+- Open-codec and proprietary-codec audio and video, camera, microphone, and screen sharing belong to
+  the daily-driver contract.
+- Omaweb does not ship or download Widevine or any other DRM module. The engine looks for a Widevine
+  library already on the machine, such as one that Chrome, Chromium or Firefox fetched, and loads it
+  without any action by Omaweb or the reader. Omaweb neither helps nor hinders that, promotes it
+  nowhere outside these requirements and the README, and gives no support for a service that does or
+  does not play. Playback through such a library has been seen
+  ([research](../research/widevine.md)). Finding one unaided on aarch64 needs an engine patch and is
+  not planned.
 - Omaweb follows operating-system proxy settings and trust stores. It may report detected state and
   document launch-time development overrides, but it stores no proxy credentials and owns no
   certificate-authority database.
@@ -1247,7 +1255,8 @@ that resource at the page's next load.
 - A custom user agent, globally or per site: it makes a reader easier to fingerprint and mostly
   works around sites that turn away browsers other than Chrome
 - Print preview: the desktop print dialog owns preview and PDF output
-- DRM streaming and proprietary media codecs before distribution review
+- Shipping or downloading a DRM module such as Widevine. A library already on the machine is the
+  reader's own, and the engine uses it as Distribution describes.
 - Picture-in-picture on the Qt engine: QtWebEngine turns it off in every page and offers no way to
   draw a video outside its page ([research](../research/picture-in-picture.md))
 - USB, Bluetooth, serial, or MIDI permissions

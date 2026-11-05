@@ -1,5 +1,7 @@
 # License Omaweb under MPL 2.0
 
+status: superseded in part by ADR-0071
+
 Omaweb-owned code uses the Mozilla Public License 2.0. This keeps modifications to Omaweb source
 files open while allowing independently developed Feature modules to use other licenses. Keyboard
 navigation is implemented independently without copying Vimium code, assets, or branding.
@@ -9,4 +11,5 @@ corresponding-source access, replacement instructions, and an SBOM. Release engi
 third-party engines, code, codecs, and filter-list data under their own licenses. Omaweb downloads
 filter lists from declared subscriptions at runtime and shows each source, license, update address,
 and update status. Public builds do not enable proprietary media codecs until their distribution
-rights receive legal review.
+rights receive legal review. [ADR 0071](0071-ship-proprietary-codecs-and-use-a-local-widevine.md)
+supersedes this sentence.

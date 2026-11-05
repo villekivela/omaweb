@@ -2546,6 +2546,7 @@ if(BUILD_TESTING)
             OMAWEB_KEYBOARD_NAVIGATION_SCRIPT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/src/engine/api/keyboard-navigation.js"
             OMAWEB_PROCEDURAL_FILTERS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/third_party/brave-procedural-filters/procedural_filters.js"
             OMAWEB_PROCEDURAL_RULES_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/content-blocking/procedural-rules.json"
+            OMAWEB_CODEC_MEDIA_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/tests/engine/media"
             OMAWEB_UI_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/src/ui"
             OMAWEB_UNTRUSTED_CERTIFICATE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/engine/certificates/untrusted-local.crt"
             OMAWEB_UNTRUSTED_KEY_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests/engine/certificates/untrusted-local.key"

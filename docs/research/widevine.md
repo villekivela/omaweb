@@ -2,11 +2,13 @@
 
 This note records the research for #911 into whether Widevine can run on the engine Omaweb ships. It
 is not an implementation contract. The
-[requirements](../product/requirements.md#daily-driver-non-goals) list "DRM streaming and
+[requirements](../product/requirements.md#daily-driver-non-goals) first listed "DRM streaming and
 proprietary media codecs before distribution review" as a non-goal, and this note says what that
-review would have to answer about the DRM half. Widevine runs as Google's closed Content Decryption
-Module (CDM), `libwidevinecdm.so`. The engine is `omaweb-qtwebengine` 6.11.3, Qt's Chromium fork at
-version 140.0.7339.264
+review had to answer about the DRM half.
+[ADR 0071](../adr/0071-ship-proprietary-codecs-and-use-a-local-widevine.md) records what the
+maintainer decided on 2026-11-05 after the playback result [below](#playback-on-2026-11-05).
+Widevine runs as Google's closed Content Decryption Module (CDM), `libwidevinecdm.so`. The engine is
+`omaweb-qtwebengine` 6.11.3, Qt's Chromium fork at version 140.0.7339.264
 ([VERSION](https://code.qt.io/cgit/qt/qtwebengine-chromium.git/tree/chromium/chrome/VERSION?id=bcc09a68b50a40c60d8dc83f0e6b6dc872614812)),
 submodule commit `bcc09a6`, called the pin below, with the patch series of
 [ADR 0049](../adr/0049-ship-omawebs-own-engine-build.md) applied. None of the 31 patches in
@@ -25,11 +27,10 @@ reports what the texts say.
 
 On x86_64 the engine has everything it needs to load Widevine, with no build change. Qt turns it on
 for every build, it reads a file already on disk, and it finds one by itself in several places. A
-real CDM has been seen loaded on x86_64, as [below](#what-this-engine-does-here) records, but
-whether it then works on this engine is untested. Nothing has initialized it or played through it,
-and a CDM from current Chrome, version 157 in
+real CDM has been seen loaded and played through on x86_64, as [below](#what-this-engine-does-here)
+records. A CDM from current Chrome, version 157 in
 [Google's apt repository](https://dl.google.com/linux/chrome/deb/dists/stable/main/binary-amd64/Packages.gz),
-is 17 Chromium versions newer than the pin.
+is 17 Chromium versions newer than the pin, and no test has put one through this engine.
 
 ### Build time
 
@@ -117,8 +118,8 @@ That last sentence matters here too: Qt adds H.264 to the CDM's capabilities onl
 [content_client_qt.cpp](https://code.qt.io/cgit/qt/qtwebengine.git/tree/src/core/content_client_qt.cpp?h=v6.11.3#n346)
 [#914](https://github.com/villekivela/omaweb/issues/914) records that flag on for x86_64. The
 aarch64 package 6.11.3-1 lists `webengine_proprietary_codecs` among its enabled features too, in
-`Qt6WebEngineCoreTargets.cmake`. #914 still has to show that AAC decodes, and DRM services need that
-as well.
+`Qt6WebEngineCoreTargets.cmake`. The engine contract test `qtDecodesProprietaryCodecs` plays an
+H.264 MP4 and an AAC M4A on the engine CI builds against and fails if either stops decoding.
 
 ### Which CDM versions load
 
@@ -149,9 +150,10 @@ A mismatch would therefore look like Widevine being offered to a page and then f
 Chromium `main` still enables interfaces 10 and 11.
 [supported_cdm_versions.h](https://chromium.googlesource.com/chromium/src/+/4c7244a405d326e284710231ff609168dceb9044/media/cdm/supported_cdm_versions.h#38)
 A CDM that current Chrome can load therefore offers an interface the pin also accepts, as far as the
-interface check goes. That is an inference from the two headers. No CDM has been through that check
-here, because a preload does not reach it, and the module version on `main` was not confirmed
-because that header did not fetch at the same path.
+interface check goes. That is an inference from the two headers, and the module version on `main`
+was not confirmed because that header did not fetch at the same path. The preload does not reach the
+check, but the playback [below](#playback-on-2026-11-05) did, with the library Arch's Chromium had
+fetched.
 
 The hardcoded list also says what the CDM can do, whatever it really does. Qt's comment says the
 list "must match the CDM that is being bundled with Chrome", and nothing checks that it does.
@@ -388,8 +390,9 @@ What stays unsettled is narrower:
 
 A probe of the engine's lookup that uses no real CDM is unaffected: an empty file at a searched path
 shows the search without any Google software. The probes below do that and go no further, so they
-loaded no real CDM. Nobody chose to run the experiment in place, but it has happened:
-[a running Omaweb](#what-this-engine-does-here) loaded a CDM that Chromium had fetched.
+loaded no real CDM. The experiment in place has since been run: a
+[running Omaweb](#what-this-engine-does-here) loaded a CDM that Chromium had fetched, and the
+maintainer played through it.
 
 ## Verified media path and services
 
@@ -508,9 +511,8 @@ CDM and an account can settle these.
 
 ## What this engine does here
 
-Two kinds of evidence follow: probes with no real CDM, and one observation of a real CDM loaded in a
-running Omaweb. Together they show what the engine does up to loading a library, and nothing after
-that.
+Three kinds of evidence follow: probes with no real CDM, one observation of a real CDM loaded in a
+running Omaweb, and the maintainer's playback of 2026-11-05.
 
 ### Probes with an empty file
 
@@ -562,40 +564,43 @@ the library lands in the zygotes before the sandbox. The maps show loading and n
 preload does not initialize a CDM, so they say nothing about whether this one passes the interface
 checks, decrypts, or plays.
 
+### Playback on 2026-11-05
+
+On 2026-11-05 the maintainer played Spotify and Netflix in Omaweb, using the library Arch's Chromium
+had fetched, and both played. So a CDM that the engine finds by its own lookup initializes, decrypts
+and plays in Omaweb, with no engine change and no action by Omaweb beyond running. That answers the
+question this note was opened for, for those two services.
+
 ### What stays unproven
 
-- That a real CDM initializes and decrypts on this engine, or that a video plays. Loading is all
-  that was seen. The source points that way and Qt documents it. The licence section is why nobody
-  tried.
-- That Omaweb offers Widevine to a page as the probe program's engine did. Omaweb's source has no
-  EME or key system code and its launch flags do not touch CDMs, so nothing suggests otherwise, but
-  no page in Omaweb has asked.
-- Any service. Testing one needs a signed-in account.
-- aarch64. Nothing here ran on it, and the observation above is x86_64 only.
+- Disney+, Hulu and Max. Testing one needs a signed-in account, and none has been tried.
+- Any resolution or title beyond the two services above. The result is that they played, and it
+  records no ceiling.
+- A CDM other than the one Arch's Chromium had fetched, such as Chrome's or Firefox's.
+- aarch64. Nothing here ran on it, and the probes and the loaded library are x86_64 only.
 
-## Recommendation
+## Decision
 
-**Keep the non-goal, and file no implementation work to play Widevine.**
+**Omaweb ships proprietary codecs, and it does not ship or download Widevine.** The maintainer
+decided this on 2026-11-05, after the playback result above, and
+[ADR 0071](../adr/0071-ship-proprietary-codecs-and-use-a-local-widevine.md) records it. The
+[requirements](../product/requirements.md#daily-driver-non-goals) now make shipping or downloading a
+DRM module the non-goal, and say what happens when a reader's machine already has one.
 
-The blocker is the licence. The engine does not appear to be one, though no real CDM has been seen
-to do more than load on it: on x86_64 it needs nothing built, and on aarch64 only discovery needs a
-small patch. VMP does not apply on Linux. But every route that Omaweb would own needs permission
-that no public text gives. Shipping is refused without an agreement, and a download has no clause
-behind it. The route that needs no code, a reader's own Chrome, leaves Omaweb telling readers to
-rely on a permission nobody has stated. Omaweb would also be working for a return capped at 1080p on
-Netflix, which may turn it away as a Chromium-based browser, and SD on Prime Video, with Disney+
-unknown.
+The licence section stands as written. Shipping the library is refused without an agreement, a
+download has no clause behind it, and the route through a CDM the reader already has rests on a
+permission nobody has stated. That is why Omaweb does none of the first two, adds no code for the
+third, and promotes nothing: the engine's own lookup finds a library on the machine, and Omaweb
+neither helps nor hinders it. Omaweb gives no support for a service that does not play. The return
+is capped as above, at 1080p on Netflix and SD on Prime Video, and Netflix may turn a Chromium-based
+browser away.
 
-What would reopen this is a signed agreement, or a written answer from Widevine. Google says it
+What would change this is a signed agreement or a written answer from Widevine. Google says it
 charges no fee and tells readers of LICENSE to contact it, so one enquiry is cheap. Maddock's
 account suggests it may go unanswered, or be refused, for an open source browser. That is a
 maintainer's call and not engineering work.
 
-One finding does not wait for that, and it is about the engine rather than about playing anything.
-The requirements call DRM unsupported, and the engine's lookup runs regardless. This is observed for
-loading: a running Omaweb on engine 6.11.3-2 had Google's closed library, fetched by Arch's
-Chromium, mapped in its zygotes and renderers, with no action by Omaweb or the reader. The same is
-expected with Chrome or a Firefox CDM on the machine, because the source treats them alike. That
-pages are offered Widevine in Omaweb remains inferred from the probes, and playback is untested. The
-maintainer has two ways to close the gap: remove the lookup in the patch series, which is engine
-work, or have the requirements say that it happens. This note makes neither change.
+The engine's lookup runs regardless of what Omaweb says. A running Omaweb on engine 6.11.3-2 had
+Google's closed library, fetched by Arch's Chromium, mapped in its zygotes and renderers, and the
+same is expected with Chrome's or Firefox's copy. The requirements now say so instead of calling DRM
+unsupported. Finding a CDM unaided on aarch64 needs an engine patch and is not planned.

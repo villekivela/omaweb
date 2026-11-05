@@ -399,6 +399,8 @@ private slots:
     void qtKeepsAPlayingPageAudibleThroughASilence_data();
     void qtKeepsAPlayingPageAudibleThroughASilence();
     void qtLeavesMediaThatMakesNoSoundQuiet();
+    void qtDecodesProprietaryCodecs_data();
+    void qtDecodesProprietaryCodecs();
     void qtLetsASoundEndBesideMutedMedia();
     void qtKeepsAFrozenTabInsideItsMemoryBudget();
     void adaptersReportTheConnectionFromTheirOwnFacts_data();
@@ -2446,6 +2448,20 @@ public:
                 if (path == "/worker.js") {
                     socket->write("HTTP/1.1 200 OK\r\nContent-Type: text/javascript\r\n"
                                   "Content-Length: 0\r\nConnection: close\r\n\r\n");
+                    socket->disconnectFromHost();
+                    return;
+                }
+                // A clip from tests/engine/media, whole, since the page asks for no range.
+                if (path.startsWith("/media/") && !path.contains("..")) {
+                    QFile clip(QStringLiteral(OMAWEB_CODEC_MEDIA_DIRECTORY "/")
+                        + QString::fromUtf8(path.mid(QByteArrayLiteral("/media/").size())));
+                    const bool found = clip.open(QIODevice::ReadOnly);
+                    const auto bytes = found ? clip.readAll() : QByteArray();
+                    socket->write((found ? "HTTP/1.1 200 OK\r\n" : "HTTP/1.1 404 Not Found\r\n")
+                        + QByteArrayLiteral("Content-Type: application/octet-stream\r\n")
+                        + "Content-Length: " + QByteArray::number(bytes.size())
+                        + "\r\nConnection: close\r\n\r\n" + bytes);
+                    socket->flush();
                     socket->disconnectFromHost();
                     return;
                 }
@@ -10677,6 +10693,62 @@ const char silentStretchPage[] = R"HTML(<!doctype html><title>loading</title><sc
 </script>)HTML";
 
 } // namespace
+
+namespace {
+
+// Plays the clip named by the query and reports what the engine decoded of it. The page is
+// muted: nothing sounds, and the decoders still run.
+const char decodedClipPage[] = R"HTML(<!doctype html><title>loading</title><script>
+    const clip = document.createElement('video');
+    clip.muted = true;
+    clip.addEventListener('error', () => document.title = 'error ' + (clip.error && clip.error.code));
+    clip.addEventListener('ended', () => {
+        const quality = clip.getVideoPlaybackQuality();
+        document.title = 'decoded video=' + quality.totalVideoFrames
+            + ' audio=' + clip.webkitAudioDecodedByteCount;
+    });
+    clip.src = '/media/' + new URLSearchParams(location.search).get('clip');
+    document.documentElement.append(clip);
+    clip.play().catch(error => document.title = 'refused ' + error.name);
+</script>)HTML";
+
+} // namespace
+
+void QtEngineContractTest::qtDecodesProprietaryCodecs_data()
+{
+    QTest::addColumn<QString>("clip");
+    QTest::addColumn<QRegularExpression>("decoded");
+    QTest::newRow("H.264 video in MP4") << QStringLiteral(
+        "h264.mp4") << QRegularExpression(QStringLiteral("^decoded video=[1-9]\\d* audio=0$"));
+    QTest::newRow("AAC audio in M4A") << QStringLiteral(
+        "aac.m4a") << QRegularExpression(QStringLiteral("^decoded video=0 audio=[1-9]\\d*$"));
+    QTest::newRow("H.264 and AAC in one MP4")
+        << QStringLiteral("h264-aac.mp4")
+        << QRegularExpression(QStringLiteral("^decoded video=[1-9]\\d* audio=[1-9]\\d*$"));
+}
+
+// The clips in tests/engine/media are a second long and made with ffmpeg from the sources
+// `testsrc=size=64x64:rate=10` and `sine=frequency=440:sample_rate=24000`, encoded with
+// `-c:v libx264 -profile:v baseline -pix_fmt yuv420p` and `-c:a aac -b:a 24k`, with
+// `-movflags +faststart`.
+// Omaweb ships proprietary codecs (ADR 0071), so the engine this build runs on must decode H.264
+// and AAC. An engine built without the flag, or whose FFmpeg lacks the decoders,
+// gives the page an error where a frame or a sample should be.
+void QtEngineContractTest::qtDecodesProprietaryCodecs()
+{
+    QFETCH(QString, clip);
+    QFETCH(QRegularExpression, decoded);
+    PageServer server(decodedClipPage);
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    ViewInWindow shown;
+    QVERIFY(shown.create(QUrl(QStringLiteral("http://127.0.0.1:%1/page.html?clip=%2")
+            .arg(server.serverPort())
+            .arg(clip))));
+    QTRY_VERIFY2_WITH_TIMEOUT(
+        decoded.match(shown.adapter->property("pageTitle").toString()).hasMatch(),
+        qPrintable(shown.adapter->property("pageTitle").toString()), 20000);
+}
 
 void QtEngineContractTest::qtKeepsAPlayingPageAudibleThroughASilence_data()
 {

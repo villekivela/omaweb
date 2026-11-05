@@ -368,8 +368,11 @@ Before changing browser behavior, read the [domain glossary](GLOSSARY.md),
 
 Omaweb does not include bookmarks, password management, third-party WebExtensions, an Account
 system, installed web applications, Reader mode, translation, browser-data import, View source, a
-custom user agent, print preview, DRM, or macOS distribution. These are deliberate scope decisions,
-not unfinished features.
+custom user agent, print preview, or macOS distribution. These are deliberate scope decisions, not
+unfinished features.
+
+Omaweb plays H.264 and AAC, and it ships and downloads no DRM module. A Widevine library already on
+the machine is found by the engine and used as it is.
 
 ## Report a problem
 
