@@ -9,6 +9,12 @@
 
 namespace omaweb {
 
+// Reads a Space's Folders against its tabs: what names no tab here is dropped,
+// a split stands together in one Folder, and each tab is told its Folder. The
+// tabs come out standing pinned, then in the Folders' order, then the rest.
+void arrangeTabsInFolders(
+    QVector<TabState> &tabs, QVector<FolderState> &folders, const QString &activeTabId);
+
 // The ordinary list as the sidebar stands it: each Folder's row with its tabs
 // under it, then the hairline, then the tabs in no Folder. One list, so a row
 // moving in or out of a Folder is the same row moved and never built again,

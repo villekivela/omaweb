@@ -10066,6 +10066,94 @@ TestCase {
         closeMarkableTabs(ids);
     }
 
+    function test_closingTheLastOrdinaryMarkedRowsComesToRest() {
+        const home = browser.activeSpaceId;
+        const spaceId = browser.createSpace("Folder marks rest");
+        verify(browser.switchSpace(spaceId));
+        browser.openInput("https://marks-rest-kept.example/", false);
+        const kept = browser.activeTabId;
+        browser.openInput("https://marks-rest-one.example/", true);
+        const one = browser.activeTabId;
+        browser.openInput("https://marks-rest-two.example/", true);
+        const two = browser.activeTabId;
+        browser.createFolder("Kept", [kept]);
+        settleMotion();
+        clickRow(one, Qt.ControlModifier);
+        clickRow(two, Qt.ControlModifier);
+        openMenuOn(two);
+        runMenuEntry("Close 2 tabs");
+        tryCompare(browser, "atRest", true);
+        const shown = browser.activeTabId;
+        const blank = browser.activeTabBlank;
+        verify(browser.switchSpace(home));
+        verify(browser.deleteSpace(spaceId, "Folder marks rest"));
+        verify(shown !== kept);
+        verify(blank);
+    }
+
+    function test_aDropInTheGapBetweenRowsStaysInTheListItIsIn() {
+        const ids = openMarkableTabs(4);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1], ids[2]]);
+        browser.activateTab(ids[3]);
+        settleMotion();
+        // Just past the bottom of the middle row, in the gap under it.
+        dragRowOnto(rowOf(ids[0]), rowOf(ids[1]), 1.04);
+        compare(browser.tabFolder(ids[0]), folder);
+        compare(browser.folderTabIds(folder), [ids[1], ids[0], ids[2]]);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aMarkedDragIntoACollapsedFolderLetsGoOfTheMarks() {
+        const ids = openMarkableTabs(4);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        verify(browser.setFolderCollapsed(folder, true));
+        browser.activateTab(ids[3]);
+        settleMotion();
+        clickRow(ids[1], Qt.ControlModifier);
+        clickRow(ids[2], Qt.ControlModifier);
+        dragRowOnto(rowOf(ids[2]), folderRowOf(folder));
+        compare(browser.folderTabIds(folder), [ids[0], ids[1], ids[2]]);
+        const outline = findChild(window.contentItem, "sidebar");
+        compare(outline.marks.count, 0);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_separatingASplitInACollapsedFolderCountsTwoRows() {
+        const ids = openMarkableTabs(3);
+        browser.activateTab(ids[0]);
+        verify(browser.addSplit(ids[1]));
+        const folder = browser.createFolder("Pair", [ids[0]]);
+        browser.activateTab(ids[2]);
+        verify(browser.setFolderCollapsed(folder, true));
+        settleMotion();
+        const count = findChild(folderRowOf(folder), "folderCount-" + folder);
+        compare(count.text, "1");
+        verify(browser.separateSplit(ids[0]));
+        tryCompare(count, "text", "2");
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_theSwipePreviewDrawsANeighboursFolders() {
+        const home = browser.activeSpaceId;
+        const spaceId = browser.createSpace("Folder preview");
+        verify(browser.switchSpace(spaceId));
+        browser.openInput("https://preview-kept.example/", false);
+        const kept = browser.activeTabId;
+        browser.openInput("https://preview-loose.example/", true);
+        const folder = browser.createFolder("Previewed", [kept]);
+        settleMotion();
+        verify(browser.switchSpace(home));
+        tryVerify(function () {
+            return findChild(window.contentItem, "neighbourFolder-" + folder) !== null;
+        });
+        const row = findChild(window.contentItem, "neighbourFolder-" + folder);
+        compare(row.folderName, "Previewed");
+        verify(browser.deleteSpace(spaceId, "Folder preview"));
+    }
+
     function test_aFolderDragsAsAWholeWithinItsBlock() {
         const ids = openMarkableTabs(3);
         const first = browser.createFolder("First", [ids[0]]);

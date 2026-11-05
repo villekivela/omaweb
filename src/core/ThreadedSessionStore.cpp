@@ -300,16 +300,16 @@ bool ThreadedSessionStore::recordFavicon(
 
 // Posted rather than asked, so a neighbour Space is read without the
 // interface waiting on the disk while a swipe could start.
-void ThreadedSessionStore::findTabs(
-    const QString &spaceId, std::function<void(QVector<TabState> tabs)> answer) const
+void ThreadedSessionStore::findTabs(const QString &spaceId,
+    std::function<void(QVector<TabState> tabs, QVector<FolderState> folders)> answer) const
 {
     QMetaObject::invokeMethod(
         m_host,
         [host = static_cast<StoreHost *>(m_host), spaceId, answer = std::move(answer)] {
             if (auto *store = host->store()) {
-                answer(store->loadTabs(spaceId));
+                answer(store->loadTabs(spaceId), store->loadFolders(spaceId));
             } else {
-                answer({});
+                answer({}, {});
             }
         },
         Qt::QueuedConnection);

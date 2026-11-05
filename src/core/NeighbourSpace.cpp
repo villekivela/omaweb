@@ -25,6 +25,8 @@ QAbstractItemModel *NeighbourSpace::pinnedTabs() { return &m_pinnedTabs; }
 
 QAbstractItemModel *NeighbourSpace::unpinnedTabs() { return &m_unpinnedTabs; }
 
+QAbstractItemModel *NeighbourSpace::rows() { return &m_rows; }
+
 void NeighbourSpace::name(const QString &spaceId)
 {
     if (spaceId == m_spaceId) {
@@ -32,8 +34,9 @@ void NeighbourSpace::name(const QString &spaceId)
     }
     m_spaceId = spaceId;
     m_ready = false;
-    if (!m_tabs.items().isEmpty()) {
+    if (!m_tabs.items().isEmpty() || !m_folders.isEmpty()) {
         emit rowsAboutToChange();
+        m_folders.clear();
         m_tabs.reset({});
         emit rowsChanged();
     }
@@ -50,17 +53,20 @@ namespace {
             && left.active == right.active && left.audible == right.audible
             && left.muted == right.muted && left.soundSuppressed == right.soundSuppressed
             && left.keepActive == right.keepActive && left.splitPartnerId == right.splitPartnerId
-            && left.poppedOut == right.poppedOut;
+            && left.poppedOut == right.poppedOut && left.folderId == right.folderId
+            && left.folderHidden == right.folderHidden;
     }
 
 } // namespace
 
-void NeighbourSpace::show(QVector<TabState> tabs)
+void NeighbourSpace::show(QVector<TabState> tabs, QVector<FolderState> folders)
 {
+    const auto active = std::ranges::find_if(tabs, &TabState::active);
+    arrangeTabsInFolders(tabs, folders, active == tabs.end() ? QString {} : active->id);
     qsizetype ordinary = 0;
     const TabState *onlyOrdinary = nullptr;
     for (const auto &tab : tabs) {
-        if (!tab.pinned && !tab.poppedOut) {
+        if (!tab.pinned && !tab.poppedOut && tab.folderId.isEmpty()) {
             ++ordinary;
             onlyOrdinary = &tab;
         }
@@ -71,9 +77,11 @@ void NeighbourSpace::show(QVector<TabState> tabs)
         const auto blankId = onlyOrdinary->id;
         tabs.removeIf([&blankId](const TabState &tab) { return tab.id == blankId; });
     }
-    const bool unchanged = std::ranges::equal(tabs, m_tabs.items(), drawnAlike);
+    const bool unchanged
+        = folders == m_folders && std::ranges::equal(tabs, m_tabs.items(), drawnAlike);
     if (!unchanged) {
         emit rowsAboutToChange();
+        m_folders = std::move(folders);
         m_tabs.reset(std::move(tabs));
         emit rowsChanged();
     }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "SidebarRowModel.h"
 #include "TabListModel.h"
 
 #include <QObject>
@@ -18,6 +19,7 @@ class NeighbourSpace final : public QObject {
     Q_PROPERTY(bool ready READ ready NOTIFY changed)
     Q_PROPERTY(QAbstractItemModel *pinnedTabs READ pinnedTabs CONSTANT)
     Q_PROPERTY(QAbstractItemModel *unpinnedTabs READ unpinnedTabs CONSTANT)
+    Q_PROPERTY(QAbstractItemModel *rows READ rows CONSTANT)
 
 public:
     explicit NeighbourSpace(QObject *parent = nullptr);
@@ -27,14 +29,17 @@ public:
     bool ready() const;
     QAbstractItemModel *pinnedTabs();
     QAbstractItemModel *unpinnedTabs();
+    // The ordinary list as the sidebar stands it, Folders and all.
+    QAbstractItemModel *rows();
 
     // Names the Space this neighbour is. A different Space empties the rows
     // until `show` hands over its tabs.
     void name(const QString &spaceId);
-    // The Space's tabs as the store keeps them. A Space resting on a blank tab
-    // lists no ordinary row, as the Space on show does, except a tab shown in
-    // a Tab window. Tabs that draw as the rows already do change nothing.
-    void show(QVector<TabState> tabs);
+    // The Space's tabs and Folders as the store keeps them. A Space resting on a
+    // blank tab lists no ordinary row, as the Space on show does, except a tab
+    // shown in a Tab window or a Folder. Tabs that draw as the rows already do
+    // change nothing.
+    void show(QVector<TabState> tabs, QVector<FolderState> folders);
 
 signals:
     void changed();
@@ -51,6 +56,8 @@ private:
     TabListModel m_tabs;
     QSortFilterProxyModel m_pinnedTabs;
     QSortFilterProxyModel m_unpinnedTabs;
+    QVector<FolderState> m_folders;
+    SidebarRowModel m_rows {m_tabs, m_folders};
 };
 
 } // namespace omaweb

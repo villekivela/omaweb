@@ -1,8 +1,64 @@
 #include "SidebarRowModel.h"
 
+#include <QSet>
+
 #include <algorithm>
 
 namespace omaweb {
+
+void arrangeTabsInFolders(
+    QVector<TabState> &tabs, QVector<FolderState> &folders, const QString &activeTabId)
+{
+    QHash<QString, qsizetype> rows;
+    for (qsizetype row = 0; row < tabs.size(); ++row) {
+        rows.insert(tabs.at(row).id, row);
+    }
+    // A split stands together whatever the record says of its halves: the
+    // pairing is this machine's, and the record may be another's.
+    QSet<QString> held;
+    for (auto &folder : folders) {
+        QStringList kept;
+        for (const auto &id : std::as_const(folder.tabIds)) {
+            const auto row = rows.value(id, -1);
+            if (row < 0 || tabs.at(row).pinned || held.contains(id)) {
+                continue;
+            }
+            const auto partnerRow = rows.value(tabs.at(row).splitPartnerId, -1);
+            if (partnerRow < 0) {
+                kept.append(id);
+            } else if (partnerRow < row) {
+                kept.append({tabs.at(partnerRow).id, id});
+            } else {
+                kept.append({id, tabs.at(partnerRow).id});
+            }
+            held.unite(QSet<QString>(kept.cbegin(), kept.cend()));
+        }
+        folder.tabIds = kept;
+    }
+    const auto activeRow = rows.value(activeTabId, -1);
+    const auto beside = activeRow < 0 ? QString {} : tabs.at(activeRow).splitPartnerId;
+    QVector<TabState> ordered;
+    ordered.reserve(tabs.size());
+    for (const auto &tab : std::as_const(tabs)) {
+        if (tab.pinned) {
+            ordered.append(tab);
+        }
+    }
+    for (const auto &folder : std::as_const(folders)) {
+        for (const auto &id : folder.tabIds) {
+            auto tab = tabs.at(rows.value(id));
+            tab.folderId = folder.id;
+            tab.folderHidden = folder.collapsed && id != activeTabId && id != beside;
+            ordered.append(std::move(tab));
+        }
+    }
+    for (const auto &tab : std::as_const(tabs)) {
+        if (!tab.pinned && !held.contains(tab.id)) {
+            ordered.append(tab);
+        }
+    }
+    tabs = std::move(ordered);
+}
 
 SidebarRowModel::SidebarRowModel(TabListModel &tabs, const QVector<FolderState> &folders)
     : m_tabs(tabs)
@@ -19,8 +75,10 @@ SidebarRowModel::SidebarRowModel(TabListModel &tabs, const QVector<FolderState> 
     });
     connect(&m_tabs, &QAbstractItemModel::dataChanged, this,
         [this](const QModelIndex &from, const QModelIndex &to, const QList<int> &roles) {
-            // A tab pinned or unpinned stands in another list.
-            if (roles.contains(TabListModel::PinnedRole)) {
+            // A tab pinned or unpinned stands in another list, and a split
+            // made or parted changes how many rows its Folder counts.
+            if (roles.contains(TabListModel::PinnedRole)
+                || roles.contains(TabListModel::SplitPartnerIdRole)) {
                 refresh();
             }
             for (auto source = from.row(); source <= to.row(); ++source) {

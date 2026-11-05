@@ -1058,6 +1058,9 @@ private:
     void settleFolders(const QStringList &looseOrder = {});
     void refreshFolderFields();
     void persistFolders();
+    // Settles the Folders and writes them and the tabs.
+    void commitFolders();
+    bool folderCanMoveTo(const QString &folderId, const QString &destinationSpaceId) const;
     // What comes on show when these tabs go, or nothing when only Folder tabs
     // would be left, which is a Space at rest.
     QString tabAfterLeaving(const QStringList &leaving) const;
@@ -1080,7 +1083,8 @@ private:
     // them, and an answer the store has yet to give for it was read before the
     // write, so it is dropped.
     void noteAwayTabs(const QString &spaceId, QVector<TabState> tabs);
-    void showNeighbourTabs(const QString &spaceId, QVector<TabState> tabs);
+    void showNeighbourTabs(
+        const QString &spaceId, QVector<TabState> tabs, QVector<FolderState> folders);
     // Reads the Agent Space labels, and which are temporary, from the store.
     void loadAgentSpaces();
     // The colour fewest of the reader's Spaces have, leaving one Space out of

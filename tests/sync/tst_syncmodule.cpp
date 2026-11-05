@@ -430,6 +430,9 @@ private slots:
     void aTabAddedElsewhereStaysWhenAFolderCloses();
     void aFolderKeepsTheIdOfATabThisMachineLacks();
     void aFolderMovedToASpaceFollowsOnTheOtherMachine();
+    void aChangeToAFolderAloneAsksForASync();
+    void collapsingAFolderAsksForNoSync();
+    void aRemoteChangeToAFolderAloneReachesTheRunningWindow();
     void anExistingRepositoryRequiresItsRecoveryKey();
 };
 
@@ -2267,6 +2270,9 @@ void SyncModuleTest::aFolderMovedToASpaceFollowsOnTheOtherMachine()
     QVERIFY(machines.firstStore.saveTabs(machines.space, {kept}, kept.id));
     QVERIFY(machines.firstStore.saveFolders(machines.space, {machines.folder({kept.id})}));
     OMAWEB_VERIFY_SYNC(machines.settleBoth());
+    auto collapsedHere = machines.folder({kept.id});
+    collapsedHere.collapsed = true;
+    QVERIFY(machines.secondStore.saveFolders(machines.space, {collapsedHere}));
 
     machines.firstNow = 2'000;
     auto moved = machines.folder({kept.id});
@@ -2278,7 +2284,84 @@ void SyncModuleTest::aFolderMovedToASpaceFollowsOnTheOtherMachine()
     QVERIFY(machines.firstStore.saveFolders(other, {moved}));
     OMAWEB_VERIFY_SYNC(machines.settleBoth());
     QVERIFY(machines.secondStore.loadFolders(machines.space).isEmpty());
+    // Collapsed on this machine, and still collapsed in the Space it moved to.
+    moved.collapsed = true;
     QCOMPARE(machines.secondStore.loadFolders(other), QVector<FolderState> {moved});
+}
+
+void SyncModuleTest::aChangeToAFolderAloneAsksForASync()
+{
+    QTemporaryDir dataRoot;
+    QTemporaryDir configRoot;
+    BrowserController browser(
+        SpaceStorage(dataRoot.path(), QStringLiteral("test")), configRoot.path());
+    browser.openInput(QStringLiteral("https://kept.example"), false);
+    browser.landPendingTabs();
+    BrowserStateExchangeAdapter exchange(
+        &browser, nullptr, nullptr, dataRoot.path(), configRoot.path());
+    LocalSyncState localState(exchange, dataRoot.path(), configRoot.path());
+    QSignalSpy changed(&localState, &LocalSyncState::meaningfulChange);
+
+    const auto folder = browser.createFolder(QStringLiteral("Reading"));
+    QTRY_COMPARE(changed.count(), 1);
+    QVERIFY(browser.renameFolder(folder, QStringLiteral("Renamed")));
+    QTRY_COMPARE(changed.count(), 2);
+    QVERIFY(browser.removeFolder(folder));
+    QTRY_COMPARE(changed.count(), 3);
+}
+
+void SyncModuleTest::collapsingAFolderAsksForNoSync()
+{
+    QTemporaryDir dataRoot;
+    QTemporaryDir configRoot;
+    BrowserController browser(
+        SpaceStorage(dataRoot.path(), QStringLiteral("test")), configRoot.path());
+    browser.openInput(QStringLiteral("https://kept.example"), false);
+    const auto folder = browser.createFolder(QStringLiteral("Reading"), {browser.activeTabId()});
+    browser.landPendingTabs();
+    BrowserStateExchangeAdapter exchange(
+        &browser, nullptr, nullptr, dataRoot.path(), configRoot.path());
+    LocalSyncState localState(exchange, dataRoot.path(), configRoot.path());
+    QSignalSpy changed(&localState, &LocalSyncState::meaningfulChange);
+
+    QVERIFY(browser.setFolderCollapsed(folder, true));
+    QTest::qWait(10);
+    QCOMPARE(changed.count(), 0);
+}
+
+// The window keeps its Folders in memory and writes them whole, so one that
+// missed a remote change would write it away with its next change.
+void SyncModuleTest::aRemoteChangeToAFolderAloneReachesTheRunningWindow()
+{
+    TwoMachines machines;
+    QVERIFY(machines.open());
+    const auto kept = machines.tab(QStringLiteral("kept"));
+    QVERIFY(machines.firstStore.saveTabs(machines.space, {kept}, kept.id));
+    QVERIFY(machines.firstStore.saveFolders(machines.space, {machines.folder({kept.id})}));
+    OMAWEB_VERIFY_SYNC(machines.settleBoth());
+
+    QTemporaryDir config;
+    BrowserController browser(
+        SpaceStorage(machines.firstDataRoot.path(), QStringLiteral("test")), config.path());
+    BrowserStateExchangeAdapter exchange(
+        &browser, nullptr, nullptr, machines.firstDataRoot.path(), config.path());
+    LocalSyncState localState(exchange, machines.firstDataRoot.path(), config.path());
+    QCOMPARE(browser.folderName(QStringLiteral("folder-1")), QStringLiteral("Reading"));
+
+    auto renamed = machines.folder({kept.id});
+    renamed.name = QStringLiteral("Renamed elsewhere");
+    machines.secondNow = 2'000;
+    QVERIFY(machines.secondStore.saveFolders(machines.space, {renamed}));
+    OMAWEB_VERIFY_SYNC(settle(*machines.second, machines.secondStore));
+
+    const auto revision = localState.checkpoint();
+    if (const auto reconciled = machines.first->reconcile(machines.firstStore)) {
+        QFAIL(qPrintable(reconciled.message));
+    }
+    QVERIFY(machines.first->awaitsLocalApply());
+    const auto applied = localState.applyRemoteState(*machines.first, revision.generation);
+    QCOMPARE(applied.status, LocalSyncApplyStatus::Applied);
+    QCOMPARE(browser.folderName(QStringLiteral("folder-1")), QStringLiteral("Renamed elsewhere"));
 }
 
 void SyncModuleTest::anExistingRepositoryRequiresItsRecoveryKey()

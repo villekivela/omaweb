@@ -891,8 +891,13 @@ ApplicationWindow {
         const marks = sidebar.marks;
         const rows = sidebar.markRows();
         const shown = window.windowBrowser.activeTabId;
+        // A Folder's tab is kept rather than open, so it is not fallen back on
+        // from outside its Folder: the core brings a Space left with only those
+        // to rest.
+        const browser = window.windowBrowser;
         const unmarked = function (row) {
-            return !row.some(function (id) {
+            return browser.tabFolder(row[0]) === browser.tabFolder(shown) && !row.some(function (
+                id) {
                 return marks.has(id);
             });
         };
@@ -4117,9 +4122,6 @@ ApplicationWindow {
                 onTabDropped: function (tabId, destination) {
                     window.windowBrowser.moveTab(tabId, destination);
                 }
-                // The rows that move go to the end of the section, and then each
-                // to its place in turn, in order: the rows that stay, a split's
-                // among them, are never moved, and keep the order they had.
                 onTabsPlaced: function (tabIds, folderId, beforeTabId) {
                     window.windowBrowser.placeTabs(tabIds, folderId, beforeTabId);
                 }
@@ -4129,6 +4131,9 @@ ApplicationWindow {
                 onFolderMenuRequested: function (folderId, anchorX, anchorY) {
                     window.openFolderMenu(folderId, anchorX, anchorY);
                 }
+                // The rows that move go to the end of the section, and then each
+                // to its place in turn, in order: the rows that stay, a split's
+                // among them, are never moved, and keep the order they had.
                 onTabsDropped: function (order, moving) {
                     const browser = window.windowBrowser;
                     const last = order.length - 1;

@@ -1108,6 +1108,16 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
             return false;
         }
     }
+    // Read from every Space first, since a Folder may arrive in another Space
+    // than the one it was collapsed in.
+    QSet<QString> collapsedFolderIds;
+    for (const auto &space : store.loadSpaces()) {
+        for (const auto &folder : store.loadFolders(space.id)) {
+            if (folder.collapsed) {
+                collapsedFolderIds.insert(folder.id);
+            }
+        }
+    }
     for (qsizetype index = 0; index < spaces.size(); ++index) {
         auto tabs = tabsBySpace.take(spaces[index].id);
         std::ranges::sort(tabs, {}, &RemoteTab::position);
@@ -1154,10 +1164,8 @@ bool SyncModule::restoreRemoteState(SessionStore &store, QString *errorMessage)
         std::ranges::sort(folders, {}, &RemoteFolder::position);
         QVector<FolderState> folderStates;
         folderStates.reserve(folders.size());
-        const auto localFolders = store.loadFolders(spaces[index].id);
         for (auto &folder : folders) {
-            const auto local = std::ranges::find(localFolders, folder.state.id, &FolderState::id);
-            folder.state.collapsed = local != localFolders.end() && local->collapsed;
+            folder.state.collapsed = collapsedFolderIds.contains(folder.state.id);
             folderStates.append(std::move(folder.state));
         }
         if (!store.saveFolders(spaces[index].id, folderStates)) {

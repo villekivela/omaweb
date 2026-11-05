@@ -1982,7 +1982,7 @@
     </message>
     <message>
         <source>move folder to a space</source>
-        <translation>siirrä kansio tilaan</translation>
+        <translation>siirrä kansio Tilaan</translation>
     </message>
     <message>
         <source>discard edited form state</source>

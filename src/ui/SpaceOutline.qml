@@ -672,15 +672,6 @@ Rectangle {
     // in or out of one to be dragged to.
     readonly property bool hasFolders: browser ? browser.folderCount > 0 : false
 
-    // The row of a Folder, or null.
-    function folderRow(folderId) {
-        for (const row of root.sectionRows(ordinarySection)) {
-            if (row && row.isFolder && row.folderRowId === folderId)
-                return row;
-        }
-        return null;
-    }
-
     // Collapsing leaves the tab on show in view, and lets go of the marks on
     // the rows it hides.
     function toggleFolder(folderId) {
@@ -878,13 +869,20 @@ Rectangle {
         });
     }
 
+    // The row under the hand, or in the gaps between rows the nearest one.
     function rowUnder(rows, pointer) {
+        let nearest = rows[0];
+        let distance = Infinity;
         for (const other of rows) {
-            const at = root.homeOf(other);
-            if (pointer.y >= at.y && pointer.y < at.y + other.height)
-                return other;
+            const top = root.homeOf(other).y;
+            const away = pointer.y < top ? top - pointer.y : Math.max(0, pointer.y - top
+                                                                      - other.height);
+            if (away < distance) {
+                nearest = other;
+                distance = away;
+            }
         }
-        return pointer.y < root.homeOf(rows[0]).y ? rows[0] : rows[rows.length - 1];
+        return nearest;
     }
 
     // A Folder's row takes what is let go over it and opens no place, since
@@ -1662,9 +1660,8 @@ Rectangle {
                                 height: root.blockGap + 1
 
                                 Rectangle {
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.verticalCenter: parent.verticalCenter
+                                    y: DevicePixels.snap(root.blockGap / 2, root.pixelRatio)
+                                    width: parent.width
                                     height: 1
                                     color: root.colors.separator
                                 }
@@ -1682,6 +1679,10 @@ Rectangle {
                                 placeInSection: index
                                 splitDrags: root.hasFolders
                                 landing: root.landing
+                                // A mark on a row out of the list would have
+                                // `x` close a tab the reader cannot see.
+                                onFolderHiddenChanged: if (folderHidden)
+                                                           tabMarks.remove([tabId])
                                 width: inSplit ? (ordinarySection.rowWidth
                                                   - ordinarySection.spacing) / 2 :
                                                  ordinarySection.rowWidth
@@ -1859,23 +1860,60 @@ Rectangle {
                         spacing: neighbourPins.spacing
 
                         Repeater {
-                            model: neighbourList.neighbour ? neighbourList.neighbour.unpinnedTabs :
-                                                             null
+                            model: neighbourList.neighbour ? neighbourList.neighbour.rows : null
+                            delegate: DelegateChooser {
+                                role: "rowKind"
 
-                            TabRow {
-                                objectName: "neighbour-" + tabId
-                                width: inSplit ? (neighbourRows.rowWidth - neighbourRows.spacing)
-                                                 / 2 : neighbourRows.rowWidth
-                                trailingHalf: inSplit && x > neighbourRows.leftPadding
-                                reachLeft: trailingHalf ? x - neighbourRows.splitMiddle :
-                                                          neighbourRows.leftPadding
-                                reachRight: inSplit && !trailingHalf ? neighbourRows.splitMiddle
-                                                                       - x - width :
-                                                                       neighbourRows.rightPadding
-                                colors: root.colors
-                                iconFontFamily: root.iconFontFamily
-                                useFavicons: root.useFavicons
-                                tintFavicons: root.tintFavicons
+                                DelegateChoice {
+                                    roleValue: "folder"
+
+                                    FolderRow {
+                                        objectName: "neighbourFolder-" + folderRowId
+                                        width: neighbourRows.rowWidth
+                                        reachLeft: neighbourRows.leftPadding
+                                        reachRight: neighbourRows.rightPadding
+                                        colors: root.colors
+                                        iconFontFamily: root.iconFontFamily
+                                    }
+                                }
+
+                                DelegateChoice {
+                                    roleValue: "divider"
+
+                                    Item {
+                                        width: neighbourRows.rowWidth
+                                        height: root.blockGap + 1
+
+                                        Rectangle {
+                                            y: DevicePixels.snap(root.blockGap / 2, root.pixelRatio)
+                                            width: parent.width
+                                            height: 1
+                                            color: root.colors.separator
+                                        }
+                                    }
+                                }
+
+                                DelegateChoice {
+                                    roleValue: "tab"
+
+                                    TabRow {
+                                        objectName: "neighbour-" + tabId
+                                        visible: !folderHidden
+                                        width: inSplit ? (neighbourRows.rowWidth
+                                                          - neighbourRows.spacing) / 2 :
+                                                         neighbourRows.rowWidth
+                                        trailingHalf: inSplit && x > neighbourRows.leftPadding
+                                        reachLeft: trailingHalf ? x - neighbourRows.splitMiddle :
+                                                                  neighbourRows.leftPadding
+                                        reachRight: inSplit && !trailingHalf
+                                                    ? neighbourRows.splitMiddle - x - width :
+                                                      neighbourRows.rightPadding
+                                        colors: root.colors
+                                        iconFontFamily: root.iconFontFamily
+                                        useFavicons: root.useFavicons
+                                        tintFavicons: root.tintFavicons
+                                    }
+                                }
                             }
                         }
                     }

@@ -1,4 +1,5 @@
 #include "BrowserController.h"
+#include "NeighbourSpace.h"
 #include "PrivateSessionFixture.h"
 #include "SidebarRowModel.h"
 #include "SpaceStorage.h"
@@ -101,6 +102,13 @@ private slots:
     void addingASplitWithAFolderTabBringsTheActiveTabIn();
     void aBlankSplitStaysBesideItsTabInTheFolder();
     void separatingLeavesBothInTheFolder();
+    void aSplitWithATabAboveItInTheFolderStaysInTheFolder();
+    void aSplitWithATabFarAboveItInTheFolderStaysInTheFolder();
+    void poppingOutTheLastOrdinaryTabComesToRest();
+    void closingAFolderOnShowShowsNoneOfItsTabs();
+    void closingAFolderOnShowComesToRestPastAPin();
+    void theNeighbourListStandsItsFolders();
+    void aNeighbourWithOnlyFolderTabsListsNoBlankRow();
     void closeOtherTabsNeverTouchesAFoldersTabs();
     void closeTabsBelowNeverTouchesAFoldersTabs();
     void aSpaceWithOnlyFolderTabsLeftComesToRest();
@@ -391,6 +399,130 @@ void FoldersTest::separatingLeavesBothInTheFolder()
     QVERIFY(controller->separateSplit(kept));
     QCOMPARE(controller->folderTabIds(folder), QStringList({kept, outside}));
     QCOMPARE(memberCount(*controller, QStringLiteral("Reading")), 2);
+}
+
+void FoldersTest::aSplitWithATabAboveItInTheFolderStaysInTheFolder()
+{
+    QTemporaryDir root;
+    auto controller = openWindow(root);
+    const auto above = open(*controller, "above", false);
+    const auto below = open(*controller, "below");
+    const auto folder = controller->createFolder(QStringLiteral("Reading"), {above, below});
+    controller->activateTab(below);
+    QVERIFY(controller->addSplit(above));
+    QCOMPARE(controller->folderTabIds(folder), QStringList({below, above}));
+    QCOMPARE(memberCount(*controller, QStringLiteral("Reading")), 1);
+}
+
+void FoldersTest::aSplitWithATabFarAboveItInTheFolderStaysInTheFolder()
+{
+    QTemporaryDir root;
+    auto controller = openWindow(root);
+    const auto first = open(*controller, "first", false);
+    const auto middle = open(*controller, "middle");
+    const auto last = open(*controller, "last");
+    const auto folder = controller->createFolder(QStringLiteral("Reading"), {first, middle, last});
+    controller->activateTab(last);
+    QVERIFY(controller->addSplit(first));
+    QCOMPARE(controller->folderTabIds(folder), QStringList({last, first, middle}));
+}
+
+void FoldersTest::poppingOutTheLastOrdinaryTabComesToRest()
+{
+    QTemporaryDir root;
+    auto controller = openWindow(root);
+    const auto kept = open(*controller, "kept", false);
+    const auto loose = open(*controller, "loose");
+    const auto folder = controller->createFolder(QStringLiteral("Reading"), {kept});
+    QVERIFY(controller->setFolderCollapsed(folder, true));
+    QVERIFY(controller->popOutTab(loose));
+    QVERIFY(controller->activeTabBlank());
+    QVERIFY(controller->atRest());
+}
+
+void FoldersTest::closingAFolderOnShowShowsNoneOfItsTabs()
+{
+    QTemporaryDir root;
+    auto controller = openWindow(root);
+    const auto a = open(*controller, "a", false);
+    const auto b = open(*controller, "b");
+    const auto c = open(*controller, "c");
+    const auto loose = open(*controller, "loose");
+    const auto folder = controller->createFolder(QStringLiteral("Reading"), {a, b, c});
+    controller->activateTab(b);
+
+    QStringList shown;
+    connect(controller.get(), &BrowserController::activeTabChanged, this,
+        [&shown, &controller] { shown.append(controller->activeTabId()); });
+    QVERIFY(controller->closeFolder(folder));
+    QVERIFY(!shown.contains(a));
+    QVERIFY(!shown.contains(c));
+    QCOMPARE(controller->activeTabId(), loose);
+    QCOMPARE(controller->closedTabCount(), 3);
+}
+
+void FoldersTest::closingAFolderOnShowComesToRestPastAPin()
+{
+    QTemporaryDir root;
+    auto controller = openWindow(root);
+    const auto pin = open(*controller, "pin", false);
+    QVERIFY(controller->setTabPinned(pin, true));
+    const auto kept = open(*controller, "kept");
+    const auto folder = controller->createFolder(QStringLiteral("Reading"), {kept});
+    QVERIFY(controller->closeFolder(folder));
+    QVERIFY(controller->activeTabBlank());
+    QVERIFY(controller->atRest());
+}
+
+void FoldersTest::theNeighbourListStandsItsFolders()
+{
+    QTemporaryDir root;
+    auto controller = openWindow(root);
+    const auto home = controller->activeSpaceId();
+    const auto away = controller->createSpace(QStringLiteral("Away"));
+    QVERIFY(controller->switchSpace(away));
+    const auto kept = open(*controller, "kept", false);
+    const auto hidden = open(*controller, "hidden");
+    open(*controller, "loose");
+    const auto folder = controller->createFolder(QStringLiteral("Reading"), {kept, hidden});
+    QVERIFY(controller->setFolderCollapsed(folder, true));
+    QVERIFY(controller->switchSpace(home));
+
+    auto *rows = controller->nextSpace()->rows();
+    const auto listed = [rows] {
+        QStringList read;
+        for (int row = 0; row < rows->rowCount(); ++row) {
+            const auto index = rows->index(row, 0);
+            if (rows->data(index, TabListModel::FolderHiddenRole).toBool()) {
+                continue;
+            }
+            read.append(rows->data(index, SidebarRowModel::RowKindRole).toString());
+        }
+        return read;
+    };
+    QTRY_COMPARE(listed(),
+        QStringList({QStringLiteral("folder"), QStringLiteral("divider"), QStringLiteral("tab")}));
+}
+
+void FoldersTest::aNeighbourWithOnlyFolderTabsListsNoBlankRow()
+{
+    QTemporaryDir root;
+    auto controller = openWindow(root);
+    const auto home = controller->activeSpaceId();
+    const auto away = controller->createSpace(QStringLiteral("Away"));
+    QVERIFY(controller->switchSpace(away));
+    const auto kept = open(*controller, "kept", false);
+    const auto loose = open(*controller, "loose");
+    controller->createFolder(QStringLiteral("Reading"), {kept});
+    controller->closeTab(loose);
+    QVERIFY(controller->atRest());
+    QVERIFY(controller->switchSpace(home));
+
+    auto *rows = controller->nextSpace()->rows();
+    // The Folder's row and its tab, and neither a blank row nor a hairline.
+    QTRY_VERIFY(rows->rowCount() > 0
+        && rows->data(rows->index(0, 0), SidebarRowModel::RowKindRole) == QStringLiteral("folder"));
+    QCOMPARE(rows->rowCount(), 2);
 }
 
 void FoldersTest::closeOtherTabsNeverTouchesAFoldersTabs()
