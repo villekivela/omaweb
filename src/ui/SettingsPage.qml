@@ -1677,7 +1677,7 @@ Rectangle {
                         colors: root.colors
                         title: qsTr("Darken pages with no dark theme")
                         note: qsTr(
-                                  "Has the engine draw a page dark when it brings no dark theme of its own. A page that has one is left as it is, and Site information turns this off for one site.")
+                                  "Has the engine draw a page dark when it brings no dark theme of its own. A page that has one is left as it is, and so is a page that only says it allows a dark scheme. Site information turns this off for one site.")
                         accessibleName: qsTr("Darken pages with no dark theme")
                         checked: !!root.pageDarkening && root.pageDarkening.enabled
                         onClicked: if (root.pageDarkening)

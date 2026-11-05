@@ -610,13 +610,20 @@ reports the gap and remains experimental rather than imitating behavior it canno
   it with the group's other settings. It reaches every Space and Private window. The engine darkens:
   Chromium's forced dark mode inverts the lightness of a background whose brightness is above 205 of
   255, so white becomes `#121212` and `#f5f5f5` becomes `#222222`, and leaves a darker one, such as
-  `#336699`, as it is. A page that declares `color-scheme: dark`, in a `<meta>` or in CSS, is left
-  alone, and so is a page's own dark colours. When Chromium treats a page otherwise the engine's
-  behaviour holds, since the engine alone decides what is a dark theme: a page that declares
-  `light dark` is darkened. The setting applies to a page already open, with no reload. Pages of an
-  engine that cannot darken are drawn as written: the engine contract's `darkenPage` is ignored and
-  its capabilities lack `PageDarkening`, which Ladybird's do, so Settings says "This engine cannot
-  darken a page" beside the switch and Site information offers no row.
+  `#336699`, as it is. What counts as a dark theme is the engine's to say. It was measured under the
+  dark colour scheme Omaweb hands the engine with a dark Browser theme, with the switch off and on,
+  reading `matchMedia('(prefers-color-scheme: dark)')` as dark each time. A page that declares
+  `color-scheme: dark`, in a `<meta>` or in CSS, is left alone. A page whose dark theme sits behind
+  `@media (prefers-color-scheme: dark)` keeps it, whether or not it also declares
+  `color-scheme: light dark`: its `#f5f5f5` and its `#334455` are drawn as written. A page that
+  declares `light dark` and brings no dark colours of its own is not darkened under a dark scheme,
+  so it stays as bright as it was written, though a light scheme darkens it. A page that answers
+  nothing is darkened. A page left bright by the second rule is covered in the dark cover while a
+  returned window waits for its first frame, which is brief. The setting applies to a page already
+  open, with no reload. Pages of an engine that cannot darken are drawn as written: the engine
+  contract's `darkenPage` is ignored and its capabilities lack `PageDarkening`, which Ladybird's do,
+  so Settings says "This engine cannot darken a page" beside the switch and Site information offers
+  no row.
 - Site information turns darkening off for one site while the switch is on. The row reads "Darken
   acme.com", a switch, with a muted line under it, "Pages with no dark theme, in this Space". The
   site is the page's registrable domain, as the Link rule row reads it. The row is absent while the

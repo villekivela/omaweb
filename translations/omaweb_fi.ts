@@ -3361,6 +3361,10 @@ Päivitykset osoitteesta %3</translation>
         <translation>%1, työpöydältä</translation>
     </message>
     <message>
+        <source>Has the engine draw a page dark when it brings no dark theme of its own. A page that has one is left as it is, and so is a page that only says it allows a dark scheme. Site information turns this off for one site.</source>
+        <translation>Moottori piirtää sivun tummana, jos sillä ei ole omaa tummaa teemaa. Sivu, jolla sellainen on, jätetään ennalleen, samoin sivu, joka vain ilmoittaa sallivansa tumman teeman. Sivuston tiedot -kortista tämän voi poistaa käytöstä yhdeltä sivustolta.</translation>
+    </message>
+    <message>
         <source>Show where this download landed</source>
         <translation>Näytä, minne tämä lataus tallentui</translation>
     </message>
@@ -3952,10 +3956,6 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>Darken pages with no dark theme</source>
         <translation>Tummenna sivut, joilla ei ole omaa tummaa teemaa</translation>
-    </message>
-    <message>
-        <source>Has the engine draw a page dark when it brings no dark theme of its own. A page that has one is left as it is, and Site information turns this off for one site.</source>
-        <translation>Moottori piirtää sivun tummana, jos sillä ei ole omaa tummaa teemaa. Sivu, jolla sellainen on, jätetään ennalleen, ja Sivuston tiedot -kortista tämän voi poistaa käytöstä yhdeltä sivustolta.</translation>
     </message>
     <message>
         <source>This engine cannot darken a page</source>
