@@ -428,6 +428,7 @@ private slots:
     void removingAFolderLeavesItsTabsOnTheOtherMachine();
     void closingAFolderClosesItsTabsOnTheOtherMachine();
     void aTabAddedElsewhereStaysWhenAFolderCloses();
+    void aNewerAddKeepsTheFolderHoldingOnlyThatTab();
     void aFolderKeepsTheIdOfATabThisMachineLacks();
     void aFolderMovedToASpaceFollowsOnTheOtherMachine();
     void aChangeToAFolderAloneAsksForASync();
@@ -2242,6 +2243,44 @@ void SyncModuleTest::aTabAddedElsewhereStaysWhenAFolderCloses()
             ids.append(tab.id);
         }
         ids.sort();
+        QCOMPARE(ids, QStringList({added.id, loose.id}));
+    }
+}
+
+void SyncModuleTest::aNewerAddKeepsTheFolderHoldingOnlyThatTab()
+{
+    TwoMachines machines;
+    QVERIFY(machines.open());
+    const auto kept = machines.tab(QStringLiteral("kept"));
+    const auto loose = machines.tab(QStringLiteral("loose"));
+    QVERIFY(machines.firstStore.saveTabs(machines.space, {kept, loose}, loose.id));
+    QVERIFY(machines.firstStore.saveFolders(machines.space, {machines.folder({kept.id})}));
+    OMAWEB_VERIFY_SYNC(machines.settleBoth());
+
+    // The first machine closes the Folder, and the second adds a tab after it
+    // before either hears of the other.
+    machines.firstNow = 2'000;
+    QVERIFY(machines.firstStore.saveFolders(machines.space, {}));
+    QVERIFY(machines.firstStore.saveTabs(machines.space, {loose}, loose.id));
+    machines.secondNow = 3'000;
+    const auto added = machines.tab(QStringLiteral("added"));
+    QVERIFY(machines.secondStore.saveTabs(machines.space, {kept, loose, added}, loose.id));
+    QVERIFY(
+        machines.secondStore.saveFolders(machines.space, {machines.folder({kept.id, added.id})}));
+    OMAWEB_VERIFY_SYNC(settle(*machines.first, machines.firstStore));
+    OMAWEB_VERIFY_SYNC(settle(*machines.second, machines.secondStore));
+    OMAWEB_VERIFY_SYNC(settle(*machines.first, machines.firstStore));
+
+    for (auto *store : {&machines.firstStore, &machines.secondStore}) {
+        const auto folders = store->loadFolders(machines.space);
+        QCOMPARE(folders.size(), 1);
+        QVERIFY(folders.constFirst().tabIds.contains(added.id));
+        QStringList ids;
+        for (const auto &tab : store->loadTabs(machines.space)) {
+            ids.append(tab.id);
+        }
+        ids.sort();
+        // The closed tab stays closed, so the id left in the record names nothing.
         QCOMPARE(ids, QStringList({added.id, loose.id}));
     }
 }

@@ -122,7 +122,7 @@ reports the gap and remains experimental rather than imitating behavior it canno
   installation shows a notice once, with a way to the setting. Private windows never put tabs away
   and have no list.
 - Startup restores the last active Space, tabs, Pinned tabs, retained-tab settings, sidebar state,
-  zoom, and mute. A command returns the active Space to rest. Private windows never restore.
+  zoom, and mute. Private windows never restore.
 
 ## Interface
 
@@ -230,10 +230,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - Dragging a marked row moves every marked row, which close up at the drop point in their existing
   order. Dragging an unmarked row moves that row alone. The marks stay in both.
 - Folders stand in a block between the Pinned tabs and the ordinary tabs, one level deep. A Folder's
-  row is a chevron, a folder glyph, drawn open while the Folder is, and its name in the quiet text
-  colour, with a count of its rows while collapsed, and no colour of its own. Its tabs are indented
-  by one favicon's width. A hairline separates the block from the ordinary tabs, drawn only when
-  both are there. Folders reorder within the block, and a Folder drags as a whole.
+  row is a folder glyph, drawn open while the Folder is open and shut while it is collapsed, and its
+  name in the quiet text colour, with a count of its rows while collapsed. It has no chevron, since
+  the glyph alone shows the state, and no colour of its own. The glyph stands where a tab's chip
+  does, and the name lines up with the titles of the ordinary tabs. Its tabs are indented by one
+  favicon's width. A hairline separates the block from the ordinary tabs, drawn only when both are
+  there. Folders reorder within the block, and a Folder drags as a whole.
 - A Folder holds ordinary tabs and splits, a split's row counting as one. It lasts until the reader
   removes it, with tabs in it or not. A new, duplicated or reopened tab joins no Folder. Pinning a
   tab takes it out, and a popped-out tab keeps its row, with the window mark. Add split view with a
@@ -272,9 +274,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - A Folder syncs as a record of its own, holding its name, position, Space and ordered tab ids. Tab
   records don't change. Records resolve by modification time, so two machines changing one Folder's
   members at once keep the newer change. Remove folder leaves the tabs as ordinary tabs on the other
-  machines. Close folder closes them everywhere, and a tab added on another machine meanwhile stays
-  as an ordinary tab. A tab id a machine doesn't have is ignored. Whether a Folder is collapsed, and
-  which pages are released, stay on the machine.
+  machines. Close folder closes them everywhere. A tab added on another machine before the close
+  stays as an ordinary tab. If the add is newer than the close, the newer record wins, and the
+  Folder stays holding only that tab. A tab id a machine doesn't have is ignored. Whether a Folder
+  is collapsed, and which pages are released, stay on the machine.
 - A plain click on a row, opening a row with `Space`, `l` or `Return`, a Space switch, and finishing
   a close, move or pin clear the marks. `Escape` clears them, and only the next `Escape` hands the
   keyboard back to the page. Marks are never saved or synced.

@@ -4,12 +4,12 @@ import qs.Commons
 import qs.Ui as Omarchy
 import "SiteChip.mjs" as SiteChip
 
-// A Folder's row: a chevron, a folder glyph, open while the Folder is, and the
-// Folder's name in the quiet text colour, with a count of its rows while it is
-// collapsed. It has no colour of its own, because only Space colours mark
-// Spaces, and it has no page, so it is never on show and never marked. It stands
-// in the ordinary list and answers the pointer and the Sidebar cursor as a tab's
-// row does.
+// A Folder's row: a folder glyph, open while the Folder is, and the Folder's name
+// in the quiet text colour, with a count of its rows while it is collapsed. The
+// glyph alone shows the state. The row has no colour of its own, because only
+// Space colours mark Spaces, and it has no page, so it is never on show and never
+// marked. It stands in the ordinary list and answers the pointer and the Sidebar
+// cursor as a tab's row does.
 Item {
     id: root
     objectName: "folder-" + folderRowId
@@ -34,11 +34,11 @@ Item {
                               reachedByPointer = false
     readonly property bool cursorShown: activeFocus && !reachedByPointer
 
-    // Lined up with a tab's row: the chevron takes the chip's place, the glyph
-    // the indented chip's, and the name the indented title's.
+    // Lined up with an ordinary tab's row: the glyph takes the chip's place, and
+    // the name the title's.
     readonly property int chipSize: SiteChip.side(Style.font.caption)
     readonly property int chipInset: Style.space(4)
-    readonly property int titleInset: Style.space(8) + chipSize + Style.space(9) + chipSize
+    readonly property int titleInset: Style.space(8) + chipSize + Style.space(9)
     readonly property int endGap: Style.space(12)
 
     signal toggled(string folderId)
@@ -115,23 +115,10 @@ Item {
     }
 
     Text {
-        id: chevron
-        objectName: "folderChevron-" + root.folderRowId
-        anchors.left: parent.left
-        anchors.leftMargin: root.chipInset
-        anchors.verticalCenter: parent.verticalCenter
-        width: root.chipSize
-        horizontalAlignment: Text.AlignHCenter
-        text: root.folderCollapsed ? "chevron_right" : "expand_more"
-        color: root.colors.mutedText
-        font.family: root.iconFontFamily
-        font.pixelSize: root.chipSize
-    }
-
-    Text {
         id: glyph
         objectName: "folderGlyph-" + root.folderRowId
-        anchors.left: chevron.right
+        anchors.left: parent.left
+        anchors.leftMargin: root.chipInset
         anchors.verticalCenter: parent.verticalCenter
         width: root.chipSize
         horizontalAlignment: Text.AlignHCenter

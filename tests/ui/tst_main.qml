@@ -9625,24 +9625,31 @@ TestCase {
         settleMotion();
     }
 
-    function test_aFolderRowIsAChevronAGlyphAndItsNameInTheQuietColour() {
+    function test_aFolderRowIsAGlyphAndItsNameInTheQuietColour() {
         const ids = openMarkableTabs(3);
         const folder = browser.createFolder("Reading", [ids[0], ids[1]]);
+        settleMotion();
         const row = folderRowOf(folder);
         const name = findChild(row, "folderName-" + folder);
         const glyph = findChild(row, "folderGlyph-" + folder);
-        const chevron = findChild(row, "folderChevron-" + folder);
         const count = findChild(row, "folderCount-" + folder);
         compare(name.text, "Reading");
         compare(glyph.text, "folder_open");
-        compare(chevron.text, "expand_more");
         // The icon font draws the name as one glyph, not as the letters of it.
         verify(Math.abs(glyph.contentWidth - glyph.font.pixelSize) < 1);
         compare(String(name.color), String(window.colors.mutedText));
         compare(String(glyph.color), String(window.colors.mutedText));
-        compare(String(chevron.color), String(window.colors.mutedText));
-        verify(chevron.x + chevron.width <= glyph.x);
-        verify(glyph.x + glyph.width <= name.x);
+        // The glyph alone says which state the Folder is in: nothing stands before it.
+        const items = row.children;
+        for (let index = 0; index < items.length; ++index)
+            verify(items[index].text === undefined || items[index].x >= glyph.x);
+        // The glyph stands in the tab chip's column, and the name lines up with the titles of
+        // the ordinary tabs.
+        const ordinary = rowOf(ids[2]);
+        const chip = findChild(ordinary, "siteTile-" + ids[2]);
+        const title = findChild(ordinary, "tabTitle-" + ids[2]);
+        compare(glyph.mapToItem(null, 0, 0).x, chip.mapToItem(null, 0, 0).x);
+        compare(name.mapToItem(null, 0, 0).x, title.mapToItem(null, 0, 0).x);
         // A count only while collapsed.
         verify(!count.visible);
         verify(browser.setFolderCollapsed(folder, true));
@@ -9650,7 +9657,6 @@ TestCase {
             return count.visible;
         });
         compare(count.text, "2");
-        compare(chevron.text, "chevron_right");
         compare(glyph.text, "folder");
         verify(Math.abs(glyph.contentWidth - glyph.font.pixelSize) < 1);
         removeFolders([folder]);
