@@ -1135,20 +1135,13 @@ ApplicationWindow {
     // The dialog Settings' × opens, for the Space on show. It names the Space
     // and asks for its name, so the command adds no confirmation of its own.
     function requestDeleteSpace() {
-        const spaces = window.windowBrowser.spaces;
-        if (window.privateWindow || spaces.rowCount() < 2)
+        const browser = window.windowBrowser;
+        if (window.privateWindow || browser.spaces.rowCount() < 2)
             return false;
-        const activeId = window.windowBrowser.activeSpaceId;
-        for (let row = 0; row < spaces.rowCount(); ++row) {
-            const index = spaces.index(row, 0);
-            if (spaces.data(index, Qt.UserRole + 1) === activeId) {
-                window.dialogSpaceId = activeId;
-                window.dialogSpaceName = spaces.data(index, Qt.UserRole + 2);
-                window.dialogMode = "delete";
-                return true;
-            }
-        }
-        return false;
+        window.dialogSpaceId = browser.activeSpaceId;
+        window.dialogSpaceName = browser.activeSpaceName;
+        window.dialogMode = "delete";
+        return true;
     }
 
     function requestSettings() {

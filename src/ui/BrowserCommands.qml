@@ -432,7 +432,7 @@ QtObject {
                                              "delete-space": {
                                                  group: "spaces",
                                                  title: qsTr("Delete Space"),
-                                                 requires: "spare-space"
+                                                 requires: "several-spaces"
                                              },
                                              "toggle-sidebar": {
                                                  group: "interface",
@@ -692,7 +692,7 @@ QtObject {
             return window.agentSpaceOnShow;
             // Settings' × is off with one Space left, and a Private window has
             // no Spaces to delete.
-        case "spare-space":
+        case "several-spaces":
             return !window.privateWindow && browser.spaces.rowCount() > 1;
             // Marking is done from the sidebar's rows, on an ordinary row.
         case "sidebar-cursor":
