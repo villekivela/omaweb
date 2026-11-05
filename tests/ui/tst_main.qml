@@ -5130,6 +5130,7 @@ TestCase {
             return engineHost.item === null;
         });
         const onTheStartPage = rowShown();
+        const startPageAvailable = window.pageDarkeningAvailable;
         browser.closeActiveTab();
         pageDarkening.enabled = false;
 
@@ -5137,6 +5138,8 @@ TestCase {
         verify(onASite);
         verify(!onAnIpAddress);
         verify(!onTheStartPage);
+        // No page is no engine that falls short, so Settings does not say it.
+        verify(startPageAvailable);
     }
 
     // A narrower rule that takes the page first is the one the row shows and

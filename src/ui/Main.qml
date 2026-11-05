@@ -2331,7 +2331,9 @@ ApplicationWindow {
     // show can do it.
     readonly property var pageDarkeningSetting: typeof pageDarkening !== "undefined"
                                                 ? pageDarkening : null
-    readonly property bool pageDarkeningAvailable: engineLoader.item !== null && (
+    // Settings says so beside the switch, so with no page open there is no
+    // engine to fall short and it is not said.
+    readonly property bool pageDarkeningAvailable: engineLoader.item === null || (
                                                        engineLoader.item.capabilities
                                                        & EngineCapabilities.PageDarkening) !== 0
     // What an Agent may do through the socket, which reaches only the ordinary

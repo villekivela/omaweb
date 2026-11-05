@@ -3273,23 +3273,36 @@ void QtEngineContractTest::qtCoversADarkenedPageInADarkColourWhenItsWindowReturn
     }
 }
 
-// A sign-in runs through pages that are bare or blank before the one that is
-// drawn, and the maintainer saw white between them. The window is sampled
-// across a chain of an HTTP redirect, a script's redirect, a refresh and a
-// white page at the end. With darkening off the samples are white, which is
-// what shows the sampling can see white; with it on, none is.
+// An AWS device login runs through documents that are bare before the one that
+// is drawn, and the maintainer saw white between them: a single-page app's
+// shell whose render-blocking script asks the server where to sign in and
+// navigates, a bare page that forwards again after a moment, an HTTP redirect
+// to the identity provider, and there a white page whose script moves its own
+// hash route and draws into the same document. The window is sampled through
+// the whole run. With darkening off the samples reach white, which shows the
+// sampling can see it; with it on, none does.
 void QtEngineContractTest::qtShowsNoWhiteFrameWhileADarkenedPageRedirects()
 {
     SiteServer server({
-        {"/start", SiteServer::redirect("/hop1", 150)},
-        {"/hop1",
-            SiteServer::html("<!doctype html><script>location.replace('/hop2')</script>", 250)},
-        {"/hop2",
+        {"/start",
             SiteServer::html(
-                "<!doctype html><meta http-equiv=refresh content=\"0;url=/final\">", 200)},
-        {"/final",
+                "<!doctype html><title>Portal</title><script async blocking=\"render\" "
+                "type=\"module\">await fetch('/login');"
+                "location.assign('/platform/login');</script>",
+                200)},
+        {"/login", SiteServer::html("{}", 100)},
+        {"/platform/login",
+            SiteServer::html("<!doctype html><title>Sign in</title><script>"
+                             "setTimeout(() => location.replace('/saml2'), 150)</script>",
+                150)},
+        {"/saml2", SiteServer::redirect("/idp", 100)},
+        {"/idp",
             SiteServer::html(
-                "<!doctype html><body style=\"margin:0;background:#fff\"><p>done</p>", 300)},
+                "<!doctype html><title>Identity</title><style>body{margin:0;background:#fff}"
+                "</style><p id=route></p><script>"
+                "addEventListener('hashchange', () => route.textContent = location.hash);"
+                "setTimeout(() => { location.hash = '#/signin'; }, 200);</script>",
+                250)},
         {"/bare", SiteServer::html("<!doctype html><p>hello</p>")},
     });
     QVERIFY(server.listen(QHostAddress::LocalHost));
@@ -3310,8 +3323,10 @@ void QtEngineContractTest::qtShowsNoWhiteFrameWhileADarkenedPageRedirects()
         });
         sampler.start(15);
         shown.adapter->setProperty("currentUrl", server.url("/start"));
-        QTRY_VERIFY_WITH_TIMEOUT(
-            shown.adapter->property("currentUrl").toUrl().path() == QStringLiteral("/final")
+        QTRY_VERIFY_WITH_TIMEOUT(shown.adapter->property("currentUrl")
+                                     .toUrl()
+                                     .toString()
+                                     .endsWith(QStringLiteral("/idp#/signin"))
                 && !shown.adapter->property("loading").toBool(),
             10000);
         QTest::qWait(500);
