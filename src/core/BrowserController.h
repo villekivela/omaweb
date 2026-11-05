@@ -322,6 +322,10 @@ public:
         const QString &tabId, const QString &destinationSpaceId, bool hasEditedFormState);
     Q_INVOKABLE bool confirmTabMoveToSpace(const QString &tabId, const QString &destinationSpaceId);
     Q_INVOKABLE void openInput(const QString &input, bool inNewTab);
+    // Text to look for, in a new tab, with the default search engine. Typed
+    // into the Omnibar, a domain is an address and a leading keyword picks
+    // another engine; text the reader selected on a page is neither.
+    Q_INVOKABLE void searchFor(const QString &text);
     // An address that already is one, opened exactly as written: its escapes
     // stay, where typed text would be decoded and trimmed.
     Q_INVOKABLE void openLink(const QUrl &url, bool inNewTab);

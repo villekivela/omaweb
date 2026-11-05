@@ -1846,6 +1846,42 @@ ApplicationWindow {
                                                                                        qsTr("Save media as");
     }
 
+    // What a selection is searched for as: its whitespace collapsed to single
+    // spaces, and cut to a length the menu can hold.
+    function searchLabel(selection) {
+        const words = String(selection).replace(/\s+/g, " ").trim();
+        const shown = words.length > 32 ? words.slice(0, 31).replace(/\s+$/, "") + "\u2026" : words;
+        return qsTr("Search for \"%1\"").arg(shown);
+    }
+
+    // The Spaces a link can be sent to: the reader's own, except the one on
+    // show, in the order the footer lists them.
+    function linkSpaceRows() {
+        const browser = window.windowBrowser;
+        const spaces = browser.spaces;
+        const rows = [];
+        for (let row = 0; row < spaces.rowCount(); ++row) {
+            const index = spaces.index(row, 0);
+            const spaceId = spaces.data(index, Qt.UserRole + 1);
+            if (spaceId === browser.activeSpaceId || browser.agentSpace(spaceId))
+                continue;
+            rows.push({
+                          "label": spaces.data(index, Qt.UserRole + 2),
+                          "swatch": SpaceColour.drawn(window.colors, spaces.data(index, Qt.UserRole
+                                                                                 + 3), window.spaceColours),
+                          "run": "send-link",
+                          "spaceId": spaceId
+                      });
+        }
+        return rows;
+    }
+
+    // A link goes where the reader asks only from their own Spaces: an Agent's
+    // pages are not theirs to route, and a Private window has no other Space.
+    function linkRowsAvailable() {
+        return !window.windowBrowser.agentSpace(window.windowBrowser.activeSpaceId);
+    }
+
     function pageMenuFor(context) {
         const rows = [];
         const link = context.linkUrl ? String(context.linkUrl) : "";
@@ -1859,6 +1895,17 @@ ApplicationWindow {
             rows.push({
                           "label": qsTr("Open link in background"),
                           "run": "open-link-background"
+                      });
+            rows.push({
+                          "label": qsTr("Open link in Space"),
+                          "run": "open-link-space",
+                          "enabled": !window.privateWindow && window.linkRowsAvailable()
+                                     && window.linkSpaceRows().length > 0
+                      });
+            rows.push({
+                          "label": qsTr("Open link in Private window"),
+                          "run": "open-link-private",
+                          "enabled": window.linkRowsAvailable()
                       });
             rows.push({
                           "label": qsTr("Copy link address"),
@@ -1898,6 +1945,10 @@ ApplicationWindow {
             rows.push({
                           "label": qsTr("Copy"),
                           "run": "copy-selection"
+                      });
+            rows.push({
+                          "label": window.searchLabel(selection),
+                          "run": "search-selection"
                       });
             rows.push({
                           "separator": true
@@ -1980,14 +2031,36 @@ ApplicationWindow {
         window.pageTooltipEngine = null;
     }
 
+    // The Private window shown most recently, or a new one, which comes
+    // forward either way.
+    function openLinkInPrivateWindow(url) {
+        const controller = windowManager.showPrivateWindow(url);
+        const root = window.privateWindow ? window.opener : window;
+        if (!controller || !root)
+            return;
+        const shown = root.privateWindows.find(function (candidate) {
+            return candidate.windowBrowser === controller;
+        });
+        if (shown) {
+            shown.raise();
+            shown.requestActivate();
+        }
+    }
+
     function runPageMenu(index) {
         const action = window.pageMenuActions[index];
         const context = window.pageContext;
         const engine = window.pageContextEngine;
         window.pageMenuOpen = false;
         if (!action || !context || !window.inFront(engine) || Number(context.pageGeneration)
-                !== Number(engine.pageGeneration))
+                !== Number(engine.pageGeneration) || action.enabled === false)
             return;
+        if (action.run === "open-link-space") {
+            // The menu stays where it is, and lists the Spaces instead.
+            window.pageMenuActions = window.linkSpaceRows();
+            window.pageMenuOpen = true;
+            return;
+        }
         if (action.command) {
             browserCommands.run(action.command, -1);
             return;
@@ -1998,6 +2071,17 @@ ApplicationWindow {
             break;
         case "open-link-background":
             window.windowBrowser.openInputInBackground(context.linkUrl);
+            break;
+        case "send-link":
+            // As a routed link arrives: switched to, then a tab of its own.
+            if (window.windowBrowser.switchSpace(action.spaceId))
+                window.windowBrowser.openLink(context.linkUrl, true);
+            break;
+        case "open-link-private":
+            window.openLinkInPrivateWindow(context.linkUrl);
+            break;
+        case "search-selection":
+            window.windowBrowser.searchFor(String(context.selectedText));
             break;
         case "copy-link":
             SystemClipboard.copyText(String(context.linkUrl));

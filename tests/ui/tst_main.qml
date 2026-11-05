@@ -974,12 +974,13 @@ TestCase {
         tryVerify(function () {
             return menu.visible;
         });
-        compare(labels().slice(0, 5), ["Open link in new tab", "Open link in background",
+        compare(labels().slice(0, 7), ["Open link in new tab", "Open link in background",
+                                       "Open link in Space", "Open link in Private window",
                                        "Copy link address", "Save link as", "—"]);
 
         // And running a row does that thing to that link.
         SystemClipboard.copyText("stale");
-        window.runPageMenu(2);
+        window.runPageMenu(4);
         compare(SystemClipboard.text(), "https://linked.example/target");
         tryVerify(function () {
             return !menu.visible;
@@ -994,8 +995,9 @@ TestCase {
         tryVerify(function () {
             return menu.visible;
         });
-        compare(labels().slice(0, 5), ["Open image in new tab", "Copy image address", "Copy image",
-                                       "Save image as", "—"]);
+        compare(labels().slice(0, 7), ["Open image in new tab", "Copy image address", "Copy image",
+                                       "Save image as", "—", "Copy",
+                                       "Search for \"chosen words\""]);
         window.runPageMenu(5);
         compare(SystemClipboard.text(), "chosen words");
 
@@ -1116,9 +1118,247 @@ TestCase {
         tryVerify(function () {
             return browser.activeUrl.toString() === "https://stale-target.example/after";
         });
-        window.runPageMenu(2);
+        window.runPageMenu(4);
         compare(SystemClipboard.text(), "keep this");
         verify(!window.pageMenuOpen);
+    }
+
+    function rowIndex(label) {
+        return window.pageMenuActions.findIndex(function (row) {
+            return row.label === label;
+        });
+    }
+
+    function openPageMenuOn(engine, context) {
+        const menu = findChild(window.contentItem, "pageMenu");
+        engine.simulateContextMenu(context);
+        tryVerify(function () {
+            return menu.visible;
+        });
+    }
+
+    function tabUrls(controller) {
+        const urls = [];
+        for (let row = 0; row < controller.tabs.rowCount(); ++row)
+            urls.push(String(controller.tabs.data(controller.tabs.index(row, 0), Qt.UserRole + 3)));
+        return urls;
+    }
+
+    // A selection can be searched for as well as copied: in a new tab, with the
+    // default engine, under a label that says what is searched for without
+    // growing past the menu.
+    function test_pageContextMenuSearchesForASelection() {
+        const engine = openPage("https://search-selection.example/");
+        const before = browser.tabs.rowCount();
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+
+        openPageMenuOn(engine, {
+                           "selectedText": "  some \n  words  "
+                       });
+        verify(rowIndex("Search for \"some words\"") >= 0);
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !findChild(window.contentItem, "pageMenu").visible;
+        });
+
+        openPageMenuOn(engine, {
+                           "selectedText": "The quick brown fox jumps over the lazy dog"
+                       });
+        const search = rowIndex("Search for \"The quick brown fox jumps over\u2026\"");
+        verify(search >= 0);
+        verify(window.pageMenuActions[search].enabled !== false);
+        window.runPageMenu(search);
+
+        compare(browser.tabs.rowCount(), before + 1);
+        const opened = new URL(browser.activeUrl.toString());
+        compare(opened.host, "duckduckgo.com");
+        compare(decodeURIComponent(opened.search),
+                "?q=The quick brown fox jumps over the lazy dog");
+
+        // What was selected stays a search, even when it reads as an address.
+        const loader = findChild(window.contentItem, "engineLoader");
+        tryVerify(function () {
+            return loader.item !== null && loader.item !== engine;
+        });
+        loader.item.simulateContextMenu({
+                                            "selectedText": "example.com"
+                                        });
+        tryVerify(function () {
+            return window.pageMenuOpen;
+        });
+        window.runPageMenu(rowIndex("Search for \"example.com\""));
+        const reread = new URL(browser.activeUrl.toString());
+        compare(reread.host, "duckduckgo.com");
+        compare(reread.search, "?q=example.com");
+    }
+
+    function test_privateWindowSearchesForASelectionInItself() {
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateWindow = window.privateWindows[0];
+        const privateBrowser = privateWindow.windowBrowser;
+        privateBrowser.openInput("https://private-search.example/", false);
+        const loader = findChild(privateWindow.contentItem, "engineLoader");
+        tryVerify(function () {
+            return loader.item !== null && loader.item.currentUrl.toString()
+                    === "https://private-search.example/";
+        });
+        const mainTabs = browser.tabs.rowCount();
+
+        loader.item.simulateContextMenu({
+                                            "selectedText": "private words"
+                                        });
+        tryVerify(function () {
+            return privateWindow.pageMenuOpen;
+        });
+        const search = privateWindow.pageMenuActions.findIndex(function (row) {
+            return row.label === "Search for \"private words\"";
+        });
+        verify(search >= 0);
+        privateWindow.runPageMenu(search);
+        compare(privateBrowser.tabs.rowCount(), 2);
+        compare(new URL(privateBrowser.activeUrl.toString()).host, "duckduckgo.com");
+        compare(browser.tabs.rowCount(), mainTabs);
+
+        privateBrowser.closeActiveTab();
+        wait(50);
+        privateBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        tryVerify(function () {
+            return window.privateWindows.length === 0;
+        });
+    }
+
+    // A link sent to a Space arrives as a routed link does: a new tab in that
+    // Space, a switch to it, and the Space notice. The list leaves out the
+    // Space on show and draws each Space in its colour, in the footer's order.
+    function test_pageContextMenuSendsALinkToASpace() {
+        const homeId = browser.activeSpaceId;
+        const workId = browser.createSpace("Link Work");
+        const playId = browser.createSpace("Link Play");
+        verify(browser.switchSpace(homeId));
+        tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
+        const engine = openPage("https://send-link.example/");
+        const notice = findChild(window.contentItem, "spaceNotice");
+        tryCompare(notice, "visible", false, 5000);
+
+        openPageMenuOn(engine, {
+                           "linkUrl": "https://sent.example/page"
+                       });
+        const open = rowIndex("Open link in Space");
+        verify(open >= 0);
+        verify(window.pageMenuActions[open].enabled !== false);
+        window.runPageMenu(open);
+
+        // The same menu, now listing where the link can go.
+        tryVerify(function () {
+            return window.pageMenuOpen;
+        });
+        compare(window.pageMenuActions.map(function (row) {
+            return row.label;
+        }), ["Link Work", "Link Play"]);
+        const sidebar = findChild(window.contentItem, "sidebar");
+        verify(Qt.colorEqual(window.pageMenuActions[0].swatch, findChild(sidebar, "spaceMark-"
+                                                                         + workId).color));
+        verify(Qt.colorEqual(window.pageMenuActions[1].swatch, findChild(sidebar, "spaceMark-"
+                                                                         + playId).color));
+
+        const homeTabs = tabUrls(browser).length;
+        window.runPageMenu(1);
+        compare(browser.activeSpaceId, playId);
+        tryCompare(browser, "activeUrl", "https://sent.example/page");
+        tryVerify(function () {
+            return notice.visible && notice.text === "Link Play";
+        });
+        verify(!window.pageMenuOpen);
+        verify(browser.switchSpace(homeId));
+        compare(tabUrls(browser).length, homeTabs);
+        tryCompare(notice, "visible", false, 5000);
+        verify(browser.deleteSpace(workId, "Link Work"));
+        verify(browser.deleteSpace(playId, "Link Play"));
+    }
+
+    function test_pageContextMenuListsSendingALinkAsUnavailableWithOneSpace() {
+        compare(browser.spaces.rowCount(), 1);
+        const engine = openPage("https://one-space.example/");
+        openPageMenuOn(engine, {
+                           "linkUrl": "https://sent.example/page"
+                       });
+        const open = rowIndex("Open link in Space");
+        verify(open >= 0);
+        compare(window.pageMenuActions[open].enabled, false);
+        verify(window.pageMenuActions[rowIndex("Open link in Private window")].enabled !== false);
+    }
+
+    function test_pageContextMenuSendsALinkToAPrivateWindow() {
+        const engine = openPage("https://send-private.example/");
+        const mainTabs = tabUrls(browser);
+
+        openPageMenuOn(engine, {
+                           "linkUrl": "https://sent-private.example/page"
+                       });
+        window.runPageMenu(rowIndex("Open link in Private window"));
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0].windowBrowser;
+        compare(privateBrowser.activeUrl.toString(), "https://sent-private.example/page");
+        compare(tabUrls(browser), mainTabs);
+
+        // The one shown most recently takes the next, rather than a new one.
+        engine.simulateContextMenu({
+                                       "linkUrl": "https://sent-private.example/again"
+                                   });
+        tryVerify(function () {
+            return window.pageMenuOpen;
+        });
+        window.runPageMenu(rowIndex("Open link in Private window"));
+        compare(windowManager.privateWindowCount, 1);
+        compare(privateBrowser.activeUrl.toString(), "https://sent-private.example/again");
+
+        // A Private window offers its own link rows: it has no other Space to
+        // send to, and can still send to a Private window.
+        const privateWindow = window.privateWindows[0];
+        const rows = privateWindow.pageMenuFor({
+                                                   "linkUrl": "https://sent-private.example/x"
+                                               });
+        const space = rows.find(function (row) {
+            return row.label === "Open link in Space";
+        });
+        compare(space.enabled, false);
+        const again = rows.find(function (row) {
+            return row.label === "Open link in Private window";
+        });
+        verify(again.enabled !== false);
+
+        privateBrowser.closeActiveTab();
+        wait(50);
+        privateBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        tryVerify(function () {
+            return window.privateWindows.length === 0;
+        });
+    }
+
+    function test_pageContextMenuListsLinkRowsAsUnavailableInAnAgentSpace() {
+        const otherId = browser.createSpace("Beside Agent");
+        const drive = driveAnAgentSpace(false);
+        const engine = findChild(window.contentItem, "engineLoader").item;
+
+        openPageMenuOn(engine, {
+                           "linkUrl": "https://sent.example/page"
+                       });
+        const space = rowIndex("Open link in Space");
+        const privately = rowIndex("Open link in Private window");
+        verify(space >= 0);
+        verify(privately >= 0);
+        compare(window.pageMenuActions[space].enabled, false);
+        compare(window.pageMenuActions[privately].enabled, false);
+        keyClick(Qt.Key_Escape);
+
+        endAgentDrive(drive);
+        verify(browser.deleteSpace(otherId, "Beside Agent"));
     }
 
     function test_saveDialogRejectsATargetThatBecameStaleWhileOpen() {

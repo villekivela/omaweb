@@ -988,6 +988,18 @@ reports the gap and remains experimental rather than imitating behavior it canno
   tab, its address copies, and Save link as saves it; an image or media address opens, copies and
   saves, and an image also copies as a picture with Copy image; a selection copies. Navigation, the
   page address, and Inspect element are always listed.
+- A selection also offers `Search for "<selection>"`, which opens a new tab with the default search
+  engine, whatever the selection reads as, so a selected domain is searched for rather than opened.
+  The label collapses whitespace and elides at about 32 characters. A Private window searches in
+  that window.
+- A link also offers Open link in Space and Open link in Private window, which send it where a Link
+  rule would: a link clicked in a page is never rerouted, so the reader chooses. Open link in Space
+  lists the reader's own Spaces except the one on show, in the footer's order, each with its Space
+  colour. A link sent to a Space arrives as a routed link does: a new tab in that Space, a switch to
+  it, and the Space notice. Open link in Private window opens as a Link rule's `"private"` target
+  does, in the Private window shown most recently or a new one. Open link in Space is unavailable
+  with one Space and in a Private window, and both rows are unavailable in an Agent Space. The rows
+  have no keys, because the menu keeps its target.
 - A command that cannot run here is listed and unavailable rather than hidden, and the keyboard
   passes over it. Arrow keys move, `Return` runs, `Escape` closes and hands the keyboard back to the
   page.
