@@ -1946,10 +1946,11 @@ ApplicationWindow {
                           "label": qsTr("Copy"),
                           "run": "copy-selection"
                       });
-            rows.push({
-                          "label": window.searchLabel(selection),
-                          "run": "search-selection"
-                      });
+            if (selection.trim().length > 0)
+                rows.push({
+                              "label": window.searchLabel(selection),
+                              "run": "search-selection"
+                          });
             rows.push({
                           "separator": true
                       });

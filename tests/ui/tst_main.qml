@@ -1182,6 +1182,18 @@ TestCase {
             return !findChild(window.contentItem, "pageMenu").visible;
         });
 
+        // A selection of nothing but whitespace has nothing to look for.
+        openPageMenuOn(engine, {
+                           "selectedText": " \n "
+                       });
+        compare(window.pageMenuActions.filter(function (row) {
+            return row.run === "search-selection";
+        }).length, 0);
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !findChild(window.contentItem, "pageMenu").visible;
+        });
+
         openPageMenuOn(engine, {
                            "selectedText": "The quick brown fox jumps over the lazy dog"
                        });
@@ -1262,6 +1274,8 @@ TestCase {
         const homeId = browser.activeSpaceId;
         const workId = browser.createSpace("Link Work");
         const playId = browser.createSpace("Link Play");
+        // An Agent's Space is not the reader's to send a link to.
+        const agentId = agentSpaceProbe.create("Link Agent", "claude-code", false);
         verify(browser.switchSpace(homeId));
         tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
         const engine = openPage("https://send-link.example/");
@@ -1302,6 +1316,7 @@ TestCase {
         tryCompare(notice, "visible", false, 5000);
         verify(browser.deleteSpace(workId, "Link Work"));
         verify(browser.deleteSpace(playId, "Link Play"));
+        verify(browser.deleteSpace(agentId, "Link Agent"));
     }
 
     function test_pageContextMenuListsSendingALinkAsUnavailableWithOneSpace() {
