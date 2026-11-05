@@ -342,9 +342,18 @@ Rectangle {
     }
     Connections {
         target: root.browser
-        // Collapsing a Folder changes the list without moving a tab.
+        // Collapsing a Folder changes the list without moving a tab. Any other
+        // change to the Folders is no slide's.
         function onFoldersChanged() {
+            if (!root.togglingFolder)
+                root.settleFolderSlides();
             root.retakeDeparture();
+        }
+        function onActiveTabChanged() {
+            root.settleFolderSlides();
+        }
+        function onSpaceSuspended() {
+            root.settleFolderSlides();
         }
     }
     Connections {
@@ -672,13 +681,94 @@ Rectangle {
     // in or out of one to be dragged to.
     readonly property bool hasFolders: browser ? browser.folderCount > 0 : false
 
+    // The Folders sliding open or shut, by id. Their rows stay in the list until
+    // the slide is over, which is what lets them be drawn on the way.
+    property var slidingFolders: ({})
+    // How far the hairline is drawn from its place, as a row's `slide` is.
+    property real hairlineSlide: 0
+    // Whether the change to a Folder being heard is the one a slide is for.
+    property bool togglingFolder: false
+
     // Collapsing leaves the tab on show in view, and lets go of the marks on
-    // the rows it hides.
-    function toggleFolder(folderId) {
+    // the rows it hides. The pointer slides the rows there, and the keys and
+    // reduced motion change them at once. The Folder itself changes at once in
+    // both, so the last state asked for is the one it ends in.
+    function toggleFolder(folderId, byPointer) {
         const collapsing = !root.browser.folderCollapsed(folderId);
+        const row = root.sectionRows(ordinarySection).find(function (other) {
+            return other && other.isFolder && other.folderRowId === folderId;
+        });
+        if (row) {
+            row.slideNext = byPointer === true && !SystemMotion.reduced;
+            root.drawFolderSlides();
+        }
+        root.togglingFolder = true;
         root.browser.setFolderCollapsed(folderId, collapsing);
+        root.togglingFolder = false;
         if (collapsing)
             tabMarks.remove(root.browser.folderTabIds(folderId));
+        root.drawFolderSlides();
+    }
+
+    // Draws the list for how far each Folder stands open. The list is laid out
+    // with every sliding row in it, so nothing moves in the layout on the way:
+    // each row is drawn up by the height the rows above it have given up, and a
+    // row on its way out goes up behind the one before it as it fades.
+    function drawFolderSlides() {
+        const sliding = {};
+        let shift = 0;
+        let folder = null;
+        let previous = null;
+        for (const row of root.sectionRows(ordinarySection)) {
+            if (!row)
+                continue;
+            if (row.isFolder) {
+                folder = row;
+                if (row.sliding || row.slideNext)
+                    sliding[row.folderRowId] = true;
+                row.slide = -shift;
+                previous = row;
+                continue;
+            }
+            const moving = folder !== null && row.folderId === folder.folderRowId && folder.sliding;
+            const leaving = moving && !row.active && !row.tabBeside;
+            const sameLine = row.inSplit && previous && previous.tabId === row.splitPartnerId;
+            if (leaving && !sameLine)
+                shift += (1 - folder.openness) * (row.height + root.rowGap);
+            row.slide = -shift;
+            row.folderFade = leaving ? folder.openness : 1;
+            previous = row;
+        }
+        root.hairlineSlide = -shift;
+        if (Object.keys(sliding).join() !== Object.keys(root.slidingFolders).join())
+            root.slidingFolders = sliding;
+    }
+
+    // Lands every slide where its Folder stands, for whatever a row part way
+    // would get wrong: a drag reads where the rows are, and a list that changes
+    // has rows the slide did not start with.
+    function settleFolderSlides() {
+        for (const row of root.sectionRows(ordinarySection)) {
+            if (row && row.isFolder)
+                row.settle();
+        }
+        root.drawFolderSlides();
+    }
+
+    Connections {
+        target: root.browser ? root.browser.sidebarRows : null
+        function onRowsInserted() {
+            root.settleFolderSlides();
+        }
+        function onRowsRemoved() {
+            root.settleFolderSlides();
+        }
+        function onRowsMoved() {
+            root.settleFolderSlides();
+        }
+        function onModelReset() {
+            root.settleFolderSlides();
+        }
     }
 
     function rowsFor(row) {
@@ -703,7 +793,7 @@ Rectangle {
     function markRows() {
         const groups = [];
         for (const row of root.sectionRows(ordinarySection)) {
-            if (!row || !row.visible || row.isFolder)
+            if (!row || !row.visible || row.isFolder || row.folderHidden)
                 continue;
             const previous = groups.length > 0 ? groups[groups.length - 1] : null;
             if (row.inSplit && previous && previous[0] === row.splitPartnerId)
@@ -770,6 +860,7 @@ Rectangle {
     }
 
     function beginTabDrag(row) {
+        root.settleFolderSlides();
         root.draggedRow = row;
         root.dropDestination = row.placeInSection;
         row.lifted = true;
@@ -952,6 +1043,7 @@ Rectangle {
     }
 
     function beginFolderDrag(row) {
+        root.settleFolderSlides();
         root.draggedRow = row;
         root.dropDestination = root.folderBlocks().findIndex(function (block) {
             return block[0] === row;
@@ -1096,7 +1188,7 @@ Rectangle {
     function cursorRows() {
         return root.sectionRows(pinnedSection).concat(root.sectionRows(ordinarySection)).filter(
                     function (row) {
-                        return row && row.visible;
+                        return row && row.visible && !row.folderHidden;
                     });
     }
 
@@ -1635,8 +1727,14 @@ Rectangle {
                                 iconFontFamily: root.iconFontFamily
                                 dropTarget: root.dropRow === this
                                 landing: root.landing
-                                onToggled: function (id) {
-                                    root.toggleFolder(id);
+                                onToggled: function (id, byPointer) {
+                                    root.toggleFolder(id, byPointer);
+                                }
+                                onOpennessChanged: root.drawFolderSlides()
+                                onSlidingChanged: {
+                                    root.drawFolderSlides();
+                                    if (!sliding)
+                                        root.retakeDeparture();
                                 }
                                 onDragStarted: root.beginFolderDrag(folderRow)
                                 onDragMoved: function (id, sceneX, sceneY) {
@@ -1658,6 +1756,9 @@ Rectangle {
                                 objectName: "folderHairline"
                                 width: ordinarySection.rowWidth
                                 height: root.blockGap + 1
+                                transform: Translate {
+                                    y: root.hairlineSlide
+                                }
 
                                 Rectangle {
                                     y: DevicePixels.snap(root.blockGap / 2, root.pixelRatio)
@@ -1674,8 +1775,11 @@ Rectangle {
                             TabRow {
                                 id: ordinaryRow
                                 required property int index
-                                visible: (!root.atRest || poppedOut || folderId.length > 0) &&
-                                         !folderHidden
+                                visible: (!root.atRest || poppedOut || folderId.length > 0) && (
+                                             !folderHidden || root.slidingFolders[folderId]
+                                             === true)
+                                // On its way out it is drawn and no more.
+                                enabled: !folderHidden
                                 placeInSection: index
                                 splitDrags: root.hasFolders
                                 landing: root.landing

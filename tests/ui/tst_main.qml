@@ -9537,9 +9537,13 @@ TestCase {
         return row;
     }
 
+    // A click, and the slide it starts over: its rows stay in the list until then.
     function clickFolderRow(folderId) {
         const row = folderRowOf(folderId);
         mouseClick(row, row.width / 2, row.height / 2);
+        tryVerify(function () {
+            return !row.sliding;
+        });
     }
 
     function removeFolders(folderIds) {
@@ -10218,6 +10222,287 @@ TestCase {
         compare(drawnRows().slice(0, 4), ["First", ids[0], "Second", ids[1]]);
         compare(browser.tabFolder(ids[2]), "");
         removeFolders([first, second]);
+        closeMarkableTabs(ids);
+    }
+
+    // A Folder sliding, held part way so a test reads a place on the way and not only its ends.
+    // The rows of `folder` are set up by the caller, and the row is clicked to start it.
+    function holdFolderSlide(folder, openness) {
+        const row = folderRowOf(folder);
+        mouseClick(row, row.width / 2, row.height / 2);
+        verify(row.sliding);
+        row.motion.pause();
+        row.openness = openness;
+        return row;
+    }
+
+    function windowY(item) {
+        return item.mapToItem(window.contentItem, 0, 0).y;
+    }
+
+    function test_aClickSlidesAFoldersRowsShutAndTheRowsBelowFollow() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        const row = folderRowOf(folder);
+        const member = rowOf(ids[1]);
+        const below = rowOf(ids[2]);
+        const from = windowY(below);
+        const travel = 2 * (member.height + 4);
+        // Watched at the frames the window draws.
+        const drawn = watchFrames(function () {
+            return windowY(below);
+        });
+        const faded = watchChanges(member, "opacity");
+        mouseClick(row, row.width / 2, row.height / 2);
+        verify(browser.folderCollapsed(folder));
+        verify(member.visible);
+        verify(passedBetween(faded, 1, 0));
+        verify(passedBetween(drawn, from, from - travel));
+        tryVerify(function () {
+            return !row.sliding && !member.visible;
+        });
+        settleRow(below);
+        compare(windowY(below), from - travel);
+        compare(below.slide, 0);
+        compare(row.motion.duration, 160);
+        compare(row.motion.easing.type, Easing.OutCubic);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aClickSlidesAFoldersRowsOpenAndTheRowsBelowFollow() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        const below = rowOf(ids[2]);
+        const open = windowY(below);
+        verify(browser.setFolderCollapsed(folder, true));
+        tryVerify(function () {
+            return windowY(below) < open;
+        });
+        const row = folderRowOf(folder);
+        const shut = windowY(below);
+        const drawn = watchFrames(function () {
+            return windowY(below);
+        });
+        mouseClick(row, row.width / 2, row.height / 2);
+        verify(!browser.folderCollapsed(folder));
+        verify(passedBetween(drawn, shut, open));
+        tryVerify(function () {
+            return !row.sliding;
+        });
+        settleRow(below);
+        compare(windowY(below), open);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_partWayEveryRowStandsWhereTheSlideHasReached() {
+        const ids = openMarkableTabs(4);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1], ids[2]]);
+        browser.activateTab(ids[1]);
+        settleMotion();
+        const first = rowOf(ids[0]);
+        const shown = rowOf(ids[1]);
+        const last = rowOf(ids[2]);
+        const below = rowOf(ids[3]);
+        const hairline = findChild(window.contentItem, "folderHairline");
+        const step = first.height + 4;
+        const at = [first, shown, last, below, hairline].map(windowY);
+        const row = holdFolderSlide(folder, 0.5);
+        // Two rows are leaving, so the rows after them have moved by half of two rows.
+        compare(windowY(first), at[0] - step / 2);
+        compare(windowY(shown), at[1] - step / 2);
+        compare(windowY(last), at[2] - step);
+        compare(windowY(below), at[3] - step);
+        compare(windowY(hairline), at[4] - step);
+        // The tab on show stays in view, and only the rows that go fade.
+        compare(shown.opacity, 1);
+        compare(first.opacity, 0.5);
+        compare(last.opacity, 0.5);
+        row.settle();
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aSecondClickReversesTheSlideFromWhereItStands() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        const below = rowOf(ids[2]);
+        const open = windowY(below);
+        const row = holdFolderSlide(folder, 0.6);
+        const openness = watchChanges(row, "openness");
+        mouseClick(row, row.width / 2, row.height / 2);
+        verify(!browser.folderCollapsed(folder));
+        tryVerify(function () {
+            return !row.sliding;
+        });
+        stopWatching(openness);
+        // From 0.6 up to 1, and never back through the shut end.
+        verify(openness.seen.every(function (value) {
+            return value >= 0.6;
+        }), openness.seen.join(" "));
+        compare(row.openness, 1);
+        settleRow(below);
+        compare(windowY(below), open);
+        verify(rowOf(ids[0]).visible);
+        compare(rowOf(ids[0]).opacity, 1);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_theKeysChangeAFolderAtOnce() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        holdTheSidebarOnFolder(folder, ids[2]);
+        const row = folderRowOf(folder);
+        const member = rowOf(ids[0]);
+        const openness = watchChanges(row, "openness");
+        keyClick(Qt.Key_L);
+        verify(!row.sliding);
+        verify(!member.visible);
+        keyClick(Qt.Key_Return);
+        verify(!row.sliding);
+        verify(member.visible);
+        keyClick(Qt.Key_Space);
+        verify(!row.sliding);
+        verify(!member.visible);
+        stopWatching(openness);
+        compare(openness.seen, [0, 1, 0]);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aKeyLandsASlideAtOnce() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        holdTheSidebarOnFolder(folder, ids[2]);
+        const row = holdFolderSlide(folder, 0.5);
+        row.steer();
+        keyClick(Qt.Key_L);
+        verify(!browser.folderCollapsed(folder));
+        verify(!row.sliding);
+        compare(row.openness, 1);
+        compare(rowOf(ids[2]).slide, 0);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_underReducedMotionAClickChangesAFolderAtOnce() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        const row = folderRowOf(folder);
+        const member = rowOf(ids[0]);
+        SystemMotion.reduced = true;
+        mouseClick(row, row.width / 2, row.height / 2);
+        const sliding = row.sliding;
+        const visible = member.visible;
+        SystemMotion.reduced = false;
+        verify(!sliding);
+        verify(!visible);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aDragLandsASlideBeforeItLifts() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        const below = rowOf(ids[2]);
+        const row = holdFolderSlide(folder, 0.5);
+        const member = findChild(window.contentItem, "tab-" + ids[0]);
+        const grabbed = below.mapToItem(window.contentItem, below.width / 2, below.height / 2);
+        mousePress(below, below.width / 2, below.height / 2);
+        mouseMove(window.contentItem, grabbed.x, grabbed.y + 8);
+        wait(1);
+        verify(below.lifted);
+        verify(!row.sliding);
+        compare(below.slide, 0);
+        verify(!member.visible);
+        mouseRelease(window.contentItem, grabbed.x, grabbed.y + 8);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aSyncReloadLandsASlide() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        browser.landPendingTabs();
+        holdFolderSlide(folder, 0.5);
+        browser.reloadSyncedState();
+        const row = folderRowOf(folder);
+        verify(!row.sliding);
+        compare(row.openness, 0);
+        const outline = findChild(window.contentItem, "sidebar");
+        compare(outline.hairlineSlide, 0);
+        compare(rowOf(ids[2]).slide, 0);
+        verify(!rowOf(ids[0]).visible);
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aSpaceSwitchLandsASlide() {
+        const ids = openMarkableTabs(3);
+        const home = browser.activeSpaceId;
+        const other = browser.createSpace("Folder slide");
+        const folder = browser.createFolder("Reading", [ids[0]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        holdFolderSlide(folder, 0.5);
+        verify(browser.switchSpace(other));
+        const outline = findChild(window.contentItem, "sidebar");
+        tryCompare(outline, "arriving", false);
+        compare(outline.hairlineSlide, 0);
+        compare(Object.keys(outline.slidingFolders).length, 0);
+        verify(browser.switchSpace(home));
+        tryCompare(outline, "arriving", false);
+        const row = folderRowOf(folder);
+        verify(!row.sliding);
+        compare(row.openness, 0);
+        compare(rowOf(ids[2]).slide, 0);
+        verify(browser.deleteSpace(other, "Folder slide"));
+        removeFolders([folder]);
+        closeMarkableTabs(ids);
+    }
+
+    function test_aRowOnItsWayOutTakesNoClickKeyOrMark() {
+        const ids = openMarkableTabs(3);
+        const folder = browser.createFolder("Reading", [ids[0], ids[1]]);
+        browser.activateTab(ids[2]);
+        settleMotion();
+        const leaving = rowOf(ids[0]);
+        const rows = drawnRows();
+        const firstOrdinary = rows[rows.indexOf("---") + 1];
+        holdTheSidebarOn(firstOrdinary);
+        const row = holdFolderSlide(folder, 0.9);
+        verify(leaving.visible);
+        const outline = findChild(window.contentItem, "sidebar");
+        // The cursor passes it, ranges pass it, and a press on it reaches nothing.
+        verify(outline.cursorRows().indexOf(leaving) < 0);
+        verify(outline.markRows().every(function (group) {
+            return group.indexOf(ids[0]) < 0;
+        }));
+        mouseClick(leaving, leaving.width / 3, leaving.height / 2);
+        compare(browser.activeTabId, ids[2]);
+        mouseClick(leaving, leaving.width / 3, leaving.height / 2, Qt.LeftButton,
+                   Qt.ControlModifier);
+        compare(outline.marks.count, 0);
+        row.settle();
+        removeFolders([folder]);
         closeMarkableTabs(ids);
     }
 

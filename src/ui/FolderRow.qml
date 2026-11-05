@@ -41,7 +41,8 @@ Item {
     readonly property int titleInset: Style.space(8) + chipSize + Style.space(9)
     readonly property int endGap: Style.space(12)
 
-    signal toggled(string folderId)
+    // Whether it was the pointer that asked, which is what slides the rows.
+    signal toggled(string folderId, bool byPointer)
     signal dragStarted(string folderId)
     signal dragMoved(string folderId, real sceneX, real sceneY)
     signal dragEnded(string folderId)
@@ -51,12 +52,48 @@ Item {
     property bool lifted: false
     property bool landing: false
     property point carry: Qt.point(0, 0)
+    // How far the list has drawn this row from its place while a Folder above
+    // it slides.
+    property real slide: 0
+
+    // How far open the Folder is drawn, from 0 shut to 1 open. The Folder's own
+    // state changes at once, and this follows it: over the slide when the list
+    // asked for one by setting `slideNext`, and at once otherwise. A slide starts
+    // from wherever this stands, so a second click turns it round part way.
+    property real openness: 1
+    property bool slideNext: false
+    readonly property bool sliding: slideMotion.running
+    readonly property alias motion: slideMotion
+    Component.onCompleted: settle()
+    onFolderCollapsedChanged: {
+        if (!root.slideNext) {
+            root.settle();
+            return;
+        }
+        root.slideNext = false;
+        slideMotion.to = root.folderCollapsed ? 0 : 1;
+        slideMotion.restart();
+    }
+
+    function settle() {
+        root.slideNext = false;
+        slideMotion.stop();
+        root.openness = root.folderCollapsed ? 0 : 1;
+    }
+
+    NumberAnimation {
+        id: slideMotion
+        target: root
+        property: "openness"
+        duration: 160
+        easing.type: Easing.OutCubic
+    }
     readonly property point grabbedAt: hoverArea.grabbedAt
     z: lifted ? 20 : 0
     opacity: lifted ? 0.92 : 1.0
     transform: Translate {
         x: root.carry.x
-        y: root.carry.y
+        y: root.carry.y + root.slide
     }
 
     Behavior on carry {
@@ -73,12 +110,12 @@ Item {
     Accessible.name: root.folderCollapsed ? qsTr("Folder %1, collapsed: %2").arg(
                                                 root.folderName).arg(root.folderMemberCount) : qsTr(
                                                 "Folder %1, open").arg(root.folderName)
-    Accessible.onPressAction: root.toggled(root.folderRowId)
+    Accessible.onPressAction: root.toggled(root.folderRowId, false)
 
     // Return and `l` climb to the outline, as they do from a tab's row.
     Keys.onPressed: function (event) {
         if (event.key === Qt.Key_Space) {
-            root.toggled(root.folderRowId);
+            root.toggled(root.folderRowId, false);
             event.accepted = true;
         }
     }
@@ -213,7 +250,7 @@ Item {
             if (root.lifted || hoverArea.carried || (mouse.modifiers & (Qt.ControlModifier
                                                                         | Qt.ShiftModifier)))
                 return;
-            root.toggled(root.folderRowId);
+            root.toggled(root.folderRowId, true);
         }
     }
 }

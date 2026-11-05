@@ -236,6 +236,11 @@ reports the gap and remains experimental rather than imitating behavior it canno
   does, and the name lines up with the titles of the ordinary tabs. Its tabs are indented by one
   favicon's width. A hairline separates the block from the ordinary tabs, drawn only when both are
   there. Folders reorder within the block, and a Folder drags as a whole.
+- Opening or collapsing a Folder with the pointer slides its rows open or shut and the rows below
+  follow, over 160 ms. A second click turns the slide round from where it stands. The keys change a
+  Folder at once, and under reduced motion every change is immediate. A drag, a Sync reload, a Space
+  switch or any other change to the list lands a slide at once, so no row stays part way. A row on
+  its way out takes no click, key or mark, and the tab on show stays in view.
 - A Folder holds ordinary tabs and splits, a split's row counting as one. It lasts until the reader
   removes it, with tabs in it or not. A new, duplicated or reopened tab joins no Folder. Pinning a
   tab takes it out, and a popped-out tab keeps its row, with the window mark. Add split view with a

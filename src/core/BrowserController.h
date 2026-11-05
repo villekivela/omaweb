@@ -264,10 +264,10 @@ public:
     bool acceptDownloads() const;
     SessionStore *sessionStore() const;
     bool startedWithEmptyState() const;
-    void reloadSyncedState();
+    Q_INVOKABLE void reloadSyncedState();
     // Writes the tab changes still waiting to be stored, so a read of the
     // store sees what the pages last reported.
-    void landPendingTabs();
+    Q_INVOKABLE void landPendingTabs();
 
     QString permissionOrigin(const QUrl &url) const override;
     int automaticDownloadDecision(const QString &origin, const QString &spaceId) const override;

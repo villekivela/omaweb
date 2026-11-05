@@ -213,12 +213,16 @@ Item {
     // there already, and nothing eases.
     property bool landing: false
     property point carry: Qt.point(0, 0)
+    // While a Folder slides: how far the list has drawn this row from its place,
+    // and how much of the row is left if it is on its way out of the list.
+    property real slide: 0
+    property real folderFade: 1
     readonly property point grabbedAt: hoverArea.grabbedAt
     z: lifted ? 20 : 0
-    opacity: lifted ? 0.92 : 1.0
+    opacity: (lifted ? 0.92 : 1.0) * folderFade
     transform: Translate {
         x: root.carry.x
-        y: root.carry.y
+        y: root.carry.y + root.slide
     }
 
     // A row settles into an opened place rather than jumping into it. The one
