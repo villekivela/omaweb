@@ -2283,6 +2283,18 @@ TestCase {
         });
     }
 
+    // The kit's SearchableDropdown opens on j as well as on Down.
+    function test_jOpensTheListFromTheTrigger() {
+        const page = makeThemePage();
+        const dropdown = findChild(page, "browserTheme");
+        dropdown.forceActiveFocus();
+        keyClick(Qt.Key_J);
+        tryVerify(function () {
+            return dropdown.popupOpen;
+        });
+        keyClick(Qt.Key_Escape);
+    }
+
     function luminance(colour) {
         const channel = function (value) {
             return value <= 0.03928 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
