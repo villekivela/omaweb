@@ -103,7 +103,7 @@ Omarchy.BorderSurface {
 
     Keys.onPressed: function (event) {
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space
-                || event.key === Qt.Key_Down) {
+                || event.key === Qt.Key_Down || event.text === "j") {
             popup.open();
             event.accepted = true;
         }
@@ -168,6 +168,9 @@ Omarchy.BorderSurface {
                                                              root.colors.accent)
 
         objectName: "themePopup"
+        // A press on the trigger counts as inside, so the tap that follows closes the
+        // popup instead of reopening it, as the kit's SearchableDropdown does.
+        closePolicy: Popup.CloseOnPressOutsideParent | Popup.CloseOnEscape
         y: root.height + Style.spacing.xxs
         width: root.width
         height: Math.min(topPadding + searchHeader.height + 1 + list.contentHeight + bottomPadding,
