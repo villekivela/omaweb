@@ -2868,14 +2868,59 @@ Item {
                 }, true);
             });
             let painted = false;
+            // Any CSS colour as its red, green, blue and alpha, each of 255, by
+            // having a canvas draw it: getComputedStyle hands back a modern
+            // colour in its own space, oklch(0.21 0.006 285.9), lab(...),
+            // color(srgb ...) and what color-mix() makes, space separated,
+            // which Tailwind v4's palette writes. The canvas is a single pixel,
+            // cleared each time so that the alpha is the colour's, made when the
+            // first such colour is read, and a colour is resolved once. One it
+            // cannot read is nothing, and never an error.
+            let swatch = null;
+            const resolved = new Map();
+            const rgbaOf = (css) => {
+                if (resolved.has(css)) return resolved.get(css);
+                let rgba = null;
+                try {
+                    if (css.startsWith('rgb')) {
+                        const parts = css.slice(css.indexOf('(') + 1, css.lastIndexOf(')'))
+                                         .split(',').map(Number);
+                        if (parts.length >= 3 && !parts.some(Number.isNaN))
+                            rgba = [parts[0], parts[1], parts[2],
+                                    parts.length > 3 ? parts[3] * 255 : 255];
+                    }
+                    if (!rgba) {
+                        if (!swatch) {
+                            const canvas = document.createElement('canvas');
+                            canvas.width = canvas.height = 1;
+                            swatch = canvas.getContext('2d', {willReadFrequently: true});
+                        }
+                        swatch.clearRect(0, 0, 1, 1);
+                        // A colour the canvas does not understand leaves this standing.
+                        swatch.fillStyle = '#010203';
+                        swatch.fillStyle = css;
+                        if (swatch.fillStyle !== '#010203') {
+                            swatch.fillRect(0, 0, 1, 1);
+                            const data = swatch.getImageData(0, 0, 1, 1).data;
+                            rgba = [data[0], data[1], data[2], data[3]];
+                        }
+                    }
+                } catch (error) {
+                    rgba = null;
+                }
+                if (resolved.size > 500) resolved.clear();
+                resolved.set(css, rgba);
+                return rgba;
+            };
             // The colour the page sits on, its root's or its body's, or the
-            // canvas when neither has one of its own.
+            // canvas when neither has one of its own, as rgb() whatever space
+            // the page wrote it in.
             const ground = () => {
                 for (const element of [document.documentElement, document.body]) {
                     if (!element) continue;
-                    const colour = getComputedStyle(element).backgroundColor;
-                    if (colour && colour !== 'rgba(0, 0, 0, 0)' && colour !== 'transparent')
-                        return colour;
+                    const rgba = rgbaOf(getComputedStyle(element).backgroundColor);
+                    if (rgba && rgba[3] > 0)
+                        return 'rgb(' + rgba.slice(0, 3).map(Math.round).join(', ') + ')';
                 }
                 const scheme = getComputedStyle(document.documentElement).colorScheme;
                 return /dark/.test(scheme) && !/light/.test(scheme) ? 'rgb(18, 18, 18)'
@@ -2895,11 +2940,8 @@ Item {
             // body, which the ground function does not see. It reads colours as
             // written, so it does not read what the engine's darkening draws.
             const rgbOf = (css) => {
-                const open = css.indexOf('(');
-                if (open < 0) return null;
-                const parts = css.slice(open + 1, css.lastIndexOf(')')).split(',').map(Number);
-                if (parts.length < 3 || parts.some(Number.isNaN)) return null;
-                return (parts.length > 3 ? parts[3] : 1) >= 0.99 ? parts.slice(0, 3) : null;
+                const rgba = rgbaOf(css);
+                return rgba && rgba[3] >= 252 ? rgba.slice(0, 3) : null;
             };
             const lumaOf = (rgb) => 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
             const seenGround = () => {
@@ -2909,7 +2951,7 @@ Item {
                         behind.set(el, rgbOf(getComputedStyle(el).backgroundColor));
                     return behind.get(el);
                 };
-                const canvas = rgbOf(ground());
+                const canvas = rgbOf(ground()) || [255, 255, 255];
                 const samples = [];
                 for (let row = 0; row < 5; row++) {
                     for (let column = 0; column < 5; column++) {
@@ -2939,10 +2981,14 @@ Item {
             let ownGroundObserver = null;
             const reportOwnGround = () => {
                 if (!watching || !document.documentElement) return;
-                const css = seenGround();
-                if (css === lastOwnGround) return;
-                lastOwnGround = css;
-                report('own_ground', css);
+                try {
+                    const css = seenGround();
+                    if (css === lastOwnGround) return;
+                    lastOwnGround = css;
+                    report('own_ground', css);
+                } catch (error) {
+                    // A page this cannot read stays darkened, as it was.
+                }
             };
             const askOwnGround = () => {
                 if (!watching || ownGroundTimer) return;

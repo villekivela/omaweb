@@ -626,9 +626,15 @@ reports the gap and remains experimental rather than imitating behavior it canno
   opened over a white page does not make it dark. A few points of the 25 do not decide it: a white
   page with a dark header and footer, or with a full-height dark rail, stays darkened, and a dark
   page with a white card in the middle or a light sidebar is left as written. A theme on the body
-  and one on a wrapper element with a transparent body are both found. The page is dark when that
-  ground's brightness, `0.299 R + 0.587 G + 0.114 B`, is at or below 205, which is the engine's own
-  limit. Measured against 17 grounds from `#09090b` to `#ffffff`, with `#222` and `#eee` text and a
+  and one on a wrapper element with a transparent body are both found. A colour in any space is read
+  as the colour it is: the computed style of a modern colour comes back in its own space, space
+  separated, as `oklch(0.21 0.006 285.9)`, `lab(...)`, `color(srgb ...)` and what `color-mix()`
+  makes, which is how Tailwind v4's palette is written, so the page script has a one-pixel canvas
+  draw it and reads the pixel, once per colour string, and the ground it reports for the cover is
+  plain `rgb()` in every case. A colour it cannot read counts as nothing and the search goes on up
+  the tree, and nothing it reads can stop the report. The page is dark when that ground's
+  brightness, `0.299 R + 0.587 G + 0.114 B`, is at or below 205, which is the engine's own limit.
+  Measured against 17 grounds from `#09090b` to `#ffffff`, with `#222` and `#eee` text and a
   `#d4d4d8` element on each, the engine leaves every ground at or below 205 as written and inverts
   the foregrounds on it, so dark text that stands on such a ground turns light on it, which is wrong
   for a page that chose that ground; above 205 it darkens the ground itself. A page is darkened

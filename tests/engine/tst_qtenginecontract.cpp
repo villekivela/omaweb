@@ -265,6 +265,9 @@ private slots:
     void qtLeavesADarkThemeWithAWhiteCardAsWritten();
     void qtLeavesADarkPageWithALightSidebarAsWritten();
     void qtWatchesAPageOnlyWhileItIsDarkened();
+    void qtReadsAGroundWrittenInAModernColourSpace();
+    void qtDarkensAWhitePageWrittenInOklch();
+    void qtCoversAPageWithAModernColourGroundInIt();
     void qtLeavesAPagesOwnDarkThemeAloneUnderADarkScheme();
     void qtCoversADarkenedPageInADarkColourWhenItsWindowReturns();
     void qtShowsNoWhiteFrameWhileADarkenedPageRedirects();
@@ -3462,6 +3465,7 @@ void QtEngineContractTest::qtLeavesAThemeOnAWrapperAsWritten()
     shown.adapter->setProperty("darkenPage", true);
     QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
     shown.adapter->setProperty("currentUrl", server.url("/app"));
+    QTRY_VERIFY_WITH_TIMEOUT(shown.adapter->property("pageOwnGroundDark").toBool(), 5000);
     QTRY_COMPARE_WITH_TIMEOUT(blockColour(shown.window), zinc300, 5000);
     QCOMPARE(pageAreaColour(shown.window), zinc900);
 }
@@ -3485,6 +3489,7 @@ void QtEngineContractTest::qtCoversAPageLeftAsWrittenInItsOwnGround()
     shown.adapter->setProperty("darkenPage", true);
     QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
     shown.adapter->setProperty("currentUrl", server.url("/app"));
+    QTRY_VERIFY_WITH_TIMEOUT(shown.adapter->property("pageOwnGroundDark").toBool(), 5000);
     QTRY_COMPARE_WITH_TIMEOUT(blockColour(shown.window), zinc300, 5000);
     QTRY_VERIFY_WITH_TIMEOUT(shown.adapter->property("documentPainted").toBool(), 5000);
     QList<QColor> covered;
@@ -3658,6 +3663,88 @@ void QtEngineContractTest::qtWatchesAPageOnlyWhileItIsDarkened()
     QVERIFY(!watched());
 }
 
+namespace {
+
+// A colour is the same to the reader within the rounding of the colour space
+// it was written in.
+bool near(const QColor &a, const QColor &b, int tolerance = 4)
+{
+    return qAbs(a.red() - b.red()) <= tolerance && qAbs(a.green() - b.green()) <= tolerance
+        && qAbs(a.blue() - b.blue()) <= tolerance;
+}
+
+} // namespace
+
+// Tailwind v4 writes its palette in oklch, and `color-mix()` and `lab()` give
+// colours that `getComputedStyle` hands back in their own space, space
+// separated, not as `rgb()`. Its dark theme is zinc-900 and its light part is
+// zinc-300, both in oklch. A ground in any of them is read as the colour it is,
+// on the body or on the root, and the page is left as written.
+void QtEngineContractTest::qtReadsAGroundWrittenInAModernColourSpace()
+{
+    const QByteArray zincLight = "oklch(0.871 0.006 286.286)";
+    const QByteArray bright = "<div style=\"position:absolute;left:400px;top:0;width:160px;"
+                              "height:240px;background:"
+        + zincLight + "\"></div>";
+    // The base is white where the theme will sit: on the body, which spreads to
+    // the canvas while the root has none, or on the root.
+    const QByteArray onBody = "body{margin:0;background:#fff}";
+    const QByteArray onRoot = "html{background:#fff}body{margin:0}";
+    struct Variant {
+        const char *name;
+        QByteArray rule;
+    };
+    const QList<Variant> variants {
+        {"oklch on the body", onBody + "html.dark body{background:oklch(0.21 0.006 285.885)}"},
+        {"color-mix on the body",
+            onBody
+                + "html.dark body{background:color-mix(in oklch, oklch(0.21 0.006 285.885) 100%, "
+                  "black)}"},
+        {"lab on the body", onBody + "html.dark body{background:lab(8.5 1 -3)}"},
+        {"oklch on the root", onRoot + "html.dark{background:oklch(0.21 0.006 285.885)}"},
+    };
+    for (const auto &variant : variants) {
+        SiteServer server({
+            {"/app",
+                SiteServer::html("<!doctype html><style>" + variant.rule + "</style>" + bright
+                    + "<script>addEventListener('load', () => setTimeout(() => "
+                      "document.documentElement.classList.add('dark'), 300));</script>")},
+            {"/route", SiteServer::html("<!doctype html>")},
+        });
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        ViewInWindow shown;
+        QVERIFY(shown.create(server.url("/route")));
+        shown.adapter->setProperty("darkenPage", true);
+        QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+        shown.adapter->setProperty("currentUrl", server.url("/app"));
+        QTRY_VERIFY_WITH_TIMEOUT(isDark(blockColour(shown.window)), 5000);
+        QTRY_VERIFY2_WITH_TIMEOUT(near(blockColour(shown.window), zinc300), variant.name, 8000);
+        QVERIFY2(shown.adapter->property("pageOwnGroundDark").toBool(), variant.name);
+    }
+}
+
+// The ground the cover is made of is read as rgb whatever space the page wrote
+// it in, so a page on oklch zinc-900 is not covered in white.
+void QtEngineContractTest::qtCoversAPageWithAModernColourGroundInIt()
+{
+    GroundPage page("<body style=\"margin:0;background:oklch(0.21 0.006 285.885)\"><p>x</p>");
+    QVERIFY(page.open());
+    QTRY_VERIFY_WITH_TIMEOUT(
+        near(page.shown.adapter->property("pageGroundColor").value<QColor>(), zinc900), 5000);
+}
+
+// A white page written as oklch(1 0 0) is a white page, which the engine darkens
+// and the page is not released for.
+void QtEngineContractTest::qtDarkensAWhitePageWrittenInOklch()
+{
+    GroundPage page("<body style=\"margin:0;background:oklch(1 0 0)\"><p>x</p>");
+    QVERIFY(page.open());
+    QTest::qWait(1000);
+    QVERIFY(!page.shown.adapter->property("pageOwnGroundDark").toBool());
+    QVERIFY2(isDark(pageAreaColour(page.shown.window, QPoint(320, 240))),
+        qPrintable(pageAreaColour(page.shown.window, QPoint(320, 240)).name()));
+}
+
 // A page left as written does not keep that for the next document: it starts
 // darkened, so a white page that follows it shows no white at all.
 void QtEngineContractTest::qtStartsEachDocumentDarkenedAfterAPageLeftAlone()
@@ -3677,8 +3764,10 @@ void QtEngineContractTest::qtStartsEachDocumentDarkenedAfterAPageLeftAlone()
     shown.adapter->setProperty("darkenPage", true);
     QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
     shown.adapter->setProperty("currentUrl", server.url("/app"));
+    // Released by the page's report, which is what leaves it as written: a
+    // page not yet darkened draws the same, so the colour alone shows nothing.
+    QTRY_VERIFY_WITH_TIMEOUT(shown.adapter->property("pageOwnGroundDark").toBool(), 5000);
     QTRY_COMPARE_WITH_TIMEOUT(blockColour(shown.window), zinc300, 5000);
-    QVERIFY(shown.adapter->property("pageOwnGroundDark").toBool());
 
     int whites = 0;
     int samples = 0;
