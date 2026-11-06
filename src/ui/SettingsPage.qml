@@ -128,6 +128,10 @@ Rectangle {
     property var globalPrivacyControl: null
     // HTTPS-only mode's switch, browser-wide like the one above.
     property var httpsOnly: null
+    // Whether pages with no dark theme are darkened, browser-wide, and whether
+    // the engine can do it at all (the PageDarkening capability).
+    property var pageDarkening: null
+    property bool pageDarkeningAvailable: true
     // Whether the Omnibar asks a search engine for Engine suggestions,
     // browser-wide like the switches above.
     property var engineSuggestions: null
@@ -1622,7 +1626,7 @@ Rectangle {
 
                     SectionLabel {
                         objectName: "pagesLabel"
-                        visible: !!root.pageScale
+                        visible: !!root.pageScale || !!root.pageDarkening
                         colors: root.colors
                         text: qsTr("pages", "section label: how pages are drawn")
                     }
@@ -1660,7 +1664,38 @@ Rectangle {
                         }
                     }
 
+                    // A page that has no dark theme of its own stays bright
+                    // under a dark Browser theme. The engine darkens such a
+                    // page when this is on and leaves one that declares a dark
+                    // colour scheme alone; Site information turns it off for
+                    // one site. It does not follow the Browser theme.
+                    SettingToggle {
+                        objectName: "darkenPages"
+                        visible: !!root.pageDarkening
+                        enabled: root.settingsWritable && root.pageDarkeningAvailable
+                        width: pane.width
+                        colors: root.colors
+                        title: qsTr("Darken pages with no dark theme")
+                        note: qsTr(
+                                  "Has the engine draw a page dark when it brings no dark theme of its own. A page whose ground is already dark is left as it is, with its light parts. Site information turns this off for one site.")
+                        accessibleName: qsTr("Darken pages with no dark theme")
+                        checked: !!root.pageDarkening && root.pageDarkening.enabled
+                        onClicked: if (root.pageDarkening)
+                                       root.pageDarkening.enabled = !checked
+                    }
+
+                    SettingRow {
+                        objectName: "darkenPagesCaveat"
+                        width: pane.width
+                        visible: !!root.pageDarkening && !root.pageDarkeningAvailable
+                        colors: root.colors
+                        title: qsTr("This engine cannot darken a page")
+                        note: qsTr(
+                                  "Pages are drawn as they were written, whatever this switch says.")
+                    }
+
                     SectionLabel {
+                        objectName: "pageFontsLabel"
                         visible: !!root.fontSettings
                         colors: root.colors
                         text: qsTr("page fonts")

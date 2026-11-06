@@ -263,6 +263,11 @@ private slots:
     void measuresTheSiteDataHeldForOneSpace();
     void scopesExternalProtocolDecisionsToOriginSchemeSpaceAndPrivateSession();
     void remembersPlainHttpPerOriginAndSpaceButNotInPrivate();
+    void namesTheSiteDarkeningIsTurnedOffFor_data();
+    void namesTheSiteDarkeningIsTurnedOffFor();
+    void turnsDarkeningOffForOneSiteInOneSpaceAcrossARestart();
+    void turnsDarkeningOffForOneLocalPortAndNotAnother();
+    void keepsPrivateDarkeningChoicesInMemoryForTheSession();
     void configuresOneDownloadDirectoryForEveryWindow();
     void persistsInterfacePreferencesOutsidePrivateBrowsing();
     void keepsTheReadersSettingsInTheSettingsFile();
@@ -3073,6 +3078,129 @@ void BrowserControllerTest::scopesExternalProtocolDecisionsToOriginSchemeSpaceAn
     auto freshPrivate = freshPrivateSession.createController();
     QVERIFY(!freshPrivate->externalProtocolAllowed(
         QUrl(QStringLiteral("https://private.example")), QStringLiteral("mailto")));
+}
+
+void BrowserControllerTest::namesTheSiteDarkeningIsTurnedOffFor_data()
+{
+    QTest::addColumn<QString>("address");
+    QTest::addColumn<QString>("site");
+    QTest::newRow("a registrable domain") << "https://app.acme.com/x" << "*.acme.com";
+    QTest::newRow("the bare domain") << "http://acme.com" << "*.acme.com";
+    QTest::newRow("a public suffix of two labels") << "https://www.bbc.co.uk/" << "*.bbc.co.uk";
+    QTest::newRow("a host with no label before its suffix") << "https://com/" << "com";
+    QTest::newRow("an IP address and its port") << "http://127.0.0.1:8000/" << "127.0.0.1:8000";
+    QTest::newRow("localhost and its port") << "http://localhost:3000/x" << "localhost:3000";
+    QTest::newRow("localhost on the default port") << "http://localhost/" << "localhost";
+    QTest::newRow("localhost on a spelt-out default port") << "http://localhost:80/" << "localhost";
+    QTest::newRow("an https default port") << "https://localhost:443/" << "localhost";
+    QTest::newRow("an IPv6 address") << "https://[::1]:8443/" << "[::1]:8443";
+    QTest::newRow("Omaweb's own page") << "omaweb://settings" << "";
+    QTest::newRow("a file") << "file:///tmp/a.html" << "";
+}
+
+// The site is the page's registrable domain, as the Link rule row reads it, or
+// its host and port where it has none; absent on Omaweb's own pages and files.
+void BrowserControllerTest::namesTheSiteDarkeningIsTurnedOffFor()
+{
+    QFETCH(QString, address);
+    QFETCH(QString, site);
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    QCOMPARE(controller.darkeningSite(QUrl(address)), site);
+    if (site.isEmpty()) {
+        QVERIFY(!controller.setDarkeningOff(QUrl(address), true));
+        QVERIFY(!controller.darkeningOff(QUrl(address)));
+    }
+}
+
+// A site's off choice belongs to its Space, covers every host under the
+// site, outlives the browser, and is not a setting: the settings file, which
+// Sync carries, never learns of it.
+void BrowserControllerTest::turnsDarkeningOffForOneSiteInOneSpaceAcrossARestart()
+{
+    QTemporaryDir root;
+    QTemporaryDir config;
+    const QUrl app(QStringLiteral("https://app.acme.com/page"));
+    const QUrl other(QStringLiteral("https://other.example/page"));
+    QString personalSpaceId;
+    QString workSpaceId;
+    {
+        BrowserController controller(
+            SpaceStorage(root.path(), QStringLiteral("test")), config.path());
+        personalSpaceId = controller.activeSpaceId();
+        workSpaceId = controller.createSpace(QStringLiteral("Work"));
+        QVERIFY(!controller.darkeningOff(app));
+        QSignalSpy changed(&controller, &BrowserController::darkeningOffChanged);
+        QVERIFY(controller.setDarkeningOff(app, true));
+        QCOMPARE(changed.count(), 1);
+        QCOMPARE(changed.first().first().toString(), personalSpaceId);
+        QVERIFY(controller.darkeningOff(app));
+        QVERIFY(controller.darkeningOff(QUrl(QStringLiteral("https://www.acme.com/"))));
+        QVERIFY(controller.darkeningOff(QUrl(QStringLiteral("http://acme.com/"))));
+        QVERIFY(!controller.darkeningOff(other));
+        QVERIFY(!controller.darkeningOff(app, workSpaceId));
+        QVERIFY(controller.darkeningOff(app, personalSpaceId));
+        QVERIFY(controller.switchSpace(workSpaceId));
+        QVERIFY(!controller.darkeningOff(app));
+        QVERIFY(controller.switchSpace(personalSpaceId));
+    }
+    {
+        QFile settings(config.filePath(QStringLiteral("settings.json")));
+        if (settings.open(QIODevice::ReadOnly)) {
+            QVERIFY(!settings.readAll().contains("acme"));
+        }
+    }
+    {
+        BrowserController restored(
+            SpaceStorage(root.path(), QStringLiteral("test")), config.path());
+        QVERIFY(restored.darkeningOff(app));
+        QSignalSpy changed(&restored, &BrowserController::darkeningOffChanged);
+        QVERIFY(restored.setDarkeningOff(app, false));
+        QCOMPARE(changed.count(), 1);
+        QVERIFY(!restored.darkeningOff(app));
+        QVERIFY(restored.setDarkeningOff(app, false));
+        QCOMPARE(changed.count(), 1);
+        // Clear browsing data's site permissions take it with the others.
+        QVERIFY(restored.setDarkeningOff(app, true));
+        QVERIFY(restored.clearBrowsingData({QStringLiteral("permissions")}, 0));
+        QVERIFY(!restored.darkeningOff(app));
+    }
+    BrowserController again(SpaceStorage(root.path(), QStringLiteral("test")), config.path());
+    QVERIFY(!again.darkeningOff(app));
+}
+
+// Two apps on one machine are two sites: turning darkening off for the one on
+// a port leaves the one on another port darkened.
+void BrowserControllerTest::turnsDarkeningOffForOneLocalPortAndNotAnother()
+{
+    QTemporaryDir root;
+    BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
+    const QUrl first(QStringLiteral("http://localhost:3000/app"));
+    const QUrl second(QStringLiteral("http://localhost:4000/"));
+    QVERIFY(controller.setDarkeningOff(first, true));
+    QVERIFY(controller.darkeningOff(QUrl(QStringLiteral("http://localhost:3000/other"))));
+    QVERIFY(!controller.darkeningOff(second));
+    QVERIFY(!controller.darkeningOff(QUrl(QStringLiteral("http://localhost/"))));
+    QVERIFY(!controller.setDarkeningOff(QUrl(QStringLiteral("file:///tmp/a.html")), true));
+}
+
+// A Private window writes nothing down: its windows share the choice for as
+// long as the session lasts, and a fresh session starts without it.
+void BrowserControllerTest::keepsPrivateDarkeningChoicesInMemoryForTheSession()
+{
+    const QUrl site(QStringLiteral("https://app.acme.com/"));
+    PrivateSessionFixture session;
+    auto first = session.createController();
+    auto second = session.createController();
+    QVERIFY(first->setDarkeningOff(site, true));
+    QVERIFY(first->darkeningOff(site));
+    QVERIFY(second->darkeningOff(site));
+    QVERIFY(first->setDarkeningOff(site, false));
+    QVERIFY(!second->darkeningOff(site));
+    QVERIFY(first->setDarkeningOff(site, true));
+
+    PrivateSessionFixture fresh;
+    QVERIFY(!fresh.createController()->darkeningOff(site));
 }
 
 void BrowserControllerTest::configuresOneDownloadDirectoryForEveryWindow()

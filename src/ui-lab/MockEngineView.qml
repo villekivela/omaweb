@@ -86,6 +86,10 @@ Rectangle {
     // nothing to stop, so it records the decision and nothing else: which pages
     // are frozen is the shell's rule, and this is where a test reads it.
     property bool pageFrozen: false
+    // The lab draws no page to darken, so it records what the shell asked, and
+    // what it had asked before the view's first document.
+    property bool darkenPage: false
+    property bool darkenedAtCreation: false
     property bool canGoBack: false
     property bool canGoForward: false
     property string pageLocalState: ""
@@ -130,6 +134,8 @@ Rectangle {
     // engine does. Off stands for an engine that reports only the chain a
     // certificate failure was raised for.
     property bool pageCertificatesAvailable: true
+    // An engine without forced dark mode, as Ladybird is, reports it off.
+    property bool pageDarkeningAvailable: true
     // Off by default and honest about it: the lab keeps nothing on disk, so
     // Site information has no size to show. A test that needs the shell stood
     // up against an engine that does keep a profile turns it on.
@@ -158,7 +164,9 @@ Rectangle {
                                                                                                                                          ? EngineCapabilities.ThirdPartyCookieControl :
                                                                                                                                            0) | (root.pageCertificatesAvailable
                                                                                                                                                  ? EngineCapabilities.PageCertificates :
-                                                                                                                                                   0)
+                                                                                                                                                   0) | (root.pageDarkeningAvailable
+                                                                                                                                                         ? EngineCapabilities.PageDarkening :
+                                                                                                                                                           0)
 
     // The lab renders nothing, so find counts the plain occurrences of the
     // query in a body of text a test names. That is enough for the interface:
@@ -786,6 +794,7 @@ Rectangle {
     }
 
     Component.onCompleted: {
+        root.darkenedAtCreation = root.darkenPage;
         root.announcePage(root.currentUrl);
         root.certificateChain = root.labCertificateChain(root.currentUrl);
     }

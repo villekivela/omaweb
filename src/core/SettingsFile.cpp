@@ -99,6 +99,8 @@ namespace {
             // desktop's text scaling (ADR 0067).
             {QLatin1StringView("page-scale"), Kind::Fraction, unstated, {0.5, 2.0}},
             {QLatin1StringView("page-fonts"), Kind::Fonts, unstated},
+            // Whether a page with no dark theme of its own is darkened.
+            {QLatin1StringView("darken-pages"), Kind::Switch, false},
             {QLatin1StringView("download-directory"), Kind::Text, unstated},
             {QLatin1StringView("engine-suggestions"), Kind::Switch, false},
             {QLatin1StringView("global-privacy-control"), Kind::Switch, true},

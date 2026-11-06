@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import "PageDarkening.mjs" as PageDarkening
 
 ApplicationWindow {
     id: auxiliary
@@ -30,6 +31,11 @@ ApplicationWindow {
     property real drawnZoom: 1
     onDrawnZoomChanged: if (engineLoader.item)
                             engineLoader.item.setZoomFactor(auxiliary.drawnZoom)
+    // The browser's PageDarkening and the window's BrowserController, which
+    // decide whether this window's page is darkened as a tab's is. An Agent's
+    // window follows them too: the setting is the browser's.
+    property var pageDarkening: null
+    property var browserController: null
     // The core's Agent rules and the id this window has there, when an Agent
     // tab's page opened it (ADR 0051). The Agent drives it by that id as it
     // drives the tab, and it is the Agent's for as long as the core lists it.
@@ -121,11 +127,24 @@ ApplicationWindow {
                                              keyboardNavigation.pageScript,
                                              "currentUrl": auxiliary.request ? "about:blank" :
                                                                                auxiliary.requestedUrl,
+                                             // Dark from its first document, which a popup's
+                                             // is about:blank, as the opener's Space has it.
+                                             "darkenPage": PageDarkening.wanted(
+                                                               auxiliary.pageDarkening,
+                                                               auxiliary.browserController,
+                                                               auxiliary.request ? "about:blank" :
+                                                                                   auxiliary.requestedUrl,
+                                                               auxiliary.openerEngine.spaceId),
                                              // An Agent's window never takes the reader's keyboard.
                                              "pageTakesFocus": auxiliary.agentWindowId.length === 0
                                          })
 
         onLoaded: {
+            darkeningComponent.createObject(item, {
+                                                "engine": item,
+                                                "setting": auxiliary.pageDarkening,
+                                                "browser": auxiliary.browserController
+                                            });
             item.setZoomFactor(auxiliary.drawnZoom);
             auxiliary.markAgentEngine();
             if (auxiliary.request)
@@ -133,6 +152,12 @@ ApplicationWindow {
             if (auxiliary.agentWindowId.length === 0)
                 item.focusPage();
         }
+    }
+
+    Component {
+        id: darkeningComponent
+
+        DarkeningFollow {}
     }
 
     DiagnosticBanner {

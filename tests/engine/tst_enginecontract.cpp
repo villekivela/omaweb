@@ -70,6 +70,8 @@ void EngineContractTest::mockSwitchesOptionalCapabilities_data()
     QTest::newRow("third-party cookie control")
         << QByteArrayLiteral("thirdPartyCookieControlAvailable")
         << static_cast<int>(EngineCapabilities::ThirdPartyCookieControl) << true;
+    QTest::newRow("page darkening") << QByteArrayLiteral("pageDarkeningAvailable")
+                                    << static_cast<int>(EngineCapabilities::PageDarkening) << true;
 }
 
 void EngineContractTest::mockSwitchesOptionalCapabilities()

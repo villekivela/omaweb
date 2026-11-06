@@ -27,6 +27,9 @@ Item {
     // `PageScale` the browser keeps (ADR 0067). Without one, pages are drawn
     // at their zoom alone.
     property var pageScale: null
+    // Whether pages with no dark theme are darkened (`PageDarkening`). Without
+    // one, no page is.
+    property var pageDarkening: null
     // The window's Problem recording, which a Private window has none of.
     property var problemRecording: null
     readonly property real pageScaleValue: root.pageScale ? root.pageScale.value : 1
@@ -769,6 +772,12 @@ Item {
             root.releaseWhenReady(engine, host, tabUrl);
         root.giveScrollbar(engine);
         if (engine)
+            darkeningComponent.createObject(engine, {
+                                                "engine": engine,
+                                                "setting": root.pageDarkening,
+                                                "browser": root.browserController
+                                            });
+        if (engine)
             untiedZoomComponent.createObject(engine, {
                                                  "engine": engine
                                              });
@@ -903,6 +912,12 @@ Item {
             }
             Component.onCompleted: apply()
         }
+    }
+
+    Component {
+        id: darkeningComponent
+
+        DarkeningFollow {}
     }
 
     function giveScrollbar(engine) {

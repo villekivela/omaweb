@@ -2373,6 +2373,71 @@ QString BrowserController::siteLinkPattern(const QUrl &url) const
     return linkrules::sitePattern(url).value_or(QString());
 }
 
+namespace {
+
+    // Kept as a site permission under the pattern in place of an origin, which
+    // no origin can spell, so nothing that lists or resets an origin's
+    // permissions reaches it.
+    const QString darkeningPermission = QStringLiteral("darkening");
+
+} // namespace
+
+QString BrowserController::darkeningSite(const QUrl &url) const
+{
+    if (const auto site = linkrules::sitePattern(url)) {
+        return *site;
+    }
+    // An address with no registrable domain, such as localhost or an IP
+    // address, is a site by its host and port: an app on one port is not the
+    // app on another. The default port is the host alone.
+    const auto scheme = url.scheme().toLower();
+    if ((scheme != QStringLiteral("http") && scheme != QStringLiteral("https"))
+        || url.host().isEmpty()) {
+        return {};
+    }
+    const auto host = url.host().contains(QLatin1Char(':')) ? QStringLiteral("[%1]").arg(url.host())
+                                                            : url.host();
+    const auto port = url.port();
+    const auto defaultPort = scheme == QStringLiteral("https") ? 443 : 80;
+    return port < 0 || port == defaultPort ? host : QStringLiteral("%1:%2").arg(host).arg(port);
+}
+
+bool BrowserController::darkeningOff(const QUrl &url, const QString &spaceId) const
+{
+    const auto site = darkeningSite(url);
+    if (site.isEmpty()) {
+        return false;
+    }
+    const auto space = spaceId.isEmpty() ? m_activeSpaceId : spaceId;
+    if (m_privateBrowsing) {
+        return m_sessionPermissionDecisions->value(
+                   omaweb::sessionPermissionKey(space, site, darkeningPermission), Ask)
+            == Block;
+    }
+    return m_store->permissionDecision(space, site, darkeningPermission) == Block;
+}
+
+bool BrowserController::setDarkeningOff(const QUrl &url, bool off)
+{
+    const auto site = darkeningSite(url);
+    if (site.isEmpty()) {
+        return false;
+    }
+    if (darkeningOff(url) == off) {
+        return true;
+    }
+    const auto decision = off ? Block : Ask;
+    if (m_privateBrowsing) {
+        m_sessionPermissionDecisions->insert(
+            omaweb::sessionPermissionKey(m_activeSpaceId, site, darkeningPermission), decision);
+    } else if (!m_store->savePermissionDecision(
+                   m_activeSpaceId, site, darkeningPermission, decision)) {
+        return false;
+    }
+    emit darkeningOffChanged(m_activeSpaceId);
+    return true;
+}
+
 BrowserController::SiteLinkRoute BrowserController::siteLinkRouteFor(const QUrl &url) const
 {
     SiteLinkRoute route {.site = siteLinkPattern(url), .rules = linkRules(), .taking = -1};

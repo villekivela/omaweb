@@ -29,6 +29,7 @@
 #include "SidebarOpacity.h"
 #include "EngineSuggestions.h"
 #include "GlobalPrivacyControl.h"
+#include "PageDarkening.h"
 #include "HttpsOnly.h"
 #include "SecureDns.h"
 #include "SettingsFile.h"
@@ -425,6 +426,7 @@ int main(int argc, char *argv[])
     // One answer for the whole browser: every Space's profile and the Private
     // windows' shared one tell sites the same thing about the reader.
     omaweb::GlobalPrivacyControl globalPrivacyControl(configRoot());
+    omaweb::PageDarkening pageDarkening(configRoot());
     // Before any page asks for a name: the engine resolves names once for the
     // whole process, and the first lookup has to go where the reader chose.
     omaweb::SecureDns secureDns(configRoot());
@@ -682,6 +684,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(
         QStringLiteral("globalPrivacyControl"), &globalPrivacyControl);
     engine.rootContext()->setContextProperty(QStringLiteral("httpsOnly"), &httpsOnly);
+    engine.rootContext()->setContextProperty(QStringLiteral("pageDarkening"), &pageDarkening);
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineSuggestions"), &engineSuggestions);
     engine.rootContext()->setContextProperty(QStringLiteral("webRtcPolicy"), &webRtcPolicy);

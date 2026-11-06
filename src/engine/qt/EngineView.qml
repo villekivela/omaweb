@@ -83,6 +83,33 @@ Item {
     // would take the page away, which is the shell's other policy and reaches
     // an engine as a destroyed adapter.
     property bool pageFrozen: false
+    // The shell's wish: Chromium's forced dark mode for a page that has no dark
+    // theme of its own. Each document starts darkened, so no white shows, and
+    // the engine stops darkening one whose own ground reads dark (`darkened`).
+    property bool darkenPage: false
+    // What the page reported as its ground at the content's edge, as written.
+    // A document that has not reported has none, and is darkened.
+    property bool pageOwnGroundDark: false
+    property color pageOwnGroundColor: "white"
+    // Chromium leaves a background it finds at or below this brightness of 255
+    // as written and inverts the foregrounds on it, which is what turns a dark
+    // theme's own elements wrong, so a page that is drawn dark by its own
+    // choice is left to the engine at this threshold and no other.
+    readonly property real darkGroundBrightness: 205
+    readonly property bool darkened: root.darkenPage && !root.pageOwnGroundDark
+    // Whether the document's script is watching its ground, which it does only
+    // while darkening is wanted.
+    property bool groundWatched: false
+    onDarkenPageChanged: root.followGroundWatch()
+    function followGroundWatch() {
+        const call = root.darkenPage ? "__omawebWatchGround" : "__omawebUnwatchGround";
+        if (!root.darkenPage)
+            root.pageOwnGroundDark = false;
+        if (!root.completed)
+            return;
+        webView.runJavaScript("globalThis." + call + " && globalThis." + call + "()",
+                              WebEngineScript.ApplicationWorld);
+    }
     onPageFrozenChanged: root.applyPageLifecycle()
 
     // Chromium refuses to freeze a page it is still drawing, and refuses
@@ -131,6 +158,7 @@ Item {
                                             ? EngineCapabilities.ProceduralCosmeticFiltering : 0) | (
                                             QtCertificates.arrivedChainReported
                                             ? EngineCapabilities.PageCertificates : 0)
+                                        | EngineCapabilities.PageDarkening
     // Which Space's browsing identity these pages belong to. Handed down with
     // the profile, because it is the profile that decides it: Content blocking
     // keys the Refusal tally by it, and its interception is attached per
@@ -2332,7 +2360,7 @@ Item {
         anchors.fill: parent
         z: 1
         visible: root.awaitingPageFrame
-        color: root.documentPainted ? root.pageGroundColor : root.pageBackgroundColor
+        color: root.documentPainted ? root.coverGroundColor : root.pageBackgroundColor
     }
     // Over the colour while the page is awaited: the page as the window last
     // showed it.
@@ -2840,18 +2868,168 @@ Item {
                 }, true);
             });
             let painted = false;
+            // Any CSS colour as its red, green, blue and alpha, each of 255, by
+            // having a canvas draw it: getComputedStyle hands back a modern
+            // colour in its own space, oklch(0.21 0.006 285.9), lab(...),
+            // color(srgb ...) and what color-mix() makes, space separated,
+            // which Tailwind v4's palette writes. The canvas is a single pixel,
+            // cleared each time so that the alpha is the colour's, made when the
+            // first such colour is read, and a colour is resolved once. One it
+            // cannot read is nothing, and never an error.
+            let swatch = null;
+            const resolved = new Map();
+            const rgbaOf = (css) => {
+                if (resolved.has(css)) return resolved.get(css);
+                let rgba = null;
+                try {
+                    if (css.startsWith('rgb')) {
+                        const parts = css.slice(css.indexOf('(') + 1, css.lastIndexOf(')'))
+                                         .split(',').map(Number);
+                        if (parts.length >= 3 && !parts.some(Number.isNaN))
+                            rgba = [parts[0], parts[1], parts[2],
+                                    parts.length > 3 ? parts[3] * 255 : 255];
+                    }
+                    if (!rgba) {
+                        if (!swatch) {
+                            const canvas = document.createElement('canvas');
+                            canvas.width = canvas.height = 1;
+                            swatch = canvas.getContext('2d', {willReadFrequently: true});
+                        }
+                        swatch.clearRect(0, 0, 1, 1);
+                        // A colour the canvas does not understand leaves this standing.
+                        swatch.fillStyle = '#010203';
+                        swatch.fillStyle = css;
+                        if (swatch.fillStyle !== '#010203') {
+                            swatch.fillRect(0, 0, 1, 1);
+                            const data = swatch.getImageData(0, 0, 1, 1).data;
+                            rgba = [data[0], data[1], data[2], data[3]];
+                        }
+                    }
+                } catch (error) {
+                    rgba = null;
+                }
+                if (resolved.size > 500) resolved.clear();
+                resolved.set(css, rgba);
+                return rgba;
+            };
             // The colour the page sits on, its root's or its body's, or the
-            // canvas when neither has one of its own.
+            // canvas when neither has one of its own, as rgb() whatever space
+            // the page wrote it in.
             const ground = () => {
                 for (const element of [document.documentElement, document.body]) {
                     if (!element) continue;
-                    const colour = getComputedStyle(element).backgroundColor;
-                    if (colour && colour !== 'rgba(0, 0, 0, 0)' && colour !== 'transparent')
-                        return colour;
+                    const rgba = rgbaOf(getComputedStyle(element).backgroundColor);
+                    if (rgba && rgba[3] > 0)
+                        return 'rgb(' + rgba.slice(0, 3).map(Math.round).join(', ') + ')';
                 }
                 const scheme = getComputedStyle(document.documentElement).colorScheme;
                 return /dark/.test(scheme) && !/light/.test(scheme) ? 'rgb(18, 18, 18)'
                                                                      : 'rgb(255, 255, 255)';
+            };
+            // The ground as the reader sees it, which is what decides whether
+            // the page brings a dark theme of its own: the colour that most of
+            // the window is drawn on. A grid of 5 by 5 points across the window
+            // is read, each the first opaque background at or above whatever is
+            // drawn there, or the canvas where there is none, and the middle
+            // one by lightness is the ground. A translucent background, such as
+            // a modal's backdrop, is see-through and is not the ground, and a
+            // header, a footer or a rail that is dark on a white page, or a
+            // card or a sidebar that is light on a dark one, is a few points of
+            // the 25 and does not decide it. A theme on a wrapper element with
+            // the root and the body transparent is found as well as one on the
+            // body, which the ground function does not see. It reads colours as
+            // written, so it does not read what the engine's darkening draws.
+            const rgbOf = (css) => {
+                const rgba = rgbaOf(css);
+                return rgba && rgba[3] >= 252 ? rgba.slice(0, 3) : null;
+            };
+            const lumaOf = (rgb) => 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
+            const seenGround = () => {
+                const behind = new Map();
+                const backgroundOf = (el) => {
+                    if (!behind.has(el))
+                        behind.set(el, rgbOf(getComputedStyle(el).backgroundColor));
+                    return behind.get(el);
+                };
+                const canvas = rgbOf(ground()) || [255, 255, 255];
+                const samples = [];
+                for (let row = 0; row < 5; row++) {
+                    for (let column = 0; column < 5; column++) {
+                        let found = null;
+                        for (let el = document.elementFromPoint((column + 0.5) * innerWidth / 5,
+                                                                (row + 0.5) * innerHeight / 5);
+                             el && !found; el = el.parentElement)
+                            found = backgroundOf(el);
+                        samples.push(found || canvas);
+                    }
+                }
+                samples.sort((a, b) => lumaOf(a) - lumaOf(b));
+                return 'rgb(' + samples[12].join(', ') + ')';
+            };
+            // Watched only while the shell asks for it, which is while it is
+            // darkening, so a reader who has the setting off pays for none of
+            // it: no observer, no timer and no reading of styles. The shell
+            // asks when a document is made with darkening on and when it goes
+            // on for an open page, and says when it goes off. Said when the
+            // ground changes, which a theme set by script after load, a style
+            // sheet that arrives late and a switch in either direction all do.
+            // A change to any attribute or to the tree asks again after a
+            // short wait, since a page can set its theme with any of them.
+            let watching = false;
+            let lastOwnGround = '';
+            let ownGroundTimer = 0;
+            let ownGroundObserver = null;
+            const reportOwnGround = () => {
+                if (!watching || !document.documentElement) return;
+                try {
+                    const css = seenGround();
+                    if (css === lastOwnGround) return;
+                    lastOwnGround = css;
+                    report('own_ground', css);
+                } catch (error) {
+                    // A page this cannot read stays darkened, as it was.
+                }
+            };
+            const askOwnGround = () => {
+                if (!watching || ownGroundTimer) return;
+                ownGroundTimer = setTimeout(() => {
+                    ownGroundTimer = 0;
+                    requestAnimationFrame(reportOwnGround);
+                }, 100);
+            };
+            const showAgain = (event) => {
+                if (event.persisted) lastOwnGround = '';
+                askOwnGround();
+            };
+            const beginWatching = () => {
+                if (!watching) return;
+                ownGroundObserver = new MutationObserver(askOwnGround);
+                ownGroundObserver.observe(document, {
+                    attributes: true, childList: true, subtree: true, characterData: true});
+                askOwnGround();
+            };
+            globalThis.__omawebWatchGround = () => {
+                if (watching) return;
+                watching = true;
+                lastOwnGround = '';
+                document.addEventListener('load', askOwnGround, true);
+                addEventListener('pageshow', showAgain);
+                if (document.readyState === 'loading')
+                    document.addEventListener('DOMContentLoaded', beginWatching, {once: true});
+                else
+                    beginWatching();
+                report('ground_watch', 'on');
+            };
+            globalThis.__omawebUnwatchGround = () => {
+                if (!watching) return;
+                watching = false;
+                clearTimeout(ownGroundTimer);
+                ownGroundTimer = 0;
+                if (ownGroundObserver) ownGroundObserver.disconnect();
+                ownGroundObserver = null;
+                document.removeEventListener('load', askOwnGround, true);
+                removeEventListener('pageshow', showAgain);
+                report('ground_watch', 'off');
             };
             // Asked for after a return of the window: says when the page has
             // made two frames, the second being one made after the call.
@@ -2863,6 +3041,7 @@ Item {
                 followGround();
                 report('document_painted');
                 report('page_ground', ground());
+                askOwnGround();
             };
             // Said when the page is parsed and loaded as well, because a view
             // that is not drawing makes no paint to hang it on.
@@ -4508,6 +4687,23 @@ Item {
     // depend on the page saying so: a page the script does not reach, such as
     // an error page, never will.
     property color pageGroundColor: "white"
+    // The ground as it is drawn. `getComputedStyle` reads a darkened page's ground
+    // as the white it is written in, so the cover would be white over a dark page.
+    // Chromium darkens only a background brighter than 205 of 255. The inverted
+    // lightness, floored at about 7%, is dark where the page is but approximate:
+    // the engine draws #f5f5f5 as #222222 and white as #121212.
+    readonly property color coverGroundColor: {
+        // A page left as written is covered in the ground it reported, which on
+        // a wrapper's theme is the wrapper's and not the canvas's.
+        if (root.darkenPage && root.pageOwnGroundDark)
+            return root.pageOwnGroundColor;
+        const ground = root.pageGroundColor;
+        const brightness = 255 * (0.299 * ground.r + 0.587 * ground.g + 0.114 * ground.b);
+        if (!root.darkened || brightness <= root.darkGroundBrightness)
+            return ground;
+        return Qt.hsla(Math.max(0, ground.hslHue), ground.hslSaturation, Math.max(0.07, 1 - ground.hslLightness),
+                       1);
+    }
     property bool awaitingPageFrame: false
     function readPageGround(body) {
         let css = "";
@@ -4520,6 +4716,21 @@ Item {
         if (channels)
             root.pageGroundColor = Qt.rgba(channels[1] / 255, channels[2] / 255, channels[3] / 255,
                                            1);
+    }
+    function readOwnGround(body) {
+        let css = "";
+        try {
+            css = JSON.parse(body);
+        } catch (error) {
+            return;
+        }
+        const channels = /^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(css);
+        if (!channels)
+            return;
+        const colour = Qt.rgba(channels[1] / 255, channels[2] / 255, channels[3] / 255, 1);
+        const brightness = 0.299 * channels[1] + 0.587 * channels[2] + 0.114 * channels[3];
+        root.pageOwnGroundColor = colour;
+        root.pageOwnGroundDark = brightness <= root.darkGroundBrightness;
     }
     function coverUntilPageFrame() {
         root.awaitingPageFrame = true;
@@ -4596,6 +4807,7 @@ Item {
         // to gain by starting — either the tab is muted or the reader has
         // already dealt with the origin.
         settings.playbackRequiresUserGesture: !root.autoplayAllowed
+        settings.forceDarkMode: root.darkened
 
         onRecommendedStateChanged: root.applyPageLifecycle()
 
@@ -4684,6 +4896,10 @@ Item {
                 QtPageGlide.stopIn(webView);
                 root.pageGeneration += 1;
                 root.documentReported = false;
+                // The next document starts darkened, before it exists, so none
+                // of it is drawn white: a report from the script comes after
+                // its first paint. A route inside a document starts no load.
+                root.pageOwnGroundDark = false;
                 root.blockingRulesChangedSinceLoad = false;
                 root.loadSetOutFrom = loadRequest.url;
                 root.announceDocument(loadRequest.url);
@@ -4992,6 +5208,8 @@ Item {
                 root.forgetMediaFrames();
                 root.forgetFormFrames();
                 root.documentReported = true;
+                root.groundWatched = false;
+                root.followGroundWatch();
                 lateCanvas.stop();
                 root.documentPainted = false;
                 pageAsLeft.release();
@@ -5002,6 +5220,10 @@ Item {
                     pageFrameArrival.restart();
             } else if (report.channel === "page_ground") {
                 root.readPageGround(report.body);
+            } else if (report.channel === "own_ground") {
+                root.readOwnGround(report.body);
+            } else if (report.channel === "ground_watch") {
+                root.groundWatched = report.body === '"on"';
             } else if (report.channel === "user_activation") {
                 root.userActivated();
             }

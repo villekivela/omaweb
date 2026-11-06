@@ -603,6 +603,97 @@ reports the gap and remains experimental rather than imitating behavior it canno
   the Page scale and a tab's zoom multiply that. The values apply to every Space and Private window,
   reach open pages without a reload, and survive a restart. A page's own declarations are never
   overridden. The controls name their value, their default and their actions to accessibility tools.
+- A page with no dark theme of its own stays bright under a dark Browser theme, and Page darkening
+  draws it dark. Settings' interface section has a "Darken pages with no dark theme" switch in the
+  pages group, above the page fonts. It is off by default, it does not follow the Browser theme, and
+  it is `"darken-pages"` in `settings.json`, so an edit of the file applies at once and Sync carries
+  it with the group's other settings. It reaches every Space and Private window. The engine darkens:
+  Chromium's forced dark mode inverts the lightness of a background whose brightness is above 205 of
+  255, so white becomes `#121212`, `#f5f5f5` becomes `#222222` and `#d0d0d0` becomes `#3f3f3f`, and
+  it inverts the foregrounds, so `#222` text becomes `#f6f6f6` and a `#d4d4d8` element becomes
+  `#3b3b3e`, on any ground. A background at or below 205, such as `#cccccc`, `#6b7280` or `#18181b`,
+  is left as it is.
+
+  A page whose own ground is already dark is left as written. The shell's wish stays the reader's:
+  `darkenPage` is true while the switch is on and the site is not turned off, and the adapter
+  darkens the page only while the page does not bring its own dark ground, so an app whose dark
+  theme is a class its script sets, with no `color-scheme`, keeps its deliberately light parts, such
+  as Tailwind's zinc-300 `#d4d4d8`, which the engine would invert. The page reports its ground as
+  the reader sees it: the colour most of the window is drawn on. It reads a grid of 5 by 5 points
+  across the window, each the first opaque background at or above whatever is drawn there, or the
+  canvas, and the ground is the middle one of the 25 by brightness. A translucent background, such
+  as a modal's backdrop of `rgba(0,0,0,.6)`, is see-through and is not the ground, so a dialog
+  opened over a white page does not make it dark. A few points of the 25 do not decide it: a white
+  page with a dark header and footer, or with a full-height dark rail, stays darkened, and a dark
+  page with a white card in the middle or a light sidebar is left as written. A theme on the body
+  and one on a wrapper element with a transparent body are both found. A colour in any space is read
+  as the colour it is: the computed style of a modern colour comes back in its own space, space
+  separated, as `oklch(0.21 0.006 285.9)`, `lab(...)`, `color(srgb ...)` and what `color-mix()`
+  makes, which is how Tailwind v4's palette is written, so the page script has a one-pixel canvas
+  draw it and reads the pixel, once per colour string, and the ground it reports for the cover is
+  plain `rgb()` in every case. A colour it cannot read counts as nothing and the search goes on up
+  the tree, and nothing it reads can stop the report. The page is dark when that ground's
+  brightness, `0.299 R + 0.587 G + 0.114 B`, is at or below 205, which is the engine's own limit.
+  Measured against 17 grounds from `#09090b` to `#ffffff`, with `#222` and `#eee` text and a
+  `#d4d4d8` element on each, the engine leaves every ground at or below 205 as written and inverts
+  the foregrounds on it, so dark text that stands on such a ground turns light on it, which is wrong
+  for a page that chose that ground; above 205 it darkens the ground itself. A page is darkened
+  while it is not dark, so each document starts darkened, from the moment its load starts and before
+  it exists, and no white shows; darkening stops once its ground reads dark. The ground is read
+  again when any attribute or the tree of the page changes, when a style sheet loads, and when the
+  page is shown again from the back-forward cache, so a theme set by script after load, a style
+  sheet that arrives late, as an app's `media=print` sheet with an `onload` that sets `media=all`
+  does, and a switch in either direction are followed. A route inside the document, a hash or
+  `history.pushState`, starts no load and keeps the page as it is. None of this runs while darkening
+  is not wanted: the watch for a document starts when the document is made with darkening on, or
+  when it goes on for an open page, and stops when it goes off, so a reader with the setting off,
+  which is the default, pays for no observer, timer or reading of styles. A rule inserted only
+  through the CSSOM is not seen. A page that is dark over most of the window and light in a large
+  part of it is released, and one that is white over most of it and dark in a large part is
+  darkened: the middle of the 25 points is the cut. A switch from a dark theme to a white light one
+  shows the page as written for the wait before it is darkened again, measured at about 100 ms.
+
+  What a page with a dark theme behind `prefers-color-scheme` gets was measured under the dark
+  colour scheme Omaweb hands the engine with a dark Browser theme, with the switch off and on,
+  reading `matchMedia('(prefers-color-scheme: dark)')` as dark each time. A page whose dark theme
+  sits behind `@media (prefers-color-scheme: dark)`, with or without `color-scheme: light dark`,
+  keeps its dark ground, and with the rule above its light parts too, a `#d4d4d8` element drawn as
+  `#d4d4d8`. Before that rule a page without `color-scheme` had that element inverted to `#3b3b3e`,
+  and one with `light dark` did not. A page that declares `color-scheme: dark` is left alone. A page
+  that declares `light dark` and brings no dark colours of its own is not darkened under a dark
+  scheme, though a light scheme darkens it, so it stays as bright as it was written. A page that
+  answers nothing is darkened. The cover that stands in for a page while a returned window waits for
+  its first frame is the page's ground as it is drawn: the reported ground inverted while the page
+  is darkened, and the page's own ground while it is left as written. The setting applies to a page
+  already open, with no reload. Pages of an engine that cannot darken are drawn as written: the
+  engine contract's `darkenPage` is ignored and its capabilities lack `PageDarkening`, which
+  Ladybird's do, so Settings says "This engine cannot darken a page" beside the switch and Site
+  information offers no row.
+
+- Site information turns darkening off for one site while the switch is on. The row reads "Darken
+  acme.com", a switch, with a muted line under it, "Pages with no dark theme, in this Space". The
+  site is the page's registrable domain, as the Link rule row reads it. An http or https address
+  with no registrable domain, such as `localhost` or an IP address, is a site by its host and port,
+  with the scheme's default port left out, so the row reads "Darken localhost:3000" and
+  `localhost:3000` and `localhost:4000` are two sites. The row is absent while the switch is off, on
+  Omaweb's own pages and files, and when the engine cannot darken. A site's off choice belongs to
+  its Space: another Space darkens the site still, and the choice is kept with the Space's other
+  site permissions under the pattern `*.acme.com`, so Sync, which carries settings and no site
+  permissions, never sees it, deleting the Space deletes it, and Clear browsing data's site
+  permissions clear it. A Private window keeps it in memory for the shared session, and a new
+  session starts without it. Turning a site off or on applies to its open tabs in that Space at
+  once, not on their next reload, because the engine restyles a page already showing when the
+  setting changes; a tab of the site in another Space is not touched.
+- A page that asks for a window, as many sign-ins do, is darkened as a tab's page is. The Auxiliary
+  window's page is dark from its first document, an `about:blank` for a popup, by the opener's
+  Space, and then follows its own address, the switch and the site's choice, by the same rule as a
+  tab. An Agent's window is an Auxiliary window and follows it too, since the setting is the
+  browser's.
+- A page that is darkened is never covered in white. When a window returns, the page area is covered
+  in the page's colour until the page has drawn again, and `getComputedStyle` reads a darkened
+  page's ground as the white it is written in, so with Page darkening the cover is that colour with
+  its lightness inverted, down to a floor of 7%: dark where the page is. The white a page without a
+  ground is written against is drawn dark as well, since the engine darkens it.
 - The sidebar's width belongs to the reader. The seam between it and the page drags, and
   `Primary+Shift+]` and `Primary+Shift+[` move that same seam from the keyboard, so a resize never
   depends on a pointer. The width is clamped so a tab row stays readable and the page keeps at least
@@ -773,10 +864,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
   learns it only by asking where the reader can see the asking. The website asks.
 - A page is painted on the canvas every browser gives it: white, or the dark canvas the engine draws
   under a page that declares `color-scheme: dark`. A page that sets no background of its own is
-  white under a dark theme, as its author saw it. The theme's colour is shown only where no page has
-  painted yet, from the moment a document is created until its first paint, so a navigation under a
-  dark theme never flashes a bright rectangle through the chrome, and the page on show keeps its
-  canvas while the next document is fetched.
+  white under a dark theme, as its author saw it, unless Page darkening is on and the engine can
+  darken: then it is drawn on the dark canvas, `#121212`, for every site the reader has not turned
+  it off for, and the cover that stands in for it is dark too. The theme's colour is shown only
+  where no page has painted yet, from the moment a document is created until its first paint, so a
+  navigation under a dark theme never flashes a bright rectangle through the chrome, and the page on
+  show keeps its canvas while the next document is fetched.
 
 ## Daily browser operations
 

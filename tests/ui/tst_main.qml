@@ -5046,6 +5046,155 @@ TestCase {
         verify(renamed.indexOf("Site Moved") >= 0 && renamed.indexOf("Site Work") < 0, renamed);
     }
 
+    // Darkening off for the site is a row of Site information, there while the
+    // switch is on and the page has a registrable domain, and it reaches the
+    // page of every tab of the site in the Space: the engine is asked not to
+    // darken it and asked again when the row is turned back.
+    function test_siteInformationTurnsDarkeningOffForTheSite() {
+        pageDarkening.enabled = true;
+        const elsewhere = openPage("https://other.example/");
+        const sibling = openPageInNewTab("https://www.acme.com/");
+        const page = openPageInNewTab("https://app.acme.com/dashboard");
+        const wasDarkened = [page.darkenPage, sibling.darkenPage, elsewhere.darkenPage];
+
+        const card = openSiteCard("");
+        const toggle = findChild(card, "siteDarkening");
+        const shown = toggle.visible && toggle.checked;
+        const title = toggle.title;
+        toggle.clicked();
+        const afterOff = [page.darkenPage, sibling.darkenPage, elsewhere.darkenPage];
+        const stored = browser.darkeningOff(page.currentUrl);
+        const stillChecked = toggle.checked;
+        toggle.clicked();
+        const afterOn = [page.darkenPage, sibling.darkenPage, elsewhere.darkenPage];
+        closeSiteCard();
+        pageDarkening.enabled = false;
+        const afterSwitchOff = [page.darkenPage, sibling.darkenPage, elsewhere.darkenPage];
+
+        verify(shown);
+        compare(title, "Darken acme.com");
+        compare(wasDarkened, [true, true, true]);
+        compare(afterOff, [false, false, true]);
+        verify(stored);
+        verify(!stillChecked);
+        compare(afterOn, [true, true, true]);
+        compare(afterSwitchOff, [false, false, false]);
+    }
+
+    // A page that asks for a window, as many sign-ins do, is drawn as a tab's
+    // page is: dark from its first document, which is about:blank, then
+    // following its address, the site's choice in the opener's Space and the
+    // switch.
+    function test_aPopupFollowsDarkeningAsATabDoes() {
+        pageDarkening.enabled = true;
+        const opener = openPage("https://popup-opener.example/start");
+        opener.simulateNewWindowRequest("https://login.acme.com/sign-in", true);
+        const auxiliary = findChild(window, "auxiliaryWindow");
+        tryVerify(function () {
+            return auxiliary !== null && auxiliary.visible;
+        });
+        const loader = findChild(auxiliary.contentItem, "auxiliaryEngineLoader");
+        tryVerify(function () {
+            return loader.item !== null;
+        });
+        const popup = loader.item;
+        const fromTheStart = popup.darkenedAtCreation;
+        tryVerify(function () {
+            return popup.currentUrl.toString().indexOf("login.acme.com") >= 0;
+        });
+        const atItsAddress = popup.darkenPage;
+
+        verify(browser.setDarkeningOff(popup.currentUrl, true));
+        const siteOff = popup.darkenPage;
+        verify(browser.setDarkeningOff(popup.currentUrl, false));
+        const siteOn = popup.darkenPage;
+        pageDarkening.enabled = false;
+        const switchOff = popup.darkenPage;
+        pageDarkening.enabled = true;
+        const switchOn = popup.darkenPage;
+        auxiliary.close();
+        tryVerify(function () {
+            return !auxiliary.visible;
+        });
+        pageDarkening.enabled = false;
+
+        verify(fromTheStart);
+        verify(atItsAddress);
+        verify(!siteOff);
+        verify(siteOn);
+        verify(!switchOff);
+        verify(switchOn);
+    }
+
+    // An engine that cannot darken a page, as Ladybird cannot, offers no row to
+    // turn it off for a site, and Settings says so beside the switch.
+    function test_anEngineWithoutDarkeningOffersNoRowAndReportsItUnavailable() {
+        pageDarkening.enabled = true;
+        const engine = openPage("https://app.acme.com/dashboard");
+        engine.pageDarkeningAvailable = false;
+        const card = openSiteCard("");
+        const rowShown = findChild(card, "siteDarkening").visible;
+        closeSiteCard();
+        engine.pageDarkeningAvailable = true;
+        const rowShownAgain = (function () {
+            const again = openSiteCard("");
+            const shown = findChild(again, "siteDarkening").visible;
+            closeSiteCard();
+            return shown;
+        })();
+        engine.pageDarkeningAvailable = false;
+        const unavailable = window.pageDarkeningAvailable;
+        engine.pageDarkeningAvailable = true;
+        pageDarkening.enabled = false;
+
+        verify(!rowShown);
+        verify(rowShownAgain);
+        verify(!unavailable);
+    }
+
+    // The row is absent while the switch is off and on Omaweb's own pages. An
+    // address with no registrable domain, such as localhost, is a site by its
+    // host and port, and the row names it so.
+    function test_siteInformationOffersDarkeningOnlyForASiteWhileTheSwitchIsOn() {
+        const rowShown = function () {
+            const card = openSiteCard("");
+            const shown = findChild(card, "siteDarkening").visible;
+            closeSiteCard();
+            return shown;
+        };
+        openPage("https://app.acme.com/dashboard");
+        pageDarkening.enabled = false;
+        const switchOff = rowShown();
+        pageDarkening.enabled = true;
+        const onASite = rowShown();
+        openPage("http://localhost:3000/");
+        const onLocalhost = rowShown();
+        const localhostTitle = (function () {
+            const card = openSiteCard("");
+            const title = findChild(card, "siteDarkening").title;
+            closeSiteCard();
+            return title;
+        })();
+        openPage("https://app.acme.com/dashboard");
+        browser.openInput("about:blank", true);
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        tryVerify(function () {
+            return engineHost.item === null;
+        });
+        const onTheStartPage = rowShown();
+        const startPageAvailable = window.pageDarkeningAvailable;
+        browser.closeActiveTab();
+        pageDarkening.enabled = false;
+
+        verify(!switchOff);
+        verify(onASite);
+        verify(onLocalhost);
+        compare(localhostTitle, "Darken localhost:3000");
+        verify(!onTheStartPage);
+        // No page is no engine that falls short, so Settings does not say it.
+        verify(startPageAvailable);
+    }
+
     // A narrower rule that takes the page first is the one the row shows and
     // edits, and the note under it names its pattern. Choosing a target
     // changes that rule, and choosing the Space on show removes it.

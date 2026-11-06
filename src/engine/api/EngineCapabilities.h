@@ -57,6 +57,13 @@ public:
         // CertificateDecisions is; the one a page loaded over needs the patched
         // Qt engine.
         PageCertificates = 1 << 17,
+        // Whether the engine can darken a page that has no dark theme of its
+        // own when the shell sets `darkenPage`, and leave one that declares a
+        // dark colour scheme as it is. The Qt engine does, through Chromium's
+        // forced dark mode; Ladybird has no such setting. An engine without
+        // it reports this off and ignores `darkenPage`, and Settings says the
+        // engine cannot while Site information offers no row for a site.
+        PageDarkening = 1 << 18,
     };
     Q_DECLARE_FLAGS(Capabilities, Capability)
     Q_FLAG(Capabilities)

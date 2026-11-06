@@ -2072,6 +2072,62 @@ TestCase {
         property bool available: true
     }
 
+    QtObject {
+        id: pageDarkeningStub
+
+        property bool enabled: false
+    }
+
+    // Darkening is one switch for the whole browser, in the pages group above
+    // the page fonts, off until the reader turns it on, and bound to the
+    // browser's answer like the switches beside it.
+    function test_darkeningPagesIsOneSwitchInThePagesGroupAbovePageFonts() {
+        pageDarkeningStub.enabled = false;
+        const page = makeInterfacePage();
+        const toggle = findChild(page, "darkenPages");
+        verify(toggle !== null);
+        verify(!toggle.visible);
+
+        page.pageDarkening = pageDarkeningStub;
+        verify(toggle.visible);
+        verify(!toggle.checked);
+        compare(toggle.label, "Darken pages with no dark theme");
+        const fonts = findChild(page, "pageFontsLabel");
+        verify(fonts !== null && fonts.visible);
+        const pages = findChild(page, "pagesLabel");
+        verify(pages.visible);
+
+        settleAction(toggle);
+        tryVerify(function () {
+            const switchY = toggle.mapToItem(page, 0, 0).y;
+            return pages.mapToItem(page, 0, 0).y < switchY && switchY < fonts.mapToItem(page, 0,
+                                                                                        0).y;
+        });
+        // The switch sits below the fold of the window, past a click's reach.
+        toggle.clicked();
+        verify(pageDarkeningStub.enabled);
+        verify(toggle.checked);
+        pageDarkeningStub.enabled = false;
+        verify(!toggle.checked);
+    }
+
+    // An engine that cannot darken a page says so beside the switch, which
+    // then changes nothing, so the Ladybird build shows the gap.
+    function test_anEngineThatCannotDarkenAPageSaysSoBesideTheSwitch() {
+        pageDarkeningStub.enabled = false;
+        const page = makeInterfacePage();
+        page.pageDarkening = pageDarkeningStub;
+        const toggle = findChild(page, "darkenPages");
+        verify(toggle.enabled);
+        verify(!findChild(page, "darkenPagesCaveat").visible);
+
+        page.pageDarkeningAvailable = false;
+        verify(!toggle.enabled);
+        const caveat = findChild(page, "darkenPagesCaveat");
+        verify(caveat.visible);
+        compare(caveat.title, "This engine cannot darken a page");
+    }
+
     function makeInterfacePage() {
         fontSettingsStub.reset();
         const page = makePage();
