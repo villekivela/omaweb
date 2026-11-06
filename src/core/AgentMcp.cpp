@@ -137,8 +137,10 @@ namespace {
                     .required = {QStringLiteral("command")}},
                 {.name = QStringLiteral("space_new"),
                     .verb = QStringLiteral("space new"),
-                    .description = QStringLiteral("Make an Agent Space. A temporary one is deleted "
-                                                  "when this server stops."),
+                    .description
+                    = QStringLiteral("Make an Agent Space. Use temporary unless the reader "
+                                     "wants to keep the Space: a temporary one is "
+                                     "deleted when this server stops."),
                     .properties
                     = {property(QStringLiteral("name"), string, QStringLiteral("space")),
                         property(QStringLiteral("temporary"), boolean)},
