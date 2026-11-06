@@ -3176,7 +3176,7 @@ void BrowserControllerTest::turnsDarkeningOffForOneLocalPortAndNotAnother()
     QTemporaryDir root;
     BrowserController controller(SpaceStorage(root.path(), QStringLiteral("test")));
     const QUrl first(QStringLiteral("http://localhost:3000/app"));
-    const QUrl second(QStringLiteral("http://localhost:9090/"));
+    const QUrl second(QStringLiteral("http://localhost:4000/"));
     QVERIFY(controller.setDarkeningOff(first, true));
     QVERIFY(controller.darkeningOff(QUrl(QStringLiteral("http://localhost:3000/other"))));
     QVERIFY(!controller.darkeningOff(second));

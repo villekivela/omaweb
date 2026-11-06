@@ -659,7 +659,7 @@ reports the gap and remains experimental rather than imitating behavior it canno
   site is the page's registrable domain, as the Link rule row reads it. An http or https address
   with no registrable domain, such as `localhost` or an IP address, is a site by its host and port,
   with the scheme's default port left out, so the row reads "Darken localhost:3000" and
-  `localhost:3000` and `localhost:9090` are two sites. The row is absent while the switch is off, on
+  `localhost:3000` and `localhost:4000` are two sites. The row is absent while the switch is off, on
   Omaweb's own pages and files, and when the engine cannot darken. A site's off choice belongs to
   its Space: another Space darkens the site still, and the choice is kept with the Space's other
   site permissions under the pattern `*.acme.com`, so Sync, which carries settings and no site
