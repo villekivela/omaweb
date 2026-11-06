@@ -83,9 +83,20 @@ Item {
     // would take the page away, which is the shell's other policy and reaches
     // an engine as a destroyed adapter.
     property bool pageFrozen: false
-    // Chromium's forced dark mode, which darkens a page that has no dark theme
-    // of its own and leaves one that declares `color-scheme: dark` alone.
+    // The shell's wish: Chromium's forced dark mode for a page that has no dark
+    // theme of its own. Each document starts darkened, so no white shows, and
+    // the engine stops darkening one whose own ground reads dark (`darkened`).
     property bool darkenPage: false
+    // What the page reported as its ground at the content's edge, as written.
+    // A document that has not reported has none, and is darkened.
+    property bool pageOwnGroundDark: false
+    property color pageOwnGroundColor: "white"
+    // Chromium leaves a background it finds at or below this brightness of 255
+    // as written and inverts the foregrounds on it, which is what turns a dark
+    // theme's own elements wrong, so a page that is drawn dark by its own
+    // choice is left to the engine at this threshold and no other.
+    readonly property real darkGroundBrightness: 205
+    readonly property bool darkened: root.darkenPage && !root.pageOwnGroundDark
     onPageFrozenChanged: root.applyPageLifecycle()
 
     // Chromium refuses to freeze a page it is still drawing, and refuses
@@ -2857,6 +2868,65 @@ Item {
                 return /dark/.test(scheme) && !/light/.test(scheme) ? 'rgb(18, 18, 18)'
                                                                      : 'rgb(255, 255, 255)';
             };
+            // The ground as the reader sees it at the content's edge, which is
+            // what decides whether the page brings a dark theme of its own: the
+            // first opaque background at or above whatever is drawn at each of
+            // two points on the right edge, or the canvas where there is none,
+            // and the lighter of the two. A theme that sits on a wrapper element
+            // with the root and the body transparent is found as well as one on
+            // the body, which the ground function does not see. It reads colours as
+            // written, so it does not read what the engine's darkening draws.
+            const rgbOf = (css) => {
+                const open = css.indexOf('(');
+                if (open < 0) return null;
+                const parts = css.slice(open + 1, css.lastIndexOf(')')).split(',').map(Number);
+                if (parts.length < 3 || parts.some(Number.isNaN)) return null;
+                return (parts.length > 3 ? parts[3] : 1) >= 0.5 ? parts.slice(0, 3) : null;
+            };
+            const lumaOf = (rgb) => 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
+            const seenGround = () => {
+                let lightest = null;
+                for (const y of [8, innerHeight - 8]) {
+                    let found = null;
+                    for (let el = document.elementFromPoint(innerWidth - 8, y); el && !found;
+                         el = el.parentElement)
+                        found = rgbOf(getComputedStyle(el).backgroundColor);
+                    found = found || rgbOf(ground());
+                    if (!lightest || lumaOf(found) > lumaOf(lightest)) lightest = found;
+                }
+                return 'rgb(' + lightest.join(', ') + ')';
+            };
+            // Said when it changes, which a theme set by script after load, a
+            // style sheet that arrives late and a switch in either direction
+            // all do. A change to any attribute or to the tree asks again after
+            // a short wait, since a page can set its theme with any of them.
+            let lastOwnGround = '';
+            let ownGroundTimer = 0;
+            const reportOwnGround = () => {
+                if (!document.documentElement) return;
+                const css = seenGround();
+                if (css === lastOwnGround) return;
+                lastOwnGround = css;
+                report('own_ground', css);
+            };
+            const askOwnGround = () => {
+                if (ownGroundTimer) return;
+                ownGroundTimer = setTimeout(() => {
+                    ownGroundTimer = 0;
+                    requestAnimationFrame(reportOwnGround);
+                }, 50);
+            };
+            document.addEventListener('DOMContentLoaded', () => {
+                askOwnGround();
+                new MutationObserver(askOwnGround).observe(document, {
+                    attributes: true, childList: true, subtree: true, characterData: true});
+            });
+            document.addEventListener('load', askOwnGround, true);
+            addEventListener('load', askOwnGround, {once: true});
+            addEventListener('pageshow', (event) => {
+                if (event.persisted) lastOwnGround = '';
+                askOwnGround();
+            });
             // Asked for after a return of the window: says when the page has
             // made two frames, the second being one made after the call.
             globalThis.__omawebAfterFrame = () => requestAnimationFrame(
@@ -2867,6 +2937,7 @@ Item {
                 followGround();
                 report('document_painted');
                 report('page_ground', ground());
+                askOwnGround();
             };
             // Said when the page is parsed and loaded as well, because a view
             // that is not drawing makes no paint to hang it on.
@@ -4518,9 +4589,13 @@ Item {
     // lightness, floored at about 7%, is dark where the page is but approximate:
     // the engine draws #f5f5f5 as #222222 and white as #121212.
     readonly property color coverGroundColor: {
+        // A page left as written is covered in the ground it reported, which on
+        // a wrapper's theme is the wrapper's and not the canvas's.
+        if (root.darkenPage && root.pageOwnGroundDark)
+            return root.pageOwnGroundColor;
         const ground = root.pageGroundColor;
         const brightness = 255 * (0.299 * ground.r + 0.587 * ground.g + 0.114 * ground.b);
-        if (!root.darkenPage || brightness <= 205)
+        if (!root.darkened || brightness <= root.darkGroundBrightness)
             return ground;
         return Qt.hsla(Math.max(0, ground.hslHue), ground.hslSaturation, Math.max(0.07, 1 - ground.hslLightness),
                        1);
@@ -4537,6 +4612,21 @@ Item {
         if (channels)
             root.pageGroundColor = Qt.rgba(channels[1] / 255, channels[2] / 255, channels[3] / 255,
                                            1);
+    }
+    function readOwnGround(body) {
+        let css = "";
+        try {
+            css = JSON.parse(body);
+        } catch (error) {
+            return;
+        }
+        const channels = /^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(css);
+        if (!channels)
+            return;
+        const colour = Qt.rgba(channels[1] / 255, channels[2] / 255, channels[3] / 255, 1);
+        const brightness = 0.299 * channels[1] + 0.587 * channels[2] + 0.114 * channels[3];
+        root.pageOwnGroundColor = colour;
+        root.pageOwnGroundDark = brightness <= root.darkGroundBrightness;
     }
     function coverUntilPageFrame() {
         root.awaitingPageFrame = true;
@@ -4613,7 +4703,7 @@ Item {
         // to gain by starting — either the tab is muted or the reader has
         // already dealt with the origin.
         settings.playbackRequiresUserGesture: !root.autoplayAllowed
-        settings.forceDarkMode: root.darkenPage
+        settings.forceDarkMode: root.darkened
 
         onRecommendedStateChanged: root.applyPageLifecycle()
 
@@ -4702,6 +4792,10 @@ Item {
                 QtPageGlide.stopIn(webView);
                 root.pageGeneration += 1;
                 root.documentReported = false;
+                // The next document starts darkened, before it exists, so none
+                // of it is drawn white: a report from the script comes after
+                // its first paint. A route inside a document starts no load.
+                root.pageOwnGroundDark = false;
                 root.blockingRulesChangedSinceLoad = false;
                 root.loadSetOutFrom = loadRequest.url;
                 root.announceDocument(loadRequest.url);
@@ -5020,6 +5114,8 @@ Item {
                     pageFrameArrival.restart();
             } else if (report.channel === "page_ground") {
                 root.readPageGround(report.body);
+            } else if (report.channel === "own_ground") {
+                root.readOwnGround(report.body);
             } else if (report.channel === "user_activation") {
                 root.userActivated();
             }

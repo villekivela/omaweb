@@ -609,33 +609,65 @@ reports the gap and remains experimental rather than imitating behavior it canno
   it is `"darken-pages"` in `settings.json`, so an edit of the file applies at once and Sync carries
   it with the group's other settings. It reaches every Space and Private window. The engine darkens:
   Chromium's forced dark mode inverts the lightness of a background whose brightness is above 205 of
-  255, so white becomes `#121212` and `#f5f5f5` becomes `#222222`, and leaves a darker one, such as
-  `#336699`, as it is. What counts as a dark theme is the engine's to say. It was measured under the
-  dark colour scheme Omaweb hands the engine with a dark Browser theme, with the switch off and on,
-  reading `matchMedia('(prefers-color-scheme: dark)')` as dark each time. A page that declares
-  `color-scheme: dark`, in a `<meta>` or in CSS, is left alone. A page whose dark theme sits behind
-  `@media (prefers-color-scheme: dark)` keeps it, whether or not it also declares
-  `color-scheme: light dark`: its `#f5f5f5` and its `#334455` are drawn as written. A page that
-  declares `light dark` and brings no dark colours of its own is not darkened under a dark scheme,
-  so it stays as bright as it was written, though a light scheme darkens it. A page that answers
-  nothing is darkened. A page left bright by the second rule is covered in the dark cover while a
-  returned window waits for its first frame, which is brief. The setting applies to a page already
-  open, with no reload. Pages of an engine that cannot darken are drawn as written: the engine
-  contract's `darkenPage` is ignored and its capabilities lack `PageDarkening`, which Ladybird's do,
-  so Settings says "This engine cannot darken a page" beside the switch and Site information offers
-  no row.
+  255, so white becomes `#121212`, `#f5f5f5` becomes `#222222` and `#d0d0d0` becomes `#3f3f3f`, and
+  it inverts the foregrounds, so `#222` text becomes `#f6f6f6` and a `#d4d4d8` element becomes
+  `#3b3b3e`, on any ground. A background at or below 205, such as `#cccccc`, `#6b7280` or `#18181b`,
+  is left as it is.
+
+  A page whose own ground is already dark is left as written. The shell's wish stays the reader's:
+  `darkenPage` is true while the switch is on and the site is not turned off, and the adapter
+  darkens the page only while the page does not bring its own dark ground, so an app whose dark
+  theme is a class its script sets, with no `color-scheme`, keeps its deliberately light parts, such
+  as Tailwind's zinc-300 `#d4d4d8`, which the engine would invert. The page reports its ground as
+  the reader sees it, the first opaque background at or above whatever is drawn at two points on the
+  right edge of the window, or the canvas, and the lighter of the two, so a theme on the body and
+  one on a wrapper element with a transparent body are both found. The page is dark when that
+  ground's brightness, `0.299 R + 0.587 G + 0.114 B`, is at or below 205, which is the engine's own
+  limit. Measured against 17 grounds from `#09090b` to `#ffffff`, with `#222` and `#eee` text and a
+  `#d4d4d8` element on each, the engine leaves every ground at or below 205 as written and inverts
+  the foregrounds on it, so dark text that stands on such a ground turns light on it, which is wrong
+  for a page that chose that ground; above 205 it darkens the ground itself. A page is darkened
+  while it is not dark, so each document starts darkened, from the moment its load starts and before
+  it exists, and no white shows; darkening stops once its ground reads dark. The ground is read
+  again when any attribute or the tree of the page changes, when a style sheet loads, and when the
+  page is shown again from the back-forward cache, so a theme set by script after load, a style
+  sheet that arrives late, as an app's `media=print` sheet with an `onload` that sets `media=all`
+  does, and a switch in either direction are followed. A route inside the document, a hash or
+  `history.pushState`, starts no load and keeps the page as it is. A rule inserted only through the
+  CSSOM is not seen. A switch from a dark theme to a white light one shows the page as written for
+  the wait before it is darkened again, 50 ms at least.
+
+  What a page with a dark theme behind `prefers-color-scheme` gets was measured under the dark
+  colour scheme Omaweb hands the engine with a dark Browser theme, with the switch off and on,
+  reading `matchMedia('(prefers-color-scheme: dark)')` as dark each time. A page whose dark theme
+  sits behind `@media (prefers-color-scheme: dark)`, with or without `color-scheme: light dark`,
+  keeps its dark ground, and with the rule above its light parts too, a `#d4d4d8` element drawn as
+  `#d4d4d8`. Before that rule a page without `color-scheme` had that element inverted to `#3b3b3e`,
+  and one with `light dark` did not. A page that declares `color-scheme: dark` is left alone. A page
+  that declares `light dark` and brings no dark colours of its own is not darkened under a dark
+  scheme, though a light scheme darkens it, so it stays as bright as it was written. A page that
+  answers nothing is darkened. The cover that stands in for a page while a returned window waits for
+  its first frame is the page's ground as it is drawn: the reported ground inverted while the page
+  is darkened, and the page's own ground while it is left as written. The setting applies to a page
+  already open, with no reload. Pages of an engine that cannot darken are drawn as written: the
+  engine contract's `darkenPage` is ignored and its capabilities lack `PageDarkening`, which
+  Ladybird's do, so Settings says "This engine cannot darken a page" beside the switch and Site
+  information offers no row.
+
 - Site information turns darkening off for one site while the switch is on. The row reads "Darken
   acme.com", a switch, with a muted line under it, "Pages with no dark theme, in this Space". The
-  site is the page's registrable domain, as the Link rule row reads it. The row is absent while the
-  switch is off, on Omaweb's own pages, for an address with no registrable domain such as an IP
-  address, and when the engine cannot darken. A site's off choice belongs to its Space: another
-  Space darkens the site still, and the choice is kept with the Space's other site permissions under
-  the pattern `*.acme.com`, so Sync, which carries settings and no site permissions, never sees it,
-  deleting the Space deletes it, and Clear browsing data's site permissions clear it. A Private
-  window keeps it in memory for the shared session, and a new session starts without it. Turning a
-  site off or on applies to its open tabs in that Space at once, not on their next reload, because
-  the engine restyles a page already showing when the setting changes; a tab of the site in another
-  Space is not touched.
+  site is the page's registrable domain, as the Link rule row reads it. An http or https address
+  with no registrable domain, such as `localhost` or an IP address, is a site by its host and port,
+  with the scheme's default port left out, so the row reads "Darken localhost:3000" and
+  `localhost:3000` and `localhost:9090` are two sites. The row is absent while the switch is off, on
+  Omaweb's own pages and files, and when the engine cannot darken. A site's off choice belongs to
+  its Space: another Space darkens the site still, and the choice is kept with the Space's other
+  site permissions under the pattern `*.acme.com`, so Sync, which carries settings and no site
+  permissions, never sees it, deleting the Space deletes it, and Clear browsing data's site
+  permissions clear it. A Private window keeps it in memory for the shared session, and a new
+  session starts without it. Turning a site off or on applies to its open tabs in that Space at
+  once, not on their next reload, because the engine restyles a page already showing when the
+  setting changes; a tab of the site in another Space is not touched.
 - A page that asks for a window, as many sign-ins do, is darkened as a tab's page is. The Auxiliary
   window's page is dark from its first document, an `about:blank` for a popup, by the opener's
   Space, and then follows its own address, the switch and the site's choice, by the same rule as a

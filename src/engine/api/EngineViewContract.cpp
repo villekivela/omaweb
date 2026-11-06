@@ -90,8 +90,10 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // Whether the shell wants the page on show darkened: the reader turned
         // darkening on and has not turned it off for the page's site. The
         // shell writes it as the page changes, and the adapter owes a page
-        // with no dark theme of its own the dark one while it is set. An
-        // engine that cannot darken a page leaves PageDarkening off in its
+        // with no dark theme of its own the dark one while it is set. A page
+        // whose own ground is already dark may be left as written: the wish
+        // stays the reader's, and the adapter decides how it is carried out.
+        // An engine that cannot darken a page leaves PageDarkening off in its
         // capabilities and ignores it.
         {"darkenPage", QMetaType::Bool},
         // Fullscreen the site asked for, which is not fullscreen the reader

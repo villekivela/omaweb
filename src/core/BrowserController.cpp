@@ -2384,7 +2384,22 @@ namespace {
 
 QString BrowserController::darkeningSite(const QUrl &url) const
 {
-    return linkrules::sitePattern(url).value_or(QString());
+    if (const auto site = linkrules::sitePattern(url)) {
+        return *site;
+    }
+    // An address with no registrable domain, such as localhost or an IP
+    // address, is a site by its host and port: an app on one port is not the
+    // app on another. The default port is the host alone.
+    const auto scheme = url.scheme().toLower();
+    if ((scheme != QStringLiteral("http") && scheme != QStringLiteral("https"))
+        || url.host().isEmpty()) {
+        return {};
+    }
+    const auto host = url.host().contains(QLatin1Char(':')) ? QStringLiteral("[%1]").arg(url.host())
+                                                            : url.host();
+    const auto port = url.port();
+    const auto defaultPort = scheme == QStringLiteral("https") ? 443 : 80;
+    return port < 0 || port == defaultPort ? host : QStringLiteral("%1:%2").arg(host).arg(port);
 }
 
 bool BrowserController::darkeningOff(const QUrl &url, const QString &spaceId) const

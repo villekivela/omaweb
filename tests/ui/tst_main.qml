@@ -5152,8 +5152,9 @@ TestCase {
         verify(!unavailable);
     }
 
-    // The row is absent while the switch is off, on Omaweb's own pages and for
-    // an address with no registrable domain.
+    // The row is absent while the switch is off and on Omaweb's own pages. An
+    // address with no registrable domain, such as localhost, is a site by its
+    // host and port, and the row names it so.
     function test_siteInformationOffersDarkeningOnlyForASiteWhileTheSwitchIsOn() {
         const rowShown = function () {
             const card = openSiteCard("");
@@ -5166,8 +5167,14 @@ TestCase {
         const switchOff = rowShown();
         pageDarkening.enabled = true;
         const onASite = rowShown();
-        openPage("http://127.0.0.1:8000/");
-        const onAnIpAddress = rowShown();
+        openPage("http://localhost:3000/");
+        const onLocalhost = rowShown();
+        const localhostTitle = (function () {
+            const card = openSiteCard("");
+            const title = findChild(card, "siteDarkening").title;
+            closeSiteCard();
+            return title;
+        })();
         openPage("https://app.acme.com/dashboard");
         browser.openInput("about:blank", true);
         const engineHost = findChild(window.contentItem, "engineLoader");
@@ -5181,7 +5188,8 @@ TestCase {
 
         verify(!switchOff);
         verify(onASite);
-        verify(!onAnIpAddress);
+        verify(onLocalhost);
+        compare(localhostTitle, "Darken localhost:3000");
         verify(!onTheStartPage);
         // No page is no engine that falls short, so Settings does not say it.
         verify(startPageAvailable);

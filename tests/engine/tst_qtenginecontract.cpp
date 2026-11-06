@@ -254,6 +254,10 @@ private slots:
     void qtShowsAPageThatMovedOnWhileAwayInItsOwnColour();
     void qtDarkensAPageWithNoDarkThemeAndLeavesADarkOneAlone();
     void qtAppliesDarkeningToTheOpenPageWithoutAReload();
+    void qtLeavesAClassBasedDarkThemeAsWritten();
+    void qtFollowsAStyleSheetThatArrivesLate();
+    void qtLeavesAThemeOnAWrapperAsWritten();
+    void qtStartsEachDocumentDarkenedAfterAPageLeftAlone();
     void qtLeavesAPagesOwnDarkThemeAloneUnderADarkScheme();
     void qtCoversADarkenedPageInADarkColourWhenItsWindowReturns();
     void qtShowsNoWhiteFrameWhileADarkenedPageRedirects();
@@ -3090,10 +3094,21 @@ public:
         QByteArray body;
         QByteArray redirectTo;
         int delayMs;
+        QByteArray contentType;
     };
 
-    static Page html(QByteArray body, int delayMs = 0) { return {std::move(body), {}, delayMs}; }
-    static Page redirect(QByteArray to, int delayMs = 0) { return {{}, std::move(to), delayMs}; }
+    static Page html(QByteArray body, int delayMs = 0)
+    {
+        return {std::move(body), {}, delayMs, "text/html"};
+    }
+    static Page css(QByteArray body, int delayMs = 0)
+    {
+        return {std::move(body), {}, delayMs, "text/css"};
+    }
+    static Page redirect(QByteArray to, int delayMs = 0)
+    {
+        return {{}, std::move(to), delayMs, {}};
+    }
 
     explicit SiteServer(QMap<QByteArray, Page> pages)
         : m_pages(std::move(pages))
@@ -3120,10 +3135,9 @@ public:
                         socket->write("HTTP/1.1 302 Found\r\nLocation: " + page.redirectTo
                             + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
                     } else {
-                        socket->write(
-                            "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: "
-                            + QByteArray::number(page.body.size()) + "\r\nConnection: close\r\n\r\n"
-                            + page.body);
+                        socket->write("HTTP/1.1 200 OK\r\nContent-Type: " + page.contentType
+                            + "\r\nContent-Length: " + QByteArray::number(page.body.size())
+                            + "\r\nConnection: close\r\n\r\n" + page.body);
                     }
                     socket->flush();
                     socket->disconnectFromHost();
@@ -3236,10 +3250,12 @@ void QtEngineContractTest::qtLeavesAPagesOwnDarkThemeAloneUnderADarkScheme()
                               "@media (prefers-color-scheme: dark){"
                               "body{background:#334455;color:#eee}}</style><p>hi</p>";
     const QByteArray both = "<meta name=color-scheme content=\"light dark\">";
+    const QByteArray bright = "<div style=\"position:absolute;left:400px;top:0;width:160px;"
+                              "height:240px;background:#d4d4d8\"></div>";
     SiteServer server({
         {"/probe", SiteServer::html("<!doctype html><p>x</p>" + probe)},
-        {"/media", SiteServer::html("<!doctype html>" + themed + probe)},
-        {"/media-light-dark", SiteServer::html("<!doctype html>" + both + themed + probe)},
+        {"/media", SiteServer::html("<!doctype html>" + themed + bright + probe)},
+        {"/media-light-dark", SiteServer::html("<!doctype html>" + both + themed + bright + probe)},
         {"/light-dark",
             SiteServer::html("<!doctype html>" + both
                 + "<body style=\"margin:0;background:#f5f5f5\"><p>hi</p>" + probe)},
@@ -3292,10 +3308,13 @@ void QtEngineContractTest::qtLeavesAPagesOwnDarkThemeAloneUnderADarkScheme()
     for (const bool darken : {false, true}) {
         shown.adapter->setProperty("darkenPage", darken);
         // The page's own dark theme, found by its media query.
+        // Its light parts are its own too: they are drawn as written.
         QCOMPARE(show("/media"), QColor(0x33, 0x44, 0x55));
         QCOMPARE(read(), QStringLiteral("dark"));
+        QCOMPARE(pageAreaColour(shown.window, QPoint(480, 120)), QColor(0xd4, 0xd4, 0xd8));
         QCOMPARE(show("/media-light-dark"), QColor(0x33, 0x44, 0x55));
         QCOMPARE(read(), QStringLiteral("dark"));
+        QCOMPARE(pageAreaColour(shown.window, QPoint(480, 120)), QColor(0xd4, 0xd4, 0xd8));
         // `light dark` and no dark colours of its own: left as written.
         QCOMPARE(show("/light-dark"), QColor(0xf5, 0xf5, 0xf5));
         QCOMPARE(read(), QStringLiteral("dark"));
@@ -3308,6 +3327,175 @@ void QtEngineContractTest::qtLeavesAPagesOwnDarkThemeAloneUnderADarkScheme()
             QCOMPARE(plain, QColor(0xf5, 0xf5, 0xf5));
         }
     }
+}
+
+namespace {
+
+// A block of the colour Tailwind's zinc-300 is, which Chromium's forced dark
+// mode inverts wherever it is darkening, and the reader's own dark theme means
+// to leave light. It is read at its middle, and the ground at the page's far
+// corner.
+const QByteArray brightBlock
+    = "<div style=\"position:absolute;left:400px;top:0;width:160px;height:240px;"
+      "background:#d4d4d8\"></div>";
+const QColor zinc300(0xd4, 0xd4, 0xd8);
+const QColor zinc900(0x18, 0x18, 0x1b);
+
+QColor blockColour(QQuickWindow &window) { return pageAreaColour(window, QPoint(480, 120)); }
+
+// Runs a script in the page, as a theme toggle in an app would.
+void runInPage(ViewInWindow &shown, const QString &script)
+{
+    QMetaObject::invokeMethod(shown.webView, "runJavaScript", Q_ARG(QString, script));
+}
+
+} // namespace
+
+// An app whose dark theme is a class its script sets, with no `color-scheme`
+// declared, brings a dark ground of its own and deliberately light parts. The
+// engine darkens those parts, so the page is left as written once its ground
+// reads dark, after load, and darkened again when the class goes. Each of the
+// two colour schemes a reader's theme gives it is measured.
+void QtEngineContractTest::qtLeavesAClassBasedDarkThemeAsWritten()
+{
+    SiteServer server({
+        {"/app",
+            SiteServer::html("<!doctype html><style>body{margin:0;background:#fff;color:#222}"
+                             ".dark body{background:#18181b;color:#eee}</style>"
+                + brightBlock
+                + "<script>addEventListener('load', () => setTimeout(() => "
+                  "document.documentElement.classList.add('dark'), 400));</script>")},
+        {"/route", SiteServer::html("<!doctype html>")},
+    });
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    for (const auto scheme : {Qt::ColorScheme::Light, Qt::ColorScheme::Dark}) {
+        auto *styleHints = QGuiApplication::styleHints();
+        const auto useScheme = [styleHints](Qt::ColorScheme wanted) {
+            styleHints->setColorScheme(wanted);
+            if (styleHints->colorScheme() != wanted) {
+                emit styleHints->colorSchemeChanged(wanted);
+            }
+        };
+        const auto restoreScheme = qScopeGuard([styleHints] {
+            styleHints->unsetColorScheme();
+            emit styleHints->colorSchemeChanged(styleHints->colorScheme());
+        });
+        useScheme(scheme);
+        ViewInWindow shown;
+        QVERIFY(shown.create(server.url("/route")));
+        shown.adapter->setProperty("darkenPage", true);
+        QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+        shown.adapter->setProperty("currentUrl", server.url("/app"));
+        // Darkened while its ground is white: the light block is inverted.
+        QTRY_VERIFY_WITH_TIMEOUT(isDark(blockColour(shown.window)), 5000);
+        // Left as written once the script has set the class.
+        QTRY_COMPARE_WITH_TIMEOUT(blockColour(shown.window), zinc300, 5000);
+        QCOMPARE(pageAreaColour(shown.window), zinc900);
+
+        // Its own routes do not make it a new document, and it stays so.
+        runInPage(shown,
+            QStringLiteral("location.hash = '#/settings'; "
+                           "history.pushState({}, '', '/app?view=2');"));
+        QTest::qWait(500);
+        QCOMPARE(blockColour(shown.window), zinc300);
+
+        // The class goes, and the page is darkened again.
+        runInPage(shown, QStringLiteral("document.documentElement.classList.remove('dark')"));
+        QTRY_VERIFY_WITH_TIMEOUT(isDark(blockColour(shown.window)), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(pageAreaColour(shown.window), QColor(0x12, 0x12, 0x12), 5000);
+        // And back.
+        runInPage(shown, QStringLiteral("document.documentElement.classList.add('dark')"));
+        QTRY_COMPARE_WITH_TIMEOUT(blockColour(shown.window), zinc300, 5000);
+        QCOMPARE(pageAreaColour(shown.window), zinc900);
+        // The reader's wish is the shell's, and it is what the page is asked
+        // for again when the page is not one that brings its own ground.
+        QCOMPARE(shown.adapter->property("darkenPage").toBool(), true);
+        QCOMPARE(shown.adapter->property("pageOwnGroundDark").toBool(), true);
+    }
+}
+
+// An app loads its style sheet as `media=print` and has it take effect on
+// load, so the sheet arrives after the page has drawn white. It is darkened
+// until the sheet applies, and left as written after.
+void QtEngineContractTest::qtFollowsAStyleSheetThatArrivesLate()
+{
+    SiteServer server({
+        {"/app",
+            SiteServer::html("<!doctype html><link rel=stylesheet href=\"/theme.css\" "
+                             "media=print onload=\"this.media='all'\"><body>"
+                + brightBlock)},
+        {"/theme.css", SiteServer::css("body{margin:0;background:#18181b}", 700)},
+        {"/route", SiteServer::html("<!doctype html>")},
+    });
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ViewInWindow shown;
+    QVERIFY(shown.create(server.url("/route")));
+    shown.adapter->setProperty("darkenPage", true);
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    shown.adapter->setProperty("currentUrl", server.url("/app"));
+    QTRY_VERIFY_WITH_TIMEOUT(isDark(blockColour(shown.window)), 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(blockColour(shown.window), zinc300, 5000);
+    QCOMPARE(pageAreaColour(shown.window), zinc900);
+}
+
+// A theme that sits on a wrapper element, with the root and the body left
+// transparent, is the page's ground as the reader sees it.
+void QtEngineContractTest::qtLeavesAThemeOnAWrapperAsWritten()
+{
+    SiteServer server({
+        {"/app",
+            SiteServer::html("<!doctype html><body style=\"margin:0\"><div "
+                             "style=\"position:fixed;inset:0;background:#18181b\">"
+                + brightBlock + "</div>")},
+        {"/route", SiteServer::html("<!doctype html>")},
+    });
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ViewInWindow shown;
+    QVERIFY(shown.create(server.url("/route")));
+    shown.adapter->setProperty("darkenPage", true);
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    shown.adapter->setProperty("currentUrl", server.url("/app"));
+    QTRY_COMPARE_WITH_TIMEOUT(blockColour(shown.window), zinc300, 5000);
+    QCOMPARE(pageAreaColour(shown.window), zinc900);
+}
+
+// A page left as written does not keep that for the next document: it starts
+// darkened, so a white page that follows it shows no white at all.
+void QtEngineContractTest::qtStartsEachDocumentDarkenedAfterAPageLeftAlone()
+{
+    SiteServer server({
+        {"/app",
+            SiteServer::html(
+                "<!doctype html><body style=\"margin:0;background:#18181b\">" + brightBlock)},
+        {"/white",
+            SiteServer::html(
+                "<!doctype html><body style=\"margin:0;background:#fff\"><p>x</p>", 200)},
+        {"/route", SiteServer::html("<!doctype html>")},
+    });
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ViewInWindow shown;
+    QVERIFY(shown.create(server.url("/route")));
+    shown.adapter->setProperty("darkenPage", true);
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    shown.adapter->setProperty("currentUrl", server.url("/app"));
+    QTRY_COMPARE_WITH_TIMEOUT(blockColour(shown.window), zinc300, 5000);
+    QVERIFY(shown.adapter->property("pageOwnGroundDark").toBool());
+
+    int whites = 0;
+    int samples = 0;
+    QTimer sampler;
+    QObject::connect(&sampler, &QTimer::timeout, &sampler, [&] {
+        ++samples;
+        whites += isWhite(pageAreaColour(shown.window)) ? 1 : 0;
+    });
+    sampler.start(15);
+    shown.adapter->setProperty("currentUrl", server.url("/white"));
+    QTRY_COMPARE_WITH_TIMEOUT(pageAreaColour(shown.window), QColor(0x12, 0x12, 0x12), 5000);
+    QTest::qWait(500);
+    sampler.stop();
+    QVERIFY2(samples > 20, qPrintable(QString::number(samples)));
+    QCOMPARE(whites, 0);
+    QVERIFY(!shown.adapter->property("pageOwnGroundDark").toBool());
 }
 
 // The setting reaches the page already open: no navigation is made for it, so

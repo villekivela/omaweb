@@ -354,7 +354,9 @@ public:
     Q_INVOKABLE bool routeSiteLinks(const QUrl &url, const QString &target);
     // The site Site information's page darkening row turns darkening off for:
     // the page's registrable domain as `*.acme.com`, as the Link rule row
-    // reads it. Empty on Omaweb's own pages and for an address with none.
+    // reads it, or for an http or https address with none, such as localhost or
+    // an IP address, its host and port: `localhost:3000`, with the scheme's
+    // default port left out. Empty on Omaweb's own pages and other schemes.
     Q_INVOKABLE QString darkeningSite(const QUrl &url) const;
     // Whether the reader turned darkening off for the page's site in a Space,
     // the Space on show unless one is named. That choice is the Space's: it is
