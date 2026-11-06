@@ -23,13 +23,12 @@ Page commands work in an Agent Space. Make a temporary one for the task, so a ta
 leaves nothing behind. `space new --temporary` prints the Space's id and keeps running, and the
 Space is deleted when that process stops. Start it in the background, wait for the id, and pass the
 id on the first `open`. Each of your shell calls may end its background jobs, so start the holder
-with `setsid` and keep its process id in a file:
+with `setsid`, and have it write its own process id to a file:
 
 ```sh
 dir=$(mktemp -d)
-setsid omaweb space new signup-check --temporary > "$dir/id" 2> "$dir/err" < /dev/null &
-echo $! > "$dir/holder"
-until [ -s "$dir/id" ] || ! kill -0 "$(cat "$dir/holder")"; do sleep 0.1; done
+setsid sh -c 'echo $$ > "$1/holder"; exec omaweb space new signup-check --temporary > "$1/id" 2> "$1/err"' sh "$dir" < /dev/null &
+until [ -s "$dir/id" ] || [ -s "$dir/err" ]; do sleep 0.1; done
 cat "$dir/err"
 omaweb open http://localhost:3000/signup --space "$(cat "$dir/id")"
 omaweb look

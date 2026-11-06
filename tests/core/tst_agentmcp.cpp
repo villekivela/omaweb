@@ -805,6 +805,10 @@ void AgentMcpTest::theSkillLoopUsesATemporarySpace()
     QVERIFY(loop.contains(QStringLiteral("omaweb space new")));
     QVERIFY(loop.contains(QStringLiteral("--temporary")));
     QVERIFY(!loop.contains(QStringLiteral("omaweb space delete")));
+    // setsid forks under job control, so $! can name a parent that has gone
+    // while the holder runs on; the holder has to write its own id.
+    QVERIFY(!loop.contains(QStringLiteral("$!")));
+    QVERIFY(loop.contains(QStringLiteral("$$")));
     QVERIFY(text.simplified().contains(QStringLiteral("asks for a Space to keep")));
 }
 
