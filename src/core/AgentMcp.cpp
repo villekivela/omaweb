@@ -138,8 +138,8 @@ namespace {
                 {.name = QStringLiteral("space_new"),
                     .verb = QStringLiteral("space new"),
                     .description
-                    = QStringLiteral("Make an Agent Space. Use temporary unless the reader "
-                                     "wants to keep the Space: a temporary one is "
+                    = QStringLiteral("Make an Agent Space. Set temporary unless the reader "
+                                     "wants to keep the Space; a temporary Space is "
                                      "deleted when this server stops."),
                     .properties
                     = {property(QStringLiteral("name"), string, QStringLiteral("space")),

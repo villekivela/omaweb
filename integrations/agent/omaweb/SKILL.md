@@ -35,6 +35,7 @@ omaweb open http://localhost:3000/signup --space "$(cat "$dir/id")"
 omaweb look
 omaweb do 'fill 1 reader@example.com' 'fill 2 "A Reader"' 'click 5'
 kill "$(cat "$dir/holder")"
+rm -r "$dir"
 ```
 
 1. `open` loads the address and makes its tab current. Later commands use the current tab.
@@ -46,7 +47,8 @@ kill "$(cat "$dir/holder")"
    step you can already see a label for.
 4. Read the `look` that `do` printed and decide the next batch.
 5. Stop the holder when the task is done. The Space goes with it, and so do its tabs and pages, so
-   take what you need from them first. A holder that is killed leaves nothing behind either.
+   take what you need from them first. A holder that is killed leaves nothing behind either. The
+   exception is a Space the reader chose to keep from the browser.
 
 Make a lasting Space, `omaweb space new <name>` with no `--temporary`, only when the reader asks for
 a Space to keep. Delete it with `omaweb space delete <id>` when you are done with it, unless the

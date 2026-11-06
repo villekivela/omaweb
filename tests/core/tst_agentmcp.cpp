@@ -817,7 +817,7 @@ void AgentMcpTest::spaceNewSteersAgentsToATemporarySpace()
         if (object.value(QStringLiteral("name")).toString() == QStringLiteral("space_new"))
             description = object.value(QStringLiteral("description")).toString();
     }
-    QVERIFY(description.contains(QStringLiteral("Use temporary")));
+    QVERIFY(description.contains(QStringLiteral("Set temporary")));
     QVERIFY(description.contains(QStringLiteral("keep")));
 }
 
