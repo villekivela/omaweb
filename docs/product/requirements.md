@@ -645,7 +645,7 @@ reports the gap and remains experimental rather than imitating behavior it canno
   through the CSSOM is not seen. A page that is dark over most of the window and light in a large
   part of it is released, and one that is white over most of it and dark in a large part is
   darkened: the middle of the 25 points is the cut. A switch from a dark theme to a white light one
-  shows the page as written for the wait before it is darkened again, 50 ms at least.
+  shows the page as written for the wait before it is darkened again, measured at about 100 ms.
 
   What a page with a dark theme behind `prefers-color-scheme` gets was measured under the dark
   colour scheme Omaweb hands the engine with a dark Browser theme, with the switch off and on,
