@@ -178,6 +178,8 @@ private slots:
     void startsABrowserThatNeverAnswersOnlyOnce();
     void setsAsideAnAnswerThatCameTooLate();
     void theSkillTeachesEveryVerb();
+    void theSkillLoopUsesATemporarySpace();
+    void spaceNewSteersAgentsToATemporarySpace();
     void offersTheLevelsTheSocketReads();
 };
 
@@ -788,6 +790,39 @@ void AgentMcpTest::theSkillTeachesEveryVerb()
     }
     QVERIFY(text.contains(QStringLiteral("omaweb space new [name] [--temporary]")));
     QVERIFY(text.contains(QStringLiteral("--name")));
+}
+
+// A forgotten cleanup must leave nothing behind, so the loop an Agent copies
+// holds a temporary Space and a lasting one is for a reader who asks to keep it.
+void AgentMcpTest::theSkillLoopUsesATemporarySpace()
+{
+    QFile skill(QStringLiteral(OMAWEB_AGENT_SKILL_PATH));
+    QVERIFY(skill.open(QIODevice::ReadOnly));
+    const auto text = QString::fromUtf8(skill.readAll());
+    const auto loop = text.section(QStringLiteral("## The loop"), 1)
+                          .section(QStringLiteral("```sh"), 1)
+                          .section(QStringLiteral("```"), 0, 0);
+    QVERIFY(loop.contains(QStringLiteral("omaweb space new")));
+    QVERIFY(loop.contains(QStringLiteral("--temporary")));
+    QVERIFY(!loop.contains(QStringLiteral("omaweb space delete")));
+    // setsid forks under job control, so $! can name a parent that has gone
+    // while the holder runs on; the holder has to write its own id.
+    QVERIFY(!loop.contains(QStringLiteral("$!")));
+    QVERIFY(loop.contains(QStringLiteral("$$")));
+    QVERIFY(text.simplified().contains(QStringLiteral("asks for a Space to keep")));
+}
+
+// An Agent that reads only the tool list still picks the Space that cleans up.
+void AgentMcpTest::spaceNewSteersAgentsToATemporarySpace()
+{
+    QString description;
+    for (const auto &tool : agentMcpTools()) {
+        const auto object = tool.toObject();
+        if (object.value(QStringLiteral("name")).toString() == QStringLiteral("space_new"))
+            description = object.value(QStringLiteral("description")).toString();
+    }
+    QVERIFY(description.contains(QStringLiteral("Set temporary")));
+    QVERIFY(description.contains(QStringLiteral("keep")));
 }
 
 // The schema lists the levels, and the socket reads them, so a level one

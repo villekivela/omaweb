@@ -19,15 +19,22 @@ until you call it.
 
 ## The loop
 
-Page commands work in an Agent Space. Make one for the task and pass its id, which `space new`
-prints, on the first `open`:
+Page commands work in an Agent Space. Make a temporary one for the task, so a task that ends early
+leaves nothing behind. `space new --temporary` prints the Space's id and keeps running, and the
+Space is deleted when that process stops. Start it in the background, wait for the id, and pass the
+id on the first `open`. Each of your shell calls may end its background jobs, so start the holder
+with `setsid`, and have it write its own process id to a file:
 
 ```sh
-omaweb space new signup-check
-omaweb open http://localhost:3000/signup --space <id>
+dir=$(mktemp -d)
+setsid sh -c 'echo $$ > "$1/holder"; exec omaweb space new signup-check --temporary > "$1/id" 2> "$1/err"' sh "$dir" < /dev/null &
+until [ -s "$dir/id" ] || [ -s "$dir/err" ]; do sleep 0.1; done
+cat "$dir/err"
+omaweb open http://localhost:3000/signup --space "$(cat "$dir/id")"
 omaweb look
 omaweb do 'fill 1 reader@example.com' 'fill 2 "A Reader"' 'click 5'
-omaweb space delete <id>
+kill "$(cat "$dir/holder")"
+rm -r "$dir"
 ```
 
 1. `open` loads the address and makes its tab current. Later commands use the current tab.
@@ -38,7 +45,13 @@ omaweb space delete <id>
    at the first that fails, and prints what each step did followed by a fresh `look`. Batch every
    step you can already see a label for.
 4. Read the `look` that `do` printed and decide the next batch.
-5. Delete the Space when the task is done.
+5. Stop the holder when the task is done. The Space goes with it, and so do its tabs and pages, so
+   take what you need from them first. A holder that is killed leaves nothing behind either. The
+   exception is a Space the reader chose to keep from the browser.
+
+Make a lasting Space, `omaweb space new <name>` with no `--temporary`, only when the reader asks for
+a Space to keep. Delete it with `omaweb space delete <id>` when you are done with it, unless the
+reader wants it to stay.
 
 A page command in one of the reader's own Spaces asks the reader to grant that Space and waits up to
 a minute. Use one only when the task needs the reader's logins. After `denied` the reader is not
@@ -114,7 +127,8 @@ omaweb report
   and brings the window forward. Run it only when the reader asks. It grants you nothing, so a page
   command in that Space still asks the reader once.
 - `space new --temporary` keeps running after it prints the Space's id, and the Space is deleted
-  when the process stops. Start it in the background and stop it when the task is done.
+  when the process stops, however it stops. Without `--temporary` the Space lasts until
+  `space delete`, which refuses a Space made under another connection name.
 - Commands with the same `--name` share the current tab. The name defaults to that of the process
   that ran `omaweb`, so give it only when commands come from different processes.
 - `--tab <id>` points any page command at another tab. `--json` prints the browser's answer as JSON.
