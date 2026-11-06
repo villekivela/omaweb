@@ -258,6 +258,7 @@ private slots:
     void qtFollowsAStyleSheetThatArrivesLate();
     void qtLeavesAThemeOnAWrapperAsWritten();
     void qtStartsEachDocumentDarkenedAfterAPageLeftAlone();
+    void qtCoversAPageLeftAsWrittenInItsOwnGround();
     void qtLeavesAPagesOwnDarkThemeAloneUnderADarkScheme();
     void qtCoversADarkenedPageInADarkColourWhenItsWindowReturns();
     void qtShowsNoWhiteFrameWhileADarkenedPageRedirects();
@@ -3457,6 +3458,46 @@ void QtEngineContractTest::qtLeavesAThemeOnAWrapperAsWritten()
     shown.adapter->setProperty("currentUrl", server.url("/app"));
     QTRY_COMPARE_WITH_TIMEOUT(blockColour(shown.window), zinc300, 5000);
     QCOMPARE(pageAreaColour(shown.window), zinc900);
+}
+
+// The cover that stands in for the page when its window returns is the page's
+// own ground while the page is left as written. On a wrapper's theme the root
+// and the body are transparent, so the colour the cover would take from them
+// is the white of the canvas.
+void QtEngineContractTest::qtCoversAPageLeftAsWrittenInItsOwnGround()
+{
+    SiteServer server({
+        {"/app",
+            SiteServer::html("<!doctype html><body style=\"margin:0\"><div "
+                             "style=\"position:fixed;inset:0;background:#18181b\">"
+                + brightBlock + "</div>")},
+        {"/route", SiteServer::html("<!doctype html>")},
+    });
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ViewInWindow shown;
+    QVERIFY(shown.create(server.url("/route")));
+    shown.adapter->setProperty("darkenPage", true);
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    shown.adapter->setProperty("currentUrl", server.url("/app"));
+    QTRY_COMPARE_WITH_TIMEOUT(blockColour(shown.window), zinc300, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(shown.adapter->property("documentPainted").toBool(), 5000);
+    QList<QColor> covered;
+    QObject::connect(shown.adapter.get(), SIGNAL(awaitingPageFrameChanged()), &shown.window,
+        SLOT(requestUpdate()));
+    QObject::connect(&shown.window, &QQuickWindow::frameSwapped, &shown.window, [&] {
+        if (shown.adapter->property("awaitingPageFrame").toBool() && covered.isEmpty()) {
+            QTimer::singleShot(0, &shown.window,
+                [&] { covered.append(pageAreaColour(shown.window, QPoint(300, 200))); });
+        }
+    });
+
+    shown.window.hide();
+    QVERIFY(QTest::qWaitFor([&] { return !shown.window.isExposed(); }));
+    shown.view->setSize(QSizeF(400, 300));
+    shown.window.show();
+    QVERIFY(QTest::qWaitFor([&] { return !covered.isEmpty(); }));
+
+    QCOMPARE(covered.constFirst(), zinc900);
 }
 
 // A page left as written does not keep that for the next document: it starts
