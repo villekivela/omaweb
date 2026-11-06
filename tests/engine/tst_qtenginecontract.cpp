@@ -259,6 +259,12 @@ private slots:
     void qtLeavesAThemeOnAWrapperAsWritten();
     void qtStartsEachDocumentDarkenedAfterAPageLeftAlone();
     void qtCoversAPageLeftAsWrittenInItsOwnGround();
+    void qtKeepsAWhitePageDarkenedUnderADarkHeaderAndFooter();
+    void qtKeepsAWhitePageDarkenedUnderAModalBackdrop();
+    void qtKeepsAWhitePageDarkenedBesideADarkRail();
+    void qtLeavesADarkThemeWithAWhiteCardAsWritten();
+    void qtLeavesADarkPageWithALightSidebarAsWritten();
+    void qtWatchesAPageOnlyWhileItIsDarkened();
     void qtLeavesAPagesOwnDarkThemeAloneUnderADarkScheme();
     void qtCoversADarkenedPageInADarkColourWhenItsWindowReturns();
     void qtShowsNoWhiteFrameWhileADarkenedPageRedirects();
@@ -3498,6 +3504,158 @@ void QtEngineContractTest::qtCoversAPageLeftAsWrittenInItsOwnGround()
     QVERIFY(QTest::qWaitFor([&] { return !covered.isEmpty(); }));
 
     QCOMPARE(covered.constFirst(), zinc900);
+}
+
+namespace {
+
+// A white page, or a dark one, with the `extra` markup over it, shown with
+// darkening wanted and watched for as long as it takes a wrong release to show.
+struct GroundPage {
+    SiteServer server;
+    ViewInWindow shown;
+
+    GroundPage(const QByteArray &body)
+        : server({{"/page", SiteServer::html("<!doctype html>" + body)},
+              {"/route", SiteServer::html("<!doctype html>")}})
+    {
+    }
+
+    bool open()
+    {
+        if (!server.listen(QHostAddress::LocalHost) || !shown.create(server.url("/route"))) {
+            return false;
+        }
+        shown.adapter->setProperty("darkenPage", true);
+        if (!QTest::qWaitForWindowExposed(&shown.window)) {
+            return false;
+        }
+        shown.adapter->setProperty("currentUrl", server.url("/page"));
+        return QTest::qWaitFor(
+                   [&] { return shown.adapter->property("groundWatched").toBool(); }, 10000)
+            && QTest::qWaitFor([&] { return !shown.adapter->property("loading").toBool(); }, 10000);
+    }
+};
+
+const QByteArray darkBar = "background:#18181b";
+
+} // namespace
+
+// A white page with a dark header and a dark footer is a white page: the two
+// are 10 of the 25 points the ground is read at, not most of the window.
+void QtEngineContractTest::qtKeepsAWhitePageDarkenedUnderADarkHeaderAndFooter()
+{
+    GroundPage page("<body style=\"margin:0;background:#fff\"><div style=\"position:fixed;left:0;"
+                    "top:0;width:100%;height:100px;"
+        + darkBar
+        + "\"></div><div style=\"position:fixed;"
+          "left:0;bottom:0;width:100%;height:100px;"
+        + darkBar + "\"></div>");
+    QVERIFY(page.open());
+    QTest::qWait(1000);
+    QVERIFY(!page.shown.adapter->property("pageOwnGroundDark").toBool());
+    QVERIFY2(isDark(pageAreaColour(page.shown.window, QPoint(320, 240))),
+        qPrintable(pageAreaColour(page.shown.window, QPoint(320, 240)).name()));
+}
+
+// A modal's backdrop is see-through: opening a dialog over a white page does
+// not make the page dark, so it is not released and drawn bright under it, and
+// closing the dialog does not flip it back.
+void QtEngineContractTest::qtKeepsAWhitePageDarkenedUnderAModalBackdrop()
+{
+    GroundPage page("<body style=\"margin:0;background:#fff\"><div id=m style=\"position:fixed;"
+                    "inset:0;background:rgba(0,0,0,.6)\"></div>");
+    QVERIFY(page.open());
+    QTest::qWait(1000);
+    // Under the backdrop a darkened page is nearly black. A page drawn as
+    // written would be 40% of white.
+    QVERIFY2(isDark(pageAreaColour(page.shown.window, QPoint(320, 240))),
+        qPrintable(pageAreaColour(page.shown.window, QPoint(320, 240)).name()));
+    runInPage(page.shown, QStringLiteral("m.style.display = 'none'"));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        pageAreaColour(page.shown.window, QPoint(320, 240)), QColor(0x12, 0x12, 0x12), 5000);
+    QTest::qWait(500);
+    runInPage(page.shown, QStringLiteral("m.style.display = 'block'"));
+    QTest::qWait(1000);
+    QVERIFY2(isDark(pageAreaColour(page.shown.window, QPoint(320, 240))),
+        qPrintable(pageAreaColour(page.shown.window, QPoint(320, 240)).name()));
+    QVERIFY(!page.shown.adapter->property("pageOwnGroundDark").toBool());
+}
+
+// A full-height dark rail on the right is a fifth of the window.
+void QtEngineContractTest::qtKeepsAWhitePageDarkenedBesideADarkRail()
+{
+    GroundPage page("<body style=\"margin:0;background:#fff\"><div style=\"position:fixed;right:0;"
+                    "top:0;width:160px;height:100%;"
+        + darkBar + "\"></div>");
+    QVERIFY(page.open());
+    QTest::qWait(1000);
+    QVERIFY(!page.shown.adapter->property("pageOwnGroundDark").toBool());
+    QVERIFY2(isDark(pageAreaColour(page.shown.window, QPoint(200, 240))),
+        qPrintable(pageAreaColour(page.shown.window, QPoint(200, 240)).name()));
+}
+
+// A dark theme with a white card in the middle is a dark page, and its card is
+// as written.
+void QtEngineContractTest::qtLeavesADarkThemeWithAWhiteCardAsWritten()
+{
+    GroundPage page("<body style=\"margin:0;background:#18181b\">" + brightBlock
+        + "<div style=\"position:absolute;left:220px;top:165px;width:200px;"
+          "height:150px;background:#fff\"></div>");
+    QVERIFY(page.open());
+    QTRY_COMPARE_WITH_TIMEOUT(blockColour(page.shown.window), zinc300, 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        pageAreaColour(page.shown.window, QPoint(320, 240)), QColor(Qt::white), 5000);
+}
+
+// A dark page with a light sidebar is a dark page.
+void QtEngineContractTest::qtLeavesADarkPageWithALightSidebarAsWritten()
+{
+    GroundPage page("<body style=\"margin:0;background:#18181b\">" + brightBlock
+        + "<div style=\"position:fixed;left:0;top:0;width:160px;height:100%;"
+          "background:#fff\"></div>");
+    QVERIFY(page.open());
+    QTRY_COMPARE_WITH_TIMEOUT(blockColour(page.shown.window), zinc300, 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        pageAreaColour(page.shown.window, QPoint(80, 300)), QColor(Qt::white), 5000);
+}
+
+// The script watches a page's ground only while darkening is wanted: a reader
+// who has the setting off pays for no observer, timer or reading of styles. It
+// starts when a document is made with darkening on or when it goes on for an
+// open page, and stops when it goes off.
+void QtEngineContractTest::qtWatchesAPageOnlyWhileItIsDarkened()
+{
+    SiteServer server({
+        {"/one",
+            SiteServer::html("<!doctype html><body style=\"margin:0;background:#fff\"><p>one</p>")},
+        {"/two",
+            SiteServer::html(
+                "<!doctype html><body style=\"margin:0;background:#18181b\"><p>two</p>")},
+    });
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ViewInWindow shown;
+    QVERIFY(shown.create(server.url("/one")));
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    const auto watched = [&shown] { return shown.adapter->property("groundWatched").toBool(); };
+    // Off, which is the default: a document is loaded, painted and left alone.
+    QTRY_VERIFY_WITH_TIMEOUT(shown.adapter->property("documentPainted").toBool(), 10000);
+    QTest::qWait(1000);
+    QVERIFY(!watched());
+
+    shown.adapter->setProperty("darkenPage", true);
+    QTRY_VERIFY_WITH_TIMEOUT(watched(), 5000);
+    shown.adapter->setProperty("currentUrl", server.url("/two"));
+    QTRY_VERIFY_WITH_TIMEOUT(shown.adapter->property("pageOwnGroundDark").toBool(), 5000);
+    QVERIFY(watched());
+
+    shown.adapter->setProperty("darkenPage", false);
+    QTRY_VERIFY_WITH_TIMEOUT(!watched(), 5000);
+    QVERIFY(!shown.adapter->property("pageOwnGroundDark").toBool());
+    // And a document made after it stays unwatched.
+    shown.adapter->setProperty("currentUrl", server.url("/one"));
+    QTRY_VERIFY_WITH_TIMEOUT(shown.adapter->property("documentPainted").toBool(), 10000);
+    QTest::qWait(1000);
+    QVERIFY(!watched());
 }
 
 // A page left as written does not keep that for the next document: it starts

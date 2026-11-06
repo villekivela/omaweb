@@ -97,6 +97,19 @@ Item {
     // choice is left to the engine at this threshold and no other.
     readonly property real darkGroundBrightness: 205
     readonly property bool darkened: root.darkenPage && !root.pageOwnGroundDark
+    // Whether the document's script is watching its ground, which it does only
+    // while darkening is wanted.
+    property bool groundWatched: false
+    onDarkenPageChanged: root.followGroundWatch()
+    function followGroundWatch() {
+        const call = root.darkenPage ? "__omawebWatchGround" : "__omawebUnwatchGround";
+        if (!root.darkenPage)
+            root.pageOwnGroundDark = false;
+        if (!root.completed)
+            return;
+        webView.runJavaScript("globalThis." + call + " && globalThis." + call + "()",
+                              WebEngineScript.ApplicationWorld);
+    }
     onPageFrozenChanged: root.applyPageLifecycle()
 
     // Chromium refuses to freeze a page it is still drawing, and refuses
@@ -2868,65 +2881,110 @@ Item {
                 return /dark/.test(scheme) && !/light/.test(scheme) ? 'rgb(18, 18, 18)'
                                                                      : 'rgb(255, 255, 255)';
             };
-            // The ground as the reader sees it at the content's edge, which is
-            // what decides whether the page brings a dark theme of its own: the
-            // first opaque background at or above whatever is drawn at each of
-            // two points on the right edge, or the canvas where there is none,
-            // and the lighter of the two. A theme that sits on a wrapper element
-            // with the root and the body transparent is found as well as one on
-            // the body, which the ground function does not see. It reads colours as
+            // The ground as the reader sees it, which is what decides whether
+            // the page brings a dark theme of its own: the colour that most of
+            // the window is drawn on. A grid of 5 by 5 points across the window
+            // is read, each the first opaque background at or above whatever is
+            // drawn there, or the canvas where there is none, and the middle
+            // one by lightness is the ground. A translucent background, such as
+            // a modal's backdrop, is see-through and is not the ground, and a
+            // header, a footer or a rail that is dark on a white page, or a
+            // card or a sidebar that is light on a dark one, is a few points of
+            // the 25 and does not decide it. A theme on a wrapper element with
+            // the root and the body transparent is found as well as one on the
+            // body, which the ground function does not see. It reads colours as
             // written, so it does not read what the engine's darkening draws.
             const rgbOf = (css) => {
                 const open = css.indexOf('(');
                 if (open < 0) return null;
                 const parts = css.slice(open + 1, css.lastIndexOf(')')).split(',').map(Number);
                 if (parts.length < 3 || parts.some(Number.isNaN)) return null;
-                return (parts.length > 3 ? parts[3] : 1) >= 0.5 ? parts.slice(0, 3) : null;
+                return (parts.length > 3 ? parts[3] : 1) >= 0.99 ? parts.slice(0, 3) : null;
             };
             const lumaOf = (rgb) => 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
             const seenGround = () => {
-                let lightest = null;
-                for (const y of [8, innerHeight - 8]) {
-                    let found = null;
-                    for (let el = document.elementFromPoint(innerWidth - 8, y); el && !found;
-                         el = el.parentElement)
-                        found = rgbOf(getComputedStyle(el).backgroundColor);
-                    found = found || rgbOf(ground());
-                    if (!lightest || lumaOf(found) > lumaOf(lightest)) lightest = found;
+                const behind = new Map();
+                const backgroundOf = (el) => {
+                    if (!behind.has(el))
+                        behind.set(el, rgbOf(getComputedStyle(el).backgroundColor));
+                    return behind.get(el);
+                };
+                const canvas = rgbOf(ground());
+                const samples = [];
+                for (let row = 0; row < 5; row++) {
+                    for (let column = 0; column < 5; column++) {
+                        let found = null;
+                        for (let el = document.elementFromPoint((column + 0.5) * innerWidth / 5,
+                                                                (row + 0.5) * innerHeight / 5);
+                             el && !found; el = el.parentElement)
+                            found = backgroundOf(el);
+                        samples.push(found || canvas);
+                    }
                 }
-                return 'rgb(' + lightest.join(', ') + ')';
+                samples.sort((a, b) => lumaOf(a) - lumaOf(b));
+                return 'rgb(' + samples[12].join(', ') + ')';
             };
-            // Said when it changes, which a theme set by script after load, a
-            // style sheet that arrives late and a switch in either direction
-            // all do. A change to any attribute or to the tree asks again after
-            // a short wait, since a page can set its theme with any of them.
+            // Watched only while the shell asks for it, which is while it is
+            // darkening, so a reader who has the setting off pays for none of
+            // it: no observer, no timer and no reading of styles. The shell
+            // asks when a document is made with darkening on and when it goes
+            // on for an open page, and says when it goes off. Said when the
+            // ground changes, which a theme set by script after load, a style
+            // sheet that arrives late and a switch in either direction all do.
+            // A change to any attribute or to the tree asks again after a
+            // short wait, since a page can set its theme with any of them.
+            let watching = false;
             let lastOwnGround = '';
             let ownGroundTimer = 0;
+            let ownGroundObserver = null;
             const reportOwnGround = () => {
-                if (!document.documentElement) return;
+                if (!watching || !document.documentElement) return;
                 const css = seenGround();
                 if (css === lastOwnGround) return;
                 lastOwnGround = css;
                 report('own_ground', css);
             };
             const askOwnGround = () => {
-                if (ownGroundTimer) return;
+                if (!watching || ownGroundTimer) return;
                 ownGroundTimer = setTimeout(() => {
                     ownGroundTimer = 0;
                     requestAnimationFrame(reportOwnGround);
-                }, 50);
+                }, 100);
             };
-            document.addEventListener('DOMContentLoaded', () => {
-                askOwnGround();
-                new MutationObserver(askOwnGround).observe(document, {
-                    attributes: true, childList: true, subtree: true, characterData: true});
-            });
-            document.addEventListener('load', askOwnGround, true);
-            addEventListener('load', askOwnGround, {once: true});
-            addEventListener('pageshow', (event) => {
+            const showAgain = (event) => {
                 if (event.persisted) lastOwnGround = '';
                 askOwnGround();
-            });
+            };
+            const beginWatching = () => {
+                if (!watching) return;
+                ownGroundObserver = new MutationObserver(askOwnGround);
+                ownGroundObserver.observe(document, {
+                    attributes: true, childList: true, subtree: true, characterData: true});
+                askOwnGround();
+            };
+            globalThis.__omawebWatchGround = () => {
+                if (watching) return;
+                watching = true;
+                lastOwnGround = '';
+                document.addEventListener('load', askOwnGround, true);
+                addEventListener('pageshow', showAgain);
+                if (document.readyState === 'loading')
+                    document.addEventListener('DOMContentLoaded', beginWatching, {once: true});
+                else
+                    beginWatching();
+                report('ground_watch', 'on');
+            };
+            globalThis.__omawebUnwatchGround = () => {
+                if (!watching) return;
+                watching = false;
+                clearTimeout(ownGroundTimer);
+                ownGroundTimer = 0;
+                if (ownGroundObserver) ownGroundObserver.disconnect();
+                ownGroundObserver = null;
+                document.removeEventListener('load', askOwnGround, true);
+                removeEventListener('pageshow', showAgain);
+                report('ground_watch', 'off');
+            };
             // Asked for after a return of the window: says when the page has
             // made two frames, the second being one made after the call.
             globalThis.__omawebAfterFrame = () => requestAnimationFrame(
@@ -5104,6 +5162,8 @@ Item {
                 root.forgetMediaFrames();
                 root.forgetFormFrames();
                 root.documentReported = true;
+                root.groundWatched = false;
+                root.followGroundWatch();
                 lateCanvas.stop();
                 root.documentPainted = false;
                 pageAsLeft.release();
@@ -5116,6 +5176,8 @@ Item {
                 root.readPageGround(report.body);
             } else if (report.channel === "own_ground") {
                 root.readOwnGround(report.body);
+            } else if (report.channel === "ground_watch") {
+                root.groundWatched = report.body === '"on"';
             } else if (report.channel === "user_activation") {
                 root.userActivated();
             }

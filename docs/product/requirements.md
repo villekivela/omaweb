@@ -619,9 +619,14 @@ reports the gap and remains experimental rather than imitating behavior it canno
   darkens the page only while the page does not bring its own dark ground, so an app whose dark
   theme is a class its script sets, with no `color-scheme`, keeps its deliberately light parts, such
   as Tailwind's zinc-300 `#d4d4d8`, which the engine would invert. The page reports its ground as
-  the reader sees it, the first opaque background at or above whatever is drawn at two points on the
-  right edge of the window, or the canvas, and the lighter of the two, so a theme on the body and
-  one on a wrapper element with a transparent body are both found. The page is dark when that
+  the reader sees it: the colour most of the window is drawn on. It reads a grid of 5 by 5 points
+  across the window, each the first opaque background at or above whatever is drawn there, or the
+  canvas, and the ground is the middle one of the 25 by brightness. A translucent background, such
+  as a modal's backdrop of `rgba(0,0,0,.6)`, is see-through and is not the ground, so a dialog
+  opened over a white page does not make it dark. A few points of the 25 do not decide it: a white
+  page with a dark header and footer, or with a full-height dark rail, stays darkened, and a dark
+  page with a white card in the middle or a light sidebar is left as written. A theme on the body
+  and one on a wrapper element with a transparent body are both found. The page is dark when that
   ground's brightness, `0.299 R + 0.587 G + 0.114 B`, is at or below 205, which is the engine's own
   limit. Measured against 17 grounds from `#09090b` to `#ffffff`, with `#222` and `#eee` text and a
   `#d4d4d8` element on each, the engine leaves every ground at or below 205 as written and inverts
@@ -633,9 +638,14 @@ reports the gap and remains experimental rather than imitating behavior it canno
   page is shown again from the back-forward cache, so a theme set by script after load, a style
   sheet that arrives late, as an app's `media=print` sheet with an `onload` that sets `media=all`
   does, and a switch in either direction are followed. A route inside the document, a hash or
-  `history.pushState`, starts no load and keeps the page as it is. A rule inserted only through the
-  CSSOM is not seen. A switch from a dark theme to a white light one shows the page as written for
-  the wait before it is darkened again, 50 ms at least.
+  `history.pushState`, starts no load and keeps the page as it is. None of this runs while darkening
+  is not wanted: the watch for a document starts when the document is made with darkening on, or
+  when it goes on for an open page, and stops when it goes off, so a reader with the setting off,
+  which is the default, pays for no observer, timer or reading of styles. A rule inserted only
+  through the CSSOM is not seen. A page that is dark over most of the window and light in a large
+  part of it is released, and one that is white over most of it and dark in a large part is
+  darkened: the middle of the 25 points is the cut. A switch from a dark theme to a white light one
+  shows the page as written for the wait before it is darkened again, 50 ms at least.
 
   What a page with a dark theme behind `prefers-color-scheme` gets was measured under the dark
   colour scheme Omaweb hands the engine with a dark Browser theme, with the switch off and on,
