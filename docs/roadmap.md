@@ -86,11 +86,13 @@ proprietary codecs unsupported, and a test plays them
 Spaces ([#910](https://github.com/villekivela/omaweb/issues/910)), the command list gets Delete
 Space ([#909](https://github.com/villekivela/omaweb/issues/909)), the Omarchy kit catches up with
 quattro ([#908](https://github.com/villekivela/omaweb/issues/908)), and the website's theme changes
-with the film ([#903](https://github.com/villekivela/omaweb/issues/903)). Three questions get
-answers: whether Widevine can run on the engine
-([#911](https://github.com/villekivela/omaweb/issues/911)), whether Omaweb's tabs can show up in
-oma-cast ([#830](https://github.com/villekivela/omaweb/issues/830)), and whether Qt's extension
-surface has grown ([#288](https://github.com/villekivela/omaweb/issues/288)).
+with the film ([#903](https://github.com/villekivela/omaweb/issues/903)). Three questions have
+answers. Widevine runs on the engine from a copy already on the machine, and Spotify and Netflix
+play ([#911](https://github.com/villekivela/omaweb/issues/911)). Omaweb's tabs can show up in
+oma-cast through an Omarchy menu extension once two upstream pull requests merge, so the row waits
+with [#554](https://github.com/villekivela/omaweb/issues/554)
+([#830](https://github.com/villekivela/omaweb/issues/830)). Qt 6.11.3's extension surface has not
+grown ([#288](https://github.com/villekivela/omaweb/issues/288)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
