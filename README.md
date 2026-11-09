@@ -107,6 +107,14 @@ makepkg -si
 Install `fcitx5-qt` if you use an input method. Omarchy configures Qt applications to use `fcitx`
 but does not install the Qt plugin.
 
+## Touchpad gestures
+
+Over a page, a two-finger horizontal touchpad swipe goes Back or Forward on release. A stronger
+outline marks the navigation threshold; move back below that threshold before lifting to cancel.
+Horizontal content keeps its scrolling, and the gesture respects a site's overscroll policy. Frames,
+canvases, input fields, fullscreen pages and closed web components keep their gestures. Sidebar
+swipes continue to switch Spaces.
+
 ## Keyboard shortcuts
 
 `Primary` means Control on Linux and Command on macOS.

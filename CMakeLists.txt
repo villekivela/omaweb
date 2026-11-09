@@ -747,6 +747,8 @@ if(OMAWEB_BUILD_BROWSER)
     add_library(omaweb-engine-qt STATIC
         src/engine/qt/PageGlide.cpp
         src/engine/qt/PageGlide.h
+        src/engine/qt/QtHistorySwipe.cpp
+        src/engine/qt/QtHistorySwipe.h
         src/engine/qt/QtAgentInput.cpp
         src/engine/qt/QtAgentInput.h
         src/engine/qt/QtCertificates.cpp
@@ -951,6 +953,7 @@ set(omaweb_ui_files
     src/ui/FormSuggestions.qml
     src/ui/Glance.qml
     src/ui/HistoryPage.qml
+    src/ui/HistorySwipeFeedback.qml
     src/ui/KeyCap.qml
     src/ui/KeyCaps.qml
     src/ui/KeyMap.qml
@@ -1149,6 +1152,13 @@ function(omaweb_configure_qml target engine_view engine_profile engine_module)
             QML_FILES "${engine_view}" "${engine_profile}"
         )
         string(REPLACE "." "/" engine_module_path "${engine_module}")
+        if(engine_module STREQUAL "Omaweb.Engine.Qt")
+            qt_add_resources(${target} "omaweb_history_swipe"
+                PREFIX "/qt/qml/${engine_module_path}"
+                BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/engine/qt"
+                FILES src/engine/qt/history-swipe.js
+            )
+        endif()
         target_link_libraries(${target} PRIVATE
             ${omaweb_ui_module}
             ${omaweb_commons_module}
@@ -1646,6 +1656,24 @@ if(BUILD_TESTING)
     add_test(NAME omaweb-qt-page-glide COMMAND omaweb-qt-page-glide-tests)
     set_tests_properties(omaweb-qt-page-glide PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    qt_add_executable(omaweb-qt-history-swipe-tests
+        "tests/engine/tst_qthistoryswipe.cpp"
+        "src/engine/qt/QtHistorySwipe.cpp"
+    )
+    target_include_directories(omaweb-qt-history-swipe-tests PRIVATE src/engine/qt)
+    target_link_libraries(omaweb-qt-history-swipe-tests PRIVATE Qt6::Qml Qt6::Quick Qt6::Test)
+    omaweb_strict_target(omaweb-qt-history-swipe-tests)
+    add_test(NAME omaweb-qt-history-swipe COMMAND omaweb-qt-history-swipe-tests)
+    set_tests_properties(omaweb-qt-history-swipe PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    find_program(OMAWEB_NODE_EXECUTABLE NAMES node)
+    if(OMAWEB_NODE_EXECUTABLE)
+        add_test(NAME omaweb-history-swipe-boundary
+            COMMAND "${OMAWEB_NODE_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/scripts/tst_historyswipe.mjs")
+    endif()
 
     qt_add_executable(omaweb-payment-cards-tests
         "tests/core/tst_paymentcards.cpp"

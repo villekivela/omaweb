@@ -140,6 +140,9 @@ ApplicationWindow {
                                          })
 
         onLoaded: {
+            historyFeedbackComponent.createObject(item, {
+                                                      "engine": item
+                                                  });
             darkeningComponent.createObject(item, {
                                                 "engine": item,
                                                 "setting": auxiliary.pageDarkening,
@@ -152,6 +155,11 @@ ApplicationWindow {
             if (auxiliary.agentWindowId.length === 0)
                 item.focusPage();
         }
+    }
+
+    Component {
+        id: historyFeedbackComponent
+        HistorySwipeFeedback {}
     }
 
     Component {

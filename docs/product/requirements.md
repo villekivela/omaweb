@@ -873,6 +873,15 @@ reports the gap and remains experimental rather than imitating behavior it canno
 
 ## Daily browser operations
 
+- A two-finger horizontal touchpad swipe over a page goes Back for a positive scroll delta and
+  Forward for a negative one, following the system's scroll direction. It commits once on release
+  after 120 logical pixels; returning towards the start below that distance cancels. An arrow
+  follows the gesture without taking input or focus. Vertical scrolling, unphased wheel input,
+  modified scrolling and synthetic glide never navigate. A content scroll chain that can consume
+  that direction keeps the gesture, as does a horizontal overscroll containment policy. Frames,
+  canvas, native input fields, fullscreen pages and opaque custom elements keep their gestures. An
+  unanswered boundary query falls back to scrolling after 150 ms. A page hidden, replaced or
+  destroyed during a gesture cancels it, and a stale query cannot navigate another page.
 - A touchpad scroll in a page glides on after the fingers lift and slows to a stop, as in GTK 4. The
   glide starts at the speed the fingers had over the last 150 ms before they lifted, so fingers that
   come to rest first leave the page where it is, and it slows as GTK's does. It scrolls whatever the

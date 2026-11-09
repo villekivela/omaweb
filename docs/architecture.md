@@ -593,6 +593,23 @@ shortcut takes it in and out of fullscreen without asking Omaweb, so the shell r
 off the window's visibility, and a page left holding a screen the reader has already taken back is
 told it no longer has one.
 
+## Touchpad history navigation
+
+`QtHistorySwipe` watches phased touchpad input to the page's Qt Quick input item. It locks an axis
+after ten logical pixels, and asks the page once before taking a horizontal gesture. The helper
+`history-swipe.js` runs in the application world, outside the site's JavaScript world, and checks
+the scroll chain under the pointer, including open shadow roots and RTL scroll positions. A frame,
+canvas, input, fullscreen page or opaque custom element refuses the gesture rather than guessing
+about scrolling it cannot inspect. CSS horizontal overscroll containment also refuses it. A site
+that implements gestures entirely in script is not fully described by these DOM checks.
+
+While that asynchronous query is outstanding, the native recognizer queues the input. A refusal or a
+150 ms timeout replays it to the original page. An acceptance clears the pending page glide and ends
+the page's scroll before taking over. Direction and distance remain native, including the fingers
+lifting and duplicate end events, so a mouse wheel or the synthetic glide cannot navigate. The
+recognizer exposes progress to `HistorySwipeFeedback`, which the UI attaches to each page, including
+auxiliary windows. Hiding or destroying a page invalidates outstanding queries.
+
 ## Touchpad glide
 
 Qt's Wayland plugin ends a touchpad scroll with `ScrollEnd` and sends no `ScrollMomentum` after it,

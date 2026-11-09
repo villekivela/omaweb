@@ -781,7 +781,16 @@ Item {
             untiedZoomComponent.createObject(engine, {
                                                  "engine": engine
                                              });
+        if (engine)
+            historyFeedbackComponent.createObject(engine, {
+                                                      "engine": engine
+                                                  });
         return engine;
+    }
+
+    Component {
+        id: historyFeedbackComponent
+        HistorySwipeFeedback {}
     }
 
     // Whether a page built now waits before it is pointed at its address.

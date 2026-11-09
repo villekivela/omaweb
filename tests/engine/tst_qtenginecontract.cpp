@@ -21,6 +21,8 @@
 #include "QtHeldDownloads.h"
 #include "QtPageFonts.h"
 #include "QtPageGlide.h"
+#include "QtHistorySwipe.h"
+#include "QtPageInput.h"
 #include "QtSecureDns.h"
 #include "QtWebRtcPolicy.h"
 #include "PageSnapshot.h"
@@ -71,6 +73,7 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QQuickImageProvider>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QWheelEvent>
 #include <QRegularExpression>
 #include <QScopeGuard>
 #include <QSet>
@@ -243,6 +246,7 @@ private slots:
     void adaptersExposeKeyboardNavigationCommands_data();
     void adaptersExposeKeyboardNavigationCommands();
     void qtAdapterPropagatesPageState();
+    void qtHistorySwipeNavigatesWithoutTakingPageScrolling();
     void qtNavigationDrivesPageLoadingIndicator();
     void qtPaintsThePageAgainWhenItsWindowIsExposedAgain();
     void qtKeepsTheKeyboardWhereItWasWhenItPaintsThePageAgain();
@@ -2574,6 +2578,76 @@ struct ViewInWindow {
 };
 
 } // namespace
+
+void QtEngineContractTest::qtHistorySwipeNavigatesWithoutTakingPageScrolling()
+{
+    PageServer server(R"HTML(<!doctype html><html><body style="margin:0">
+        <div id="scroll" style="position:absolute;left:0;top:0;width:100px;height:100px;overflow-x:scroll"><div style="width:400px;height:50px"></div></div>
+        <iframe style="position:absolute;left:150px;top:0;width:100px;height:100px" srcdoc="frame"></iframe>
+        <script>document.getElementById('scroll').scrollLeft = 100; document.title = location.pathname;</script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    const auto url = [&server](const QString &path) {
+        return QUrl(QStringLiteral("http://127.0.0.1:%1%2").arg(server.serverPort()).arg(path));
+    };
+    ViewInWindow shown;
+    QVERIFY(shown.create(url(QStringLiteral("/first"))));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        shown.adapter->property("pageTitle").toString(), QStringLiteral("/first"), 15000);
+    QVERIFY(shown.adapter->setProperty("currentUrl", url(QStringLiteral("/second"))));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        shown.adapter->property("pageTitle").toString(), QStringLiteral("/second"), 15000);
+    QTRY_VERIFY_WITH_TIMEOUT(shown.adapter->property("canGoBack").toBool(), 5000);
+    auto *swipe = shown.adapter->findChild<omaweb::QtHistorySwipe *>();
+    QVERIFY(swipe);
+    const auto findInput = [](auto &&self, QQuickItem *item) -> QQuickItem * {
+        if (omaweb::isPageInput(item)) {
+            return item;
+        }
+        for (auto *child : item->childItems()) {
+            if (auto *found = self(self, child)) {
+                return found;
+            }
+        }
+        return nullptr;
+    };
+    QPointer<QQuickItem> page;
+    QTRY_VERIFY_WITH_TIMEOUT((page = findInput(findInput, shown.webView)), 5000);
+    QSignalSpy queries(swipe, &omaweb::QtHistorySwipe::queryNeeded);
+    QSignalSpy navigation(swipe, &omaweb::QtHistorySwipe::navigate);
+    quint64 timestamp = 0;
+    const auto gesture = [&](QPointF position, int delta) {
+        page = findInput(findInput, shown.webView);
+        QVERIFY(page);
+        const auto send = [&](Qt::ScrollPhase phase, QPoint pixels) {
+            QWheelEvent event(position, position, pixels, pixels * 12, Qt::NoButton, Qt::NoModifier,
+                phase, false, Qt::MouseEventSynthesizedBySystem);
+            event.setTimestamp(++timestamp);
+            QCoreApplication::sendEvent(page, &event);
+        };
+        send(Qt::ScrollBegin, {});
+        send(Qt::ScrollUpdate, {delta, 0});
+        send(Qt::ScrollEnd, {});
+    };
+    // Each veto is checked after the asynchronous page query has had time to answer.
+    gesture({30, 30}, 140);
+    QTRY_COMPARE_WITH_TIMEOUT(queries.size(), 1, 5000);
+    QTest::qWait(500);
+    QCOMPARE(navigation.size(), 0);
+    gesture({180, 30}, 140);
+    QTRY_COMPARE_WITH_TIMEOUT(queries.size(), 2, 5000);
+    QTest::qWait(500);
+    QCOMPARE(navigation.size(), 0);
+    gesture({350, 200}, 140);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        shown.adapter->property("pageTitle").toString(), QStringLiteral("/first"), 15000);
+    QCOMPARE(navigation.size(), 1);
+    QTRY_VERIFY_WITH_TIMEOUT(shown.adapter->property("canGoForward").toBool(), 5000);
+    gesture({350, 200}, -140);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        shown.adapter->property("pageTitle").toString(), QStringLiteral("/second"), 15000);
+    QCOMPARE(navigation.size(), 2);
+}
 
 // A page that asks for a window is answered at once, or the engine tells it the
 // window was refused: `window.open` returns null, and an extension's
@@ -13418,6 +13492,7 @@ int main(int argc, char *argv[])
     omaweb::registerQtAgentInput();
     omaweb::QtPageGlide pageGlide;
     omaweb::registerQtPageGlide(&pageGlide);
+    omaweb::registerQtHistorySwipe();
     omaweb::registerWindowExposure();
     omaweb::registerPageSnapshot();
     omaweb::registerPageImages();

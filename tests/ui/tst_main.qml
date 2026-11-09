@@ -466,6 +466,30 @@ TestCase {
         return engineHost.item;
     }
 
+    function test_historySwipeFeedbackTracksDirectionAndCancellation() {
+        const engine = openPage("https://history-swipe.example/page");
+        const feedback = findChild(engine, "historySwipeFeedback");
+        verify(feedback !== null);
+        const arrow = findChild(feedback, "historySwipeArrow");
+        verify(arrow !== null);
+        verify(!feedback.visible);
+        verify(!feedback.enabled);
+
+        engine.historySwipeProgress = 0.5;
+        compare(feedback.progress, 0.5);
+        verify(feedback.visible);
+        verify(arrow.x < feedback.width / 2);
+        compare(arrow.border.width, 1);
+
+        engine.historySwipeProgress = -1;
+        compare(feedback.progress, -1);
+        verify(arrow.x > feedback.width / 2);
+        compare(arrow.border.width, 3);
+
+        engine.historySwipeProgress = 0;
+        verify(!feedback.visible);
+    }
+
     // Whatever the chrome is still moving: a Space or a page arriving, or the
     // Start page dropping away from a page that replaced it. A test about a
     // movement of its own starts from rest, and in a turn of its own: the page

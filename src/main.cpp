@@ -76,6 +76,7 @@
 #endif
 #include "PrimaryHold.h"
 #include "SpaceSwipe.h"
+#include "QtHistorySwipe.h"
 #include "Scenes.h"
 #include "SystemClipboard.h"
 #include "SystemMotion.h"
@@ -618,6 +619,7 @@ int main(int argc, char *argv[])
     omaweb::registerInputOrigin();
     omaweb::registerPrimaryHold();
     omaweb::registerSpaceSwipe();
+    omaweb::registerQtHistorySwipe();
     omaweb::registerScenes();
     omaweb::registerExternalProtocolHandler();
     omaweb::registerPagePrinter();

@@ -39,6 +39,7 @@ Rectangle {
         return mockFaviconUrls[hash % mockFaviconUrls.length];
     }
     property bool loading: false
+    property real historySwipeProgress: 0
     // Whether the page on show has drawn anything of its own yet. The lab
     // paints as soon as an address arrives, except on `slow-paint.example`,
     // which stands in for a page slow to draw until `simulateFirstPaint`.
