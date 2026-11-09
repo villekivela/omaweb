@@ -74,25 +74,23 @@ measured on the release build readers run. The x86_64 engine links at ThinLTO's 
 takes Speedometer from 0.73 of Chromium 140 to 0.82. Its engine is 6.11.3-2 on x86_64 and 6.11.3-1
 on aarch64.
 
-[v0.21.0](https://github.com/villekivela/omaweb/milestone/22) is the release in progress, for tabs
-and the page menu. Several tabs can be selected in the sidebar
-([#917](https://github.com/villekivela/omaweb/issues/917)), and Folders build on that
-([#918](https://github.com/villekivela/omaweb/issues/918)). The page context menu searches a
-selection and sends a link to a Space or a Private window
-([#915](https://github.com/villekivela/omaweb/issues/915)). A setting darkens pages that have no
-dark theme ([#916](https://github.com/villekivela/omaweb/issues/916)). The requirements stop calling
-proprietary codecs unsupported, and a test plays them
-([#914](https://github.com/villekivela/omaweb/issues/914)). Agents are taught to use temporary
-Spaces ([#910](https://github.com/villekivela/omaweb/issues/910)), the command list gets Delete
-Space ([#909](https://github.com/villekivela/omaweb/issues/909)), the Omarchy kit catches up with
-quattro ([#908](https://github.com/villekivela/omaweb/issues/908)), and the website's theme changes
-with the film ([#903](https://github.com/villekivela/omaweb/issues/903)). Three questions have
-answers. Widevine runs on the engine from a copy already on the machine, and Spotify and Netflix
-play ([#911](https://github.com/villekivela/omaweb/issues/911)). Omaweb's tabs can show up in
-oma-cast through an Omarchy menu extension once two upstream pull requests merge, so the row waits
-with [#554](https://github.com/villekivela/omaweb/issues/554)
-([#830](https://github.com/villekivela/omaweb/issues/830)). Qt 6.11.3's extension surface has not
-grown ([#288](https://github.com/villekivela/omaweb/issues/288)).
+[v0.21.0](https://github.com/villekivela/omaweb/releases/tag/v0.21.0) shipped tabs and the page
+menu: several tabs marked in the sidebar and acted on together, Folders, a page menu that searches a
+selection and sends a link to a Space or a Private window, page darkening for pages with no dark
+theme, Delete Space in the command list, and Agents taught to use temporary Spaces. The requirements
+stopped calling proprietary codecs unsupported, and a test plays them. Widevine runs on the engine
+from a copy already on the machine. Omaweb's tabs can show up in oma-cast through an Omarchy menu
+extension once two upstream pull requests merge, so the row waits with
+[#554](https://github.com/villekivela/omaweb/issues/554).
+
+[v0.22.0](https://github.com/villekivela/omaweb/milestone/23) is the release in progress, for
+gestures and user styles. A two-finger swipe over a page goes Back and Forward
+([#930](https://github.com/villekivela/omaweb/issues/930)), contributed from outside the project. A
+Gestures page in Settings then chooses what two- and three-finger swipes do and how far they travel
+([#933](https://github.com/villekivela/omaweb/issues/933)). A CSS file per site in the configuration
+directory restyles that site, applies as it is saved, and Sync carries it
+([#913](https://github.com/villekivela/omaweb/issues/913)). The Omarchy kit catches up with quattro
+again ([#932](https://github.com/villekivela/omaweb/issues/932)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
@@ -123,9 +121,8 @@ not distribute its bundles ([ADR 0029](adr/0029-distribute-only-for-linux.md)).
   an Agent Space, the page's main world ([#534](https://github.com/villekivela/omaweb/issues/534)).
   They join the release that is open when 6.140.0 is out.
 - Account and Sync with replaceable providers are deferred.
-- Spellchecking ([#912](https://github.com/villekivela/omaweb/issues/912)) and a reader's own CSS
-  for a site ([#913](https://github.com/villekivela/omaweb/issues/913)) are planned for a release
-  after v0.21.0.
+- Spellchecking ([#912](https://github.com/villekivela/omaweb/issues/912)) is deferred. The engine
+  has the checker built in, so it is browser work when it comes back.
 - Tabs and Spaces in the Omarchy bar ([#906](https://github.com/villekivela/omaweb/issues/906)) are
   parked. The design wasn't usable enough to ship, and the issue stays open for a different one.
 
