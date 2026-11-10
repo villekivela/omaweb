@@ -5119,6 +5119,25 @@ TestCase {
         verify(takenOver === siteStyles);
     }
 
+    // A Private window has no Agent Space, and its pages take the reader's
+    // site styles as their Spaces' pages do.
+    function test_aPrivateWindowsPagesTakeSiteStyles() {
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const privateEngine = findChild(privateBrowser.contentItem, "engineLoader");
+        privateBrowser.windowBrowser.openInput("https://private-styled.example/", false);
+        tryVerify(function () {
+            return privateEngine.item !== null;
+        });
+        const styles = privateEngine.item.siteStyles;
+
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        verify(styles !== null && styles === siteStyles);
+    }
+
     // A page that asks for a window, as many sign-ins do, is drawn as a tab's
     // page is: dark from its first document, which is about:blank, then
     // following its address, the site's choice in the opener's Space and the

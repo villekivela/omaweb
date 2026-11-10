@@ -2038,7 +2038,9 @@ Item {
     // A changed sheet reaches the open document, the next one the page's
     // origin creates, and the one a load under way is making.
     function restyleSite() {
-        for (const url of [root.currentUrl, root.siteStyleNavigation]) {
+        // A navigation that became a download ended no load, so its address
+        // counts only while one runs.
+        for (const url of [root.currentUrl, root.loading ? root.siteStyleNavigation : ""]) {
             if (root.isWebAddress(url))
                 root.installSiteStyleScript(url);
         }
