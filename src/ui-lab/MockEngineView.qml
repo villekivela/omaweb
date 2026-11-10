@@ -96,6 +96,9 @@ Rectangle {
     property string profilePath: ""
     property var sharedProfile: null
     property var contentBlocker: null
+    // The lab draws no page to style, so the reader's site styles are only
+    // held, for a test to read which views were given them.
+    property var siteStyles: null
     property var engineContentBlocker: null
     property var engineCookiePolicy: null
     property var permissionController: null

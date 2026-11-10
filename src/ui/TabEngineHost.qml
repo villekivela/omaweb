@@ -1,6 +1,7 @@
 import QtQuick
 import Omaweb
 import "DevicePixels.mjs" as DevicePixels
+import "SiteStyleRule.mjs" as SiteStyleRule
 
 Item {
     id: root
@@ -30,6 +31,9 @@ Item {
     // Whether pages with no dark theme are darkened (`PageDarkening`). Without
     // one, no page is.
     property var pageDarkening: null
+    // The reader's site styles (`SiteStyles`), which every page here takes
+    // unless its Space is an Agent's. Without them, no page is styled.
+    property var siteStyles: null
     // The window's Problem recording, which a Private window has none of.
     property var problemRecording: null
     readonly property real pageScaleValue: root.pageScale ? root.pageScale.value : 1
@@ -726,9 +730,8 @@ Item {
         // window is up too, and a request made in that moment is let
         // through unchecked. So a page asked for while either is pending
         // starts blank and is pointed at its address when the wait ends.
-        const host = root.spaceProfiles ? root.spaceProfiles.hostFor(spaceId !== undefined ? spaceId :
-                                                                                             root.sessionSpaceId) :
-                                          null;
+        const engineSpaceId = spaceId !== undefined ? spaceId : root.sessionSpaceId;
+        const host = root.spaceProfiles ? root.spaceProfiles.hostFor(engineSpaceId) : null;
         const held = root.pageWaits(host) && !root.pagelessAddress(tabUrl);
         // Every engine is this host's to destroy, wherever it is drawn: a
         // Glance's page kept as a tab outlives the window the Glance was in,
@@ -751,8 +754,12 @@ Item {
                                                         // this view runs on, which is
                                                         // what Content blocking keys
                                                         // its Refusal tally by.
-                                                        "spaceId": spaceId !== undefined ? spaceId :
-                                                                                           root.sessionSpaceId,
+                                                        "spaceId": engineSpaceId,
+                                                        // Styled from the first document.
+                                                        "siteStyles": SiteStyleRule.stylesFor(
+                                                                          root.siteStyles,
+                                                                          root.browserController,
+                                                                          engineSpaceId),
                                                         "keyboardNavigationConfiguration":
                                                         root.keyboardConfiguration(tabUrl),
                                                         "keyboardNavigationScriptSource":
@@ -775,6 +782,12 @@ Item {
             darkeningComponent.createObject(engine, {
                                                 "engine": engine,
                                                 "setting": root.pageDarkening,
+                                                "browser": root.browserController
+                                            });
+        if (engine)
+            siteStyleComponent.createObject(engine, {
+                                                "engine": engine,
+                                                "styles": root.siteStyles,
                                                 "browser": root.browserController
                                             });
         if (engine)
@@ -918,6 +931,12 @@ Item {
         id: darkeningComponent
 
         DarkeningFollow {}
+    }
+
+    Component {
+        id: siteStyleComponent
+
+        SiteStyleFollow {}
     }
 
     function giveScrollbar(engine) {

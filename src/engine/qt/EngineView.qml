@@ -1925,10 +1925,10 @@ Item {
     // adopted in Omaweb's world and a scriptlet runs in the page's.
     readonly property string blockingScriptNamePrefix: "Omaweb content blocking "
     readonly property string blockingSheetNamePrefix: "Omaweb cosmetic sheet "
-    readonly property int blockingScriptLimit: 16
+    readonly property int originScriptLimit: 16
     // The pattern the engine matches against the document's address, which
     // it spells without the scheme's default port.
-    function blockingScriptPattern(url) {
+    function originScriptPattern(url) {
         return root.originAddress(url).replace(/^(http:\/\/.*):80$/, "$1").replace(
                     /^(https:\/\/.*):443$/, "$1") + "/*";
     }
@@ -1937,21 +1937,20 @@ Item {
             return;
         const css = contentBlocker.cosmeticStyleSheet(url);
         const scriptlets = contentBlocker.scriptletSource(url);
-        const pattern = root.blockingScriptPattern(url);
+        const pattern = root.originScriptPattern(url);
         // The stylesheet is a script of its own and goes first: hiding what
         // the page is about to render does not depend on a scriptlet, and a
         // scriptlet that throws cannot take the hiding with it.
-        root.installBlockingScriptPart(root.blockingSheetNamePrefix, pattern,
-                                       WebEngineScript.ApplicationWorld, css.length > 0
-                                       ? root.styleSheetSnippet(root.cosmeticSheetId, css) : "");
-        root.installBlockingScriptPart(root.blockingScriptNamePrefix, pattern,
-                                       WebEngineScript.MainWorld, root.scriptletSnippet(
-                                           scriptlets));
+        root.installOriginScript(root.blockingSheetNamePrefix, pattern,
+                                 WebEngineScript.ApplicationWorld, css.length > 0
+                                 ? root.styleSheetSnippet(root.cosmeticSheetId, css) : "");
+        root.installOriginScript(root.blockingScriptNamePrefix, pattern, WebEngineScript.MainWorld,
+                                 root.scriptletSnippet(scriptlets));
         // The document about to be created carries whatever these scripts add
         // and nothing else, so what the last one had is no longer there.
         root.cosmeticRulesInjected = css.length > 0;
     }
-    function installBlockingScriptPart(prefix, pattern, world, source) {
+    function installOriginScript(prefix, pattern, world, source) {
         const name = prefix + pattern;
         const scripts = webView.profile.userScripts;
         let script = null;
@@ -1965,9 +1964,9 @@ Item {
                     + "\n// ==/UserScript==\n" + source;
         }
         root.replaceScript(scripts, name, script);
-        const blocking = scripts.collection.filter(installed => installed.name.startsWith(prefix));
-        while (blocking.length > root.blockingScriptLimit)
-            scripts.remove(blocking.shift());
+        const installed = scripts.collection.filter(each => each.name.startsWith(prefix));
+        while (installed.length > root.originScriptLimit)
+            scripts.remove(installed.shift());
     }
 
     // Re-application into a document that is already open, for a rule set or a
@@ -1987,6 +1986,74 @@ Item {
         cosmeticRulesInjected = css.length > 0;
         webView.runJavaScript(root.styleSheetSnippet(root.cosmeticSheetId, css),
                               WebEngineScript.ApplicationWorld);
+    }
+
+    // ---- the reader's own styles ------------------------------------------
+    //
+    // The reader's CSS for a site (`SiteStyles`), or null where their styles
+    // do not apply, as in an Agent Space. A style is the reader's, not Content
+    // blocking's, so it rides a sheet and a script of its own, which no
+    // per-site blocking decision reaches. It goes in as the cosmetic sheet
+    // does, and for the same reasons: constructed rather than written into the
+    // document, so a page's policy cannot refuse it, and installed on the
+    // Engine profile for the page's origin at the navigation request, so it is
+    // in the document before the page renders.
+    property var siteStyles: null
+    readonly property string siteStyleSheetId: "__omaweb_site_style"
+    readonly property string siteStyleScriptNamePrefix: "Omaweb site style "
+    // Whether the document on show may carry a sheet, so a style removed
+    // while it is open is cleared from it, and a page that never had one is
+    // not sent a script to clear nothing. It is set before the document
+    // exists, and only cleared once a clearing has been sent, since a
+    // navigation that turns out to be a download leaves the page on show.
+    property bool siteStyleInjected: false
+    // The address the main frame is navigating to, until its load ends, so a
+    // style saved while the load runs reaches the document being made.
+    property url siteStyleNavigation: ""
+
+    function isWebAddress(url) {
+        const scheme = String(url).split(":")[0].toLowerCase();
+        return scheme === "http" || scheme === "https";
+    }
+
+    function siteStyleSheet(url) {
+        return root.siteStyles ? root.siteStyles.styleSheet(url) : "";
+    }
+    function installSiteStyleScript(url) {
+        const css = root.siteStyleSheet(url);
+        root.installOriginScript(root.siteStyleScriptNamePrefix, root.originScriptPattern(url),
+                                 WebEngineScript.ApplicationWorld, css.length > 0
+                                 ? root.styleSheetSnippet(root.siteStyleSheetId, css) : "");
+        return css;
+    }
+    // The open document takes the sheet as it stands.
+    function applySiteStyle() {
+        const css = root.siteStyleSheet(root.currentUrl);
+        if (css.length === 0 && !root.siteStyleInjected)
+            return;
+        root.siteStyleInjected = css.length > 0;
+        webView.runJavaScript(root.styleSheetSnippet(root.siteStyleSheetId, css),
+                              WebEngineScript.ApplicationWorld);
+    }
+    // A changed sheet reaches the open document, the next one the page's
+    // origin creates, and the one a load under way is making.
+    function restyleSite() {
+        // A navigation that became a download ended no load, so its address
+        // counts only while one runs.
+        for (const url of [root.currentUrl, root.loading ? root.siteStyleNavigation : ""]) {
+            if (root.isWebAddress(url))
+                root.installSiteStyleScript(url);
+        }
+        root.applySiteStyle();
+    }
+    onSiteStylesChanged: root.restyleSite()
+
+    Connections {
+        target: root.siteStyles
+        ignoreUnknownSignals: true
+        function onChanged() {
+            root.restyleSite();
+        }
     }
 
     // The generic rules are the ones written against no particular site, and
@@ -4936,6 +5003,10 @@ Item {
                 root.documentSurveyed = false;
                 return;
             }
+            // A style saved while the load ran may have reached the document
+            // being left, or the script before the new one was installed.
+            root.siteStyleNavigation = "";
+            root.applySiteStyle();
             // A document that loaded surveyed itself when its DOM was parsed
             // and verified the site stylesheet with the answer, unless the
             // survey script never reached it. The DOM is often parsed before
@@ -5068,8 +5139,12 @@ Item {
                 }
                 // Site rules and scriptlets are named by host, which only a
                 // web address has.
-                if (request.isMainFrame && (scheme === "http" || scheme === "https"))
+                if (request.isMainFrame && (scheme === "http" || scheme === "https")) {
                     root.installBlockingScript(request.url);
+                    root.siteStyleNavigation = request.url;
+                    if (root.installSiteStyleScript(request.url).length > 0)
+                        root.siteStyleInjected = true;
+                }
                 return;
             }
             request.reject();

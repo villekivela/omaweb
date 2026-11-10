@@ -30,6 +30,7 @@
 #include "EngineSuggestions.h"
 #include "GlobalPrivacyControl.h"
 #include "PageDarkening.h"
+#include "SiteStyles.h"
 #include "HttpsOnly.h"
 #include "SecureDns.h"
 #include "SettingsFile.h"
@@ -427,6 +428,7 @@ int main(int argc, char *argv[])
     // windows' shared one tell sites the same thing about the reader.
     omaweb::GlobalPrivacyControl globalPrivacyControl(configRoot());
     omaweb::PageDarkening pageDarkening(configRoot());
+    omaweb::SiteStyles siteStyles(configRoot());
     // Before any page asks for a name: the engine resolves names once for the
     // whole process, and the first lookup has to go where the reader chose.
     omaweb::SecureDns secureDns(configRoot());
@@ -685,6 +687,7 @@ int main(int argc, char *argv[])
         QStringLiteral("globalPrivacyControl"), &globalPrivacyControl);
     engine.rootContext()->setContextProperty(QStringLiteral("httpsOnly"), &httpsOnly);
     engine.rootContext()->setContextProperty(QStringLiteral("pageDarkening"), &pageDarkening);
+    engine.rootContext()->setContextProperty(QStringLiteral("siteStyles"), &siteStyles);
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineSuggestions"), &engineSuggestions);
     engine.rootContext()->setContextProperty(QStringLiteral("webRtcPolicy"), &webRtcPolicy);

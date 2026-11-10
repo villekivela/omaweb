@@ -5081,6 +5081,63 @@ TestCase {
         compare(afterSwitchOff, [false, false, false]);
     }
 
+    // The reader's site styles reach every page of theirs, a popup's included,
+    // and no page in an Agent Space, so an Agent reads a site as it is served.
+    // A Space the reader takes over is theirs, and its pages take the styles.
+    function test_siteStylesReachTheReadersPagesAndNoAgentSpace() {
+        const readersSpaceId = browser.activeSpaceId;
+        const page = openPage("https://styled.example/");
+        const readers = page.siteStyles;
+        page.simulateNewWindowRequest("https://login.styled.example/", true);
+        const auxiliary = findChild(window, "auxiliaryWindow");
+        tryVerify(function () {
+            return auxiliary !== null && auxiliary.visible;
+        });
+        const loader = findChild(auxiliary.contentItem, "auxiliaryEngineLoader");
+        tryVerify(function () {
+            return loader.item !== null;
+        });
+        const popup = loader.item.siteStyles;
+        auxiliary.close();
+        tryVerify(function () {
+            return !auxiliary.visible;
+        });
+
+        const spaceId = agentSpaceProbe.create("Styled agent", "claude-code", false);
+        verify(browser.switchSpace(spaceId));
+        tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
+        const agentPage = openPage("https://styled.example/agent");
+        const inAgentSpace = agentPage.siteStyles;
+        verify(browser.takeOverSpace(spaceId));
+        const takenOver = agentPage.siteStyles;
+        verify(browser.switchSpace(readersSpaceId));
+        verify(browser.deleteSpace(spaceId, "Styled agent"));
+
+        verify(readers !== null && readers === siteStyles);
+        verify(popup === siteStyles);
+        compare(inAgentSpace, null);
+        verify(takenOver === siteStyles);
+    }
+
+    // A Private window has no Agent Space, and its pages take the reader's
+    // site styles as their Spaces' pages do.
+    function test_aPrivateWindowsPagesTakeSiteStyles() {
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        const privateEngine = findChild(privateBrowser.contentItem, "engineLoader");
+        privateBrowser.windowBrowser.openInput("https://private-styled.example/", false);
+        tryVerify(function () {
+            return privateEngine.item !== null;
+        });
+        const styles = privateEngine.item.siteStyles;
+
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        verify(styles !== null && styles === siteStyles);
+    }
+
     // A page that asks for a window, as many sign-ins do, is drawn as a tab's
     // page is: dark from its first document, which is about:blank, then
     // following its address, the site's choice in the opener's Space and the

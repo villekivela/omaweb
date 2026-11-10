@@ -9,6 +9,7 @@
 #include "EngineSuggestions.h"
 #include "GlobalPrivacyControl.h"
 #include "PageDarkening.h"
+#include "SiteStyles.h"
 #include "SecureDns.h"
 #include "SettingsFile.h"
 #include "WebRtcPolicy.h"
@@ -763,6 +764,8 @@ int main(int argc, char *argv[])
         QStringLiteral("globalPrivacyControl"), &globalPrivacyControl);
     static omaweb::PageDarkening pageDarkening(dataRootPath);
     engine.rootContext()->setContextProperty(QStringLiteral("pageDarkening"), &pageDarkening);
+    static omaweb::SiteStyles siteStyles(dataRootPath);
+    engine.rootContext()->setContextProperty(QStringLiteral("siteStyles"), &siteStyles);
     static omaweb::WebRtcPolicy webRtcPolicy(dataRootPath);
     static omaweb::SecureDns secureDns(dataRootPath);
     engine.rootContext()->setContextProperty(QStringLiteral("secureDns"), &secureDns);
