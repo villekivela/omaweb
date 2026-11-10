@@ -609,19 +609,17 @@ reports the gap and remains experimental rather than imitating behavior it canno
   it is `"darken-pages"` in `settings.json`, so an edit of the file applies at once and Sync carries
   it with the group's other settings. It reaches every Space and Private window. The engine darkens:
   Chromium's forced dark mode inverts the lightness of a background whose brightness is above 205 of
-  255, so white becomes `#121212`, `#f5f5f5` becomes `#222222` and `#d0d0d0` becomes `#3f3f3f`, and
-  it inverts the foregrounds, so `#222` text becomes `#f6f6f6` and a `#d4d4d8` element becomes
-  `#3b3b3e`, on any ground. A background at or below 205, such as `#cccccc`, `#6b7280` or `#18181b`,
-  is left as it is.
+  255, so white becomes `#121212` on x86_64, `#f5f5f5` becomes `#222222` and `#d0d0d0` becomes
+  `#3f3f3f`, and it inverts the foregrounds, so `#222` text becomes `#f6f6f6` and a `#d4d4d8`
+  element becomes `#3b3b3e`, on any ground. A background at or below 205, such as `#cccccc`,
+  `#6b7280` or `#18181b`, is left as it is.
 
-  The aarch64 engine draws white as `#1b1b1b` (#936). Chromium inverts white to `#1b1b1b`, then
-  moves a grey that dark to `#121212`, but only when its three channels are equal to within a
-  float's epsilon. The aarch64 engine is built with GCC, which fuses each multiply and add into one
-  instruction, so the channels land further apart than that and the move is skipped. The x86_64
-  engine is built with clang for a processor without that instruction. Near-whites differ the same
-  way: `#fcfcfc` is `#121212` on x86_64 and `#1e1e1e` on aarch64. The difference can stay, because
-  the cover already approximates a darkened ground: on x86_64 it is `#121212` over a `#fafafa` page
-  the engine draws `#1f1f1f`. Building the engine without fused operations is
+  On aarch64 white becomes `#1b1b1b`, and `#fcfcfc` becomes `#1e1e1e` rather than `#121212` (#936).
+  Chromium moves an inverted grey that dark to `#121212` only when its channels are equal to within
+  a float's epsilon. The aarch64 engine is built with GCC, which fuses multiplies and adds because
+  Chromium's `-ffp-contract=off` is not applied to QtWebEngine, and the channels land further apart
+  than that. The difference stays: the cover is already approximate, `#121212` over a `#fafafa` page
+  that x86_64 draws `#1f1f1f`. The engine fix is tracked in
   villekivela/omaweb-qtwebengine-patches#34.
 
   A page whose own ground is already dark is left as written. The shell's wish stays the reader's:
