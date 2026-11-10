@@ -32,6 +32,12 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"pageHasFocus", QMetaType::Bool},
         {"capabilities", QMetaType::Int},
         {"contentBlocker", QMetaType::QVariant},
+        // The reader's own CSS by site (`SiteStyles`), or null where the
+        // reader's styles do not apply, as in an Agent Space. The adapter owes
+        // a page the sheet for its host before the page renders, whether or
+        // not Content blocking is on for it, and owes an open page a changed
+        // sheet without a reload.
+        {"siteStyles", QMetaType::QVariant},
         // Which Space's browsing identity this view's pages belong to, so
         // Content blocking can key the Refusal tally by it. Empty in a Private
         // window, whose shared session has no Space of its own.

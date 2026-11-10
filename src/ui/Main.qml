@@ -2331,6 +2331,8 @@ ApplicationWindow {
     // show can do it.
     readonly property var pageDarkeningSetting: typeof pageDarkening !== "undefined"
                                                 ? pageDarkening : null
+    // The reader's own CSS by site, which the tests run without.
+    readonly property var readerSiteStyles: typeof siteStyles !== "undefined" ? siteStyles : null
     // Settings says so beside the switch, so with no page open there is no
     // engine to fall short and it is not said.
     readonly property bool pageDarkeningAvailable: engineLoader.item === null || (
@@ -4402,6 +4404,7 @@ ApplicationWindow {
                     agentControl: window.agentControlSource
                     pageScale: window.readerPageScale
                     pageDarkening: window.pageDarkeningSetting
+                    siteStyles: window.readerSiteStyles
                     problemRecording: window.recording
                     engineSource: engineViewSource
                     spaceProfiles: spaceProfiles
@@ -5755,6 +5758,7 @@ ApplicationWindow {
             drawnZoom: engineLoader.drawnZoom(1)
             permissionController: window.windowBrowser
             pageDarkening: window.pageDarkeningSetting
+            siteStyles: window.readerSiteStyles
             browserController: window.windowBrowser
             contentBlocker: contentBlocker
             engineContentBlocker: engineContentBlocker

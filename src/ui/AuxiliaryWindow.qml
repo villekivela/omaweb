@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import "PageDarkening.mjs" as PageDarkening
+import "SiteStyleRule.mjs" as SiteStyleRule
 
 ApplicationWindow {
     id: auxiliary
@@ -36,6 +37,9 @@ ApplicationWindow {
     // window follows them too: the setting is the browser's.
     property var pageDarkening: null
     property var browserController: null
+    // The browser's SiteStyles, which this window's page takes as a tab's in
+    // the opener's Space does.
+    property var siteStyles: null
     // The core's Agent rules and the id this window has there, when an Agent
     // tab's page opened it (ADR 0051). The Agent drives it by that id as it
     // drives the tab, and it is the Agent's for as long as the core lists it.
@@ -114,6 +118,10 @@ ApplicationWindow {
                                              "permissionController": auxiliary.permissionController,
                                              "spaceId": auxiliary.openerEngine.spaceId,
                                              "contentBlocker": auxiliary.contentBlocker,
+                                             "siteStyles": SiteStyleRule.stylesFor(
+                                                               auxiliary.siteStyles,
+                                                               auxiliary.browserController,
+                                                               auxiliary.openerEngine.spaceId),
                                              "engineContentBlocker": auxiliary.engineContentBlocker,
                                              "engineCookiePolicy": auxiliary.cookiePolicy,
                                              "keyboardNavigationConfiguration": Object.assign({},
@@ -145,6 +153,11 @@ ApplicationWindow {
                                                 "setting": auxiliary.pageDarkening,
                                                 "browser": auxiliary.browserController
                                             });
+            siteStyleComponent.createObject(item, {
+                                                "engine": item,
+                                                "styles": auxiliary.siteStyles,
+                                                "browser": auxiliary.browserController
+                                            });
             item.setZoomFactor(auxiliary.drawnZoom);
             auxiliary.markAgentEngine();
             if (auxiliary.request)
@@ -158,6 +171,12 @@ ApplicationWindow {
         id: darkeningComponent
 
         DarkeningFollow {}
+    }
+
+    Component {
+        id: siteStyleComponent
+
+        SiteStyleFollow {}
     }
 
     DiagnosticBanner {
