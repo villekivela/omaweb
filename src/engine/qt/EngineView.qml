@@ -4691,7 +4691,10 @@ Item {
     // as the white it is written in, so the cover would be white over a dark page.
     // Chromium darkens only a background brighter than 205 of 255. The inverted
     // lightness, floored at about 7%, is dark where the page is but approximate:
-    // the engine draws #f5f5f5 as #222222 and white as #121212.
+    // the engine draws #f5f5f5 as #222222, #fafafa as #1f1f1f, and white as
+    // #121212 on x86_64 and #1b1b1b on aarch64, where its build rounds the
+    // channels of an inverted grey apart and Chromium does not move it to
+    // #121212 (#936). The cover is #121212 over each.
     readonly property color coverGroundColor: {
         // A page left as written is covered in the ground it reported, which on
         // a wrapper's theme is the wrapper's and not the canvas's.

@@ -614,6 +614,16 @@ reports the gap and remains experimental rather than imitating behavior it canno
   `#3b3b3e`, on any ground. A background at or below 205, such as `#cccccc`, `#6b7280` or `#18181b`,
   is left as it is.
 
+  The aarch64 engine draws white as `#1b1b1b` (#936). Chromium inverts white to `#1b1b1b`, then
+  moves a grey that dark to `#121212`, but only when its three channels are equal to within a
+  float's epsilon. The aarch64 engine is built with GCC, which fuses each multiply and add into one
+  instruction, so the channels land further apart than that and the move is skipped. The x86_64
+  engine is built with clang for a processor without that instruction. Near-whites differ the same
+  way: `#fcfcfc` is `#121212` on x86_64 and `#1e1e1e` on aarch64. The difference can stay, because
+  the cover already approximates a darkened ground: on x86_64 it is `#121212` over a `#fafafa` page
+  the engine draws `#1f1f1f`. Building the engine without fused operations is
+  villekivela/omaweb-qtwebengine-patches#34.
+
   A page whose own ground is already dark is left as written. The shell's wish stays the reader's:
   `darkenPage` is true while the switch is on and the site is not turned off, and the adapter
   darkens the page only while the page does not bring its own dark ground, so an app whose dark
@@ -865,11 +875,11 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - A page is painted on the canvas every browser gives it: white, or the dark canvas the engine draws
   under a page that declares `color-scheme: dark`. A page that sets no background of its own is
   white under a dark theme, as its author saw it, unless Page darkening is on and the engine can
-  darken: then it is drawn on the dark canvas, `#121212`, for every site the reader has not turned
-  it off for, and the cover that stands in for it is dark too. The theme's colour is shown only
-  where no page has painted yet, from the moment a document is created until its first paint, so a
-  navigation under a dark theme never flashes a bright rectangle through the chrome, and the page on
-  show keeps its canvas while the next document is fetched.
+  darken: then it is drawn on the dark canvas, `#121212` (`#1b1b1b` on aarch64), for every site the
+  reader has not turned it off for, and the cover that stands in for it is dark too. The theme's
+  colour is shown only where no page has painted yet, from the moment a document is created until
+  its first paint, so a navigation under a dark theme never flashes a bright rectangle through the
+  chrome, and the page on show keeps its canvas while the next document is fetched.
 
 ## Daily browser operations
 
