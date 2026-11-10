@@ -347,6 +347,10 @@
         <translation>Koko näyttö</translation>
     </message>
     <message>
+        <source>Style this site</source>
+        <translation>Muotoile sivustoa</translation>
+    </message>
+    <message>
         <source>Developer tools</source>
         <translation>Kehittäjän työkalut</translation>
     </message>
@@ -1529,6 +1533,10 @@
     <message>
         <source>Copy address</source>
         <translation>Kopioi osoite</translation>
+    </message>
+    <message>
+        <source>Style this site</source>
+        <translation>Muotoile sivustoa</translation>
     </message>
     <message>
         <source>Inspect element</source>

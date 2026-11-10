@@ -78,6 +78,15 @@ ApplicationWindow {
     readonly property real developerToolsMinimumWidth: 320
     readonly property real developerToolsMaximumWidth: Math.max(developerToolsMinimumWidth, Math.min(
                                                                     920, window.width * 0.6))
+    // Whether the reader asked for the Site style panel. It stands only where
+    // their styles apply, so not in an Agent Space, and comes back with the
+    // reader's Space. It stays open across navigation and tab switches.
+    property bool siteStylePanelOpen: false
+    readonly property bool siteStyleAvailable: window.readerSiteStyles !== null &&
+                                               !window.agentSpaceOnShow
+    readonly property bool siteStylePanelShown: window.siteStylePanelOpen
+                                                && window.siteStyleAvailable
+    readonly property int siteStylePanelWidth: 400
     readonly property real developerToolsDefaultWidth: 480
     property real developerToolsWidth: developerToolsDefaultWidth
     // The dock stands only for the tab on show, and only once the engine has
@@ -1990,6 +1999,11 @@ ApplicationWindow {
                       "separator": true
                   });
         rows.push({
+                      "label": qsTr("Style this site"),
+                      "command": "site-style",
+                      "enabled": window.siteStyleAvailable
+                  });
+        rows.push({
                       "label": qsTr("Inspect element"),
                       "command": "inspect-element",
                       "enabled": window.developerToolsAvailable
@@ -2831,6 +2845,12 @@ ApplicationWindow {
 
     function exitSiteFullscreen() {
         engineLoader.exitSiteFullscreen();
+    }
+
+    function toggleSiteStylePanel() {
+        if (!window.siteStyleAvailable)
+            return;
+        window.siteStylePanelOpen = !window.siteStylePanelOpen;
     }
 
     function toggleDeveloperTools() {
@@ -4391,14 +4411,17 @@ ApplicationWindow {
                     // over the seam and paint the sidebar's edge out for the
                     // length of the nudge.
                     clip: sidebar.tabOffsetX !== 0
-                    anchors.left: parent.left
+                    // The page gives up the width a dock takes rather than
+                    // being covered by it, so nothing the inspector or the
+                    // picker points at is hidden behind the panel doing so.
+                    anchors.left: siteStylePanel.visible && siteStylePanel.dockedLeft
+                                  ? siteStylePanel.right : parent.left
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    // The page gives up the width the dock takes rather than
-                    // being covered by it, so nothing the inspector points at
-                    // is hidden behind the inspector.
                     anchors.right: developerToolsDock.visible ? developerToolsDock.left :
-                                                                parent.right
+                                                                siteStylePanel.visible &&
+                                                                !siteStylePanel.dockedLeft
+                                                                ? siteStylePanel.left : parent.right
                     focus: true
                     browserController: window.windowBrowser
                     agentControl: window.agentControlSource
@@ -4602,16 +4625,41 @@ ApplicationWindow {
                              !engineLoader.siteFullscreenActive
                 }
 
+                // Opposite the sidebar, against the viewport's outer edge, with
+                // Developer tools inside it when both are open.
+                SiteStylePanel {
+                    id: siteStylePanel
+                    objectName: "siteStylePanel"
+                    dockedLeft: chromeRow.sidebarOnRight
+                    x: dockedLeft ? 0 : DevicePixels.snap(parent.width - width,
+                                                          window.devicePixelRatio)
+                    width: window.siteStylePanelWidth
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    visible: window.siteStylePanelShown && !window.settingsOpen &&
+                             !window.historyOpen
+                    z: 4
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    styles: window.readerSiteStyles
+                    pageUrl: window.windowBrowser.activeUrl
+                    onCloseRequested: window.siteStylePanelOpen = false
+                }
+
                 DeveloperToolsDock {
                     id: developerToolsDock
                     objectName: "developerToolsDock"
-                    // Against the right edge, starting on a whole pixel of the
-                    // display, so the page beside it ends on one.
-                    x: DevicePixels.snap(parent.width - window.developerToolsWidth,
+                    // Against the right edge, or the Site style panel there,
+                    // starting on a whole pixel of the display, so the page
+                    // beside it ends on one.
+                    readonly property real outerEdge: siteStylePanel.visible &&
+                                                      !siteStylePanel.dockedLeft ? siteStylePanel.x :
+                                                                                   parent.width
+                    x: DevicePixels.snap(outerEdge - window.developerToolsWidth,
                                          window.devicePixelRatio)
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    width: parent.width - x
+                    width: outerEdge - x
                     visible: window.developerToolsOpen && !window.settingsOpen &&
                              !window.historyOpen
                     z: 4

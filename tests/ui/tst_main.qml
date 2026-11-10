@@ -360,6 +360,7 @@ TestCase {
         window.endStartPageDrive();
         window.startPageSummoned = false;
         window.shortcutsOpen = false;
+        window.siteStylePanelOpen = false;
         window.settingsOpen = false;
         window.historyOpen = false;
         window.dialogMode = "";
@@ -5117,6 +5118,105 @@ TestCase {
         verify(popup === siteStyles);
         compare(inAgentSpace, null);
         verify(takenOver === siteStyles);
+    }
+
+    // The Site style panel docks opposite the sidebar and the page narrows
+    // beside it, as it does beside Developer tools. It writes the page's site
+    // unless the reader picks a narrower host.
+    function test_siteStylePanelDocksOppositeTheSidebar() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const viewport = findChild(window.contentItem, "engineViewport");
+        openPage("https://gist.github.com/villekivela");
+        const panel = findChild(window.contentItem, "siteStylePanel");
+        verify(panel !== null);
+        verify(!panel.visible);
+
+        window.commands.run("site-style", -1);
+        tryVerify(function () {
+            return panel.visible;
+        });
+        compare(panel.host, "github.com");
+        compare(panel.width, 400);
+        tryVerify(function () {
+            return Math.round(engineHost.width + panel.width) === Math.round(viewport.width);
+        });
+        compare(Math.round(engineHost.x + engineHost.width), Math.round(panel.x));
+
+        window.setSidebarSide("right");
+        tryVerify(function () {
+            return Math.round(panel.x) === 0 && Math.round(engineHost.x) === panel.width;
+        });
+
+        window.commands.run("site-style", -1);
+        tryVerify(function () {
+            return !panel.visible;
+        });
+        tryVerify(function () {
+            return Math.round(engineHost.width) === Math.round(viewport.width) && Math.round(
+                        engineHost.x) === 0;
+        });
+    }
+
+    // The panel stays open across tab switches and navigation, and follows
+    // the host of the page on show.
+    function test_siteStylePanelFollowsThePageOnShow() {
+        openPage("https://gist.github.com/villekivela");
+        const firstTabId = browser.activeTabId;
+        const panel = findChild(window.contentItem, "siteStylePanel");
+        window.commands.run("site-style", -1);
+        tryVerify(function () {
+            return panel.visible;
+        });
+
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        browser.openInput("https://www.bbc.co.uk/news", true);
+        tryVerify(function () {
+            return engineHost.item !== null && engineHost.item.currentUrl.toString()
+                    === "https://www.bbc.co.uk/news";
+        });
+        verify(browser.activeTabId !== firstTabId);
+        verify(panel.visible);
+        compare(panel.host, "bbc.co.uk");
+        openPage("https://news.ycombinator.com/item?id=1");
+        compare(panel.host, "ycombinator.com");
+        browser.activateTab(firstTabId);
+        tryCompare(panel, "host", "github.com");
+        verify(panel.visible);
+    }
+
+    // An Agent Space reads every site as it is served, so it offers no Site
+    // style panel, neither by command nor in the page menu. The panel is the
+    // reader's again when their Space is.
+    function test_siteStylePanelStaysOutOfAnAgentSpace() {
+        const readersSpaceId = browser.activeSpaceId;
+        const page = openPage("https://styled.example/");
+        const panel = findChild(window.contentItem, "siteStylePanel");
+        const styleRow = function () {
+            return window.pageMenuFor({}).filter(function (row) {
+                return row.command === "site-style";
+            });
+        };
+        compare(styleRow().length, 1);
+        compare(styleRow()[0].label, "Style this site");
+        verify(styleRow()[0].enabled);
+        window.commands.run("site-style", -1);
+        tryVerify(function () {
+            return panel.visible;
+        });
+
+        const spaceId = agentSpaceProbe.create("Unstyled agent", "claude-code", false);
+        verify(browser.switchSpace(spaceId));
+        tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
+        openPage("https://styled.example/agent");
+        verify(!panel.visible);
+        verify(!window.commands.available("site-style"));
+        verify(!styleRow()[0].enabled);
+
+        verify(browser.switchSpace(readersSpaceId));
+        tryVerify(function () {
+            return panel.visible;
+        });
+        verify(browser.deleteSpace(spaceId, "Unstyled agent"));
     }
 
     // A Private window has no Agent Space, and its pages take the reader's

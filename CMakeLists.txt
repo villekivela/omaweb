@@ -937,6 +937,7 @@ set(omaweb_ui_files
     src/ui/ChromeScrollBar.qml
     src/ui/Omnibar.qml
     src/ui/DeveloperToolsDock.qml
+    src/ui/SiteStylePanel.qml
     src/ui/AddressTrigger.mjs
     src/ui/DevicePixels.mjs
     src/ui/PageDarkening.mjs
