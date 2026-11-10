@@ -3747,6 +3747,10 @@ Päivitykset osoitteesta %3</translation>
         <translation>Työpöytä ei tarjoa salaisuusvarastoa, joten Omaweb ei säilytä maksukortteja.</translation>
     </message>
     <message>
+        <source>site styles</source>
+        <translation>sivustotyylit</translation>
+    </message>
+    <message>
         <source>Orange</source>
         <translation>Oranssi</translation>
     </message>
@@ -3976,6 +3980,63 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>No text on a page is drawn smaller than this, whatever size the page asks for. The page scale and a tab&apos;s zoom multiply it. A page already open takes it when it next lays out; reload to see it now.</source>
         <translation>Mitään sivun tekstiä ei piirretä tätä pienemmäksi, vaikka sivu pyytäisi pienempää. Sivujen skaalaus ja välilehden zoomaus kertovat sen. Jo avoin sivu ottaa sen käyttöön seuraavan asettelun yhteydessä; lataa uudelleen nähdäksesi sen heti.</translation>
+    </message>
+    <message>
+        <source>Site styles</source>
+        <translation>Sivustotyylit</translation>
+    </message>
+    <message>
+        <source>Your own CSS for a site, one file for each host in styles/ in the configuration folder. A file styles its host and every host under it. Switching one off keeps the file, and Sync carries both. Write one from a page with Style this site.</source>
+        <translation>Oma CSS sivustolle, yksi tiedosto kullekin palvelimelle asetuskansion styles/-kansiossa. Tiedosto muotoilee palvelimensa ja kaikki sen alla olevat. Tyylin kytkeminen pois päältä säilyttää tiedoston, ja synkronointi siirtää molemmat. Kirjoita tyyli sivulta valinnalla Muotoile sivustoa.</translation>
+    </message>
+    <message>
+        <source>1 line</source>
+        <translation>1 rivi</translation>
+    </message>
+    <message>
+        <source>%1 lines</source>
+        <translation>%1 riviä</translation>
+    </message>
+    <message>
+        <source>1 hidden</source>
+        <translation>1 piilotettu</translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation>%1 piilotettua</translation>
+    </message>
+    <message>
+        <source>off</source>
+        <translation>pois päältä</translation>
+    </message>
+    <message>
+        <source>Edit</source>
+        <comment>verb: edit a site style</comment>
+        <translation>Muokkaa</translation>
+    </message>
+    <message>
+        <source>Edit the style for %1</source>
+        <translation>Muokkaa sivuston %1 tyyliä</translation>
+    </message>
+    <message>
+        <source>Remove the style for %1</source>
+        <translation>Poista sivuston %1 tyyli</translation>
+    </message>
+    <message>
+        <source>Apply the style for %1</source>
+        <translation>Käytä sivuston %1 tyyliä</translation>
+    </message>
+    <message>
+        <source>No site styles yet</source>
+        <translation>Ei vielä sivustotyylejä</translation>
+    </message>
+    <message>
+        <source>Style this site, from the page menu or the Omnibar, writes the first one.</source>
+        <translation>Muotoile sivustoa, sivun valikosta tai Omnibarista, kirjoittaa ensimmäisen.</translation>
+    </message>
+    <message>
+        <source>Open the styles folder</source>
+        <translation>Avaa tyylikansio</translation>
     </message>
     <message>
         <source>Add card</source>

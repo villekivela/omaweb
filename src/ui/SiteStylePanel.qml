@@ -41,6 +41,17 @@ Rectangle {
         return root.site;
     }
 
+    // The panel on a host named elsewhere, as Settings' Edit names it.
+    function showHost(host) {
+        const chosen = Object.assign({}, root.chosenHosts);
+        const site = root.styles ? root.styles.siteFor("https://" + host + "/") : host;
+        if (host === site)
+            delete chosen[site];
+        else
+            chosen[site] = host;
+        root.chosenHosts = chosen;
+    }
+
     function chooseHost(host) {
         const chosen = Object.assign({}, root.chosenHosts);
         if (host === root.site)

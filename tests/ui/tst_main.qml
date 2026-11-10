@@ -5435,6 +5435,59 @@ TestCase {
         verify(siteStyles.remove("feed.example"));
     }
 
+    // Settings lists every site style by host, after Content blocking, each
+    // with its switch, Edit and Remove. Edit opens the panel on that host
+    // where a page of it is open.
+    function test_settingsListsEverySiteStyle() {
+        verify(siteStyles.hide("github.com", ".promo"));
+        siteStyles.edit("news.ycombinator.com", "td { color: grey; }");
+        verify(siteStyles.setEnabled("news.ycombinator.com", false));
+        openPage("https://gist.github.com/villekivela");
+        const settingsSurface = findChild(window.contentItem, "settingsSurface");
+        window.requestSettings();
+        tryCompare(settingsSurface, "opacity", 1);
+        tryCompare(settingsSurface, "lift", 0);
+        const section = settingsSurface.sections.indexOf("site styles");
+        compare(section, settingsSurface.sections.indexOf("content blocking") + 1);
+        settingsSurface.section = section;
+
+        const github = findChild(settingsSurface, "siteStyle-github.com");
+        const news = findChild(settingsSurface, "siteStyle-news.ycombinator.com");
+        verify(github !== null && github.visible);
+        verify(news !== null);
+        // The rows are laid out once the section is drawn, by host.
+        tryVerify(function () {
+            return news.mapToItem(null, 0, 0).y > github.mapToItem(null, 0, 0).y + github.height
+                    / 2;
+        });
+        compare(github.title, "github.com");
+        verify(github.note.indexOf("1 hidden") >= 0);
+        verify(findChild(news, "siteStyleRowSwitch").checked === false);
+        verify(findChild(settingsSurface, "openStylesFolder").visible);
+
+        mouseClick(findChild(news, "siteStyleRowSwitch"));
+        tryVerify(function () {
+            return siteStyles.enabled("news.ycombinator.com");
+        });
+        // The rows are built again as the list changes.
+        const switchedOn = findChild(settingsSurface, "siteStyle-news.ycombinator.com");
+        verify(switchedOn.note.indexOf("off") < 0);
+        waitForItemPolished(switchedOn);
+        mouseClick(findChild(switchedOn, "removeSiteStyle"));
+        tryVerify(function () {
+            return findChild(settingsSurface, "siteStyle-news.ycombinator.com") === null;
+        });
+        compare(siteStyles.source("news.ycombinator.com"), "");
+
+        mouseClick(findChild(findChild(settingsSurface, "siteStyle-github.com"), "editSiteStyle"));
+        const panel = findChild(window.contentItem, "siteStylePanel");
+        tryVerify(function () {
+            return !window.settingsOpen && panel.visible;
+        });
+        compare(panel.host, "github.com");
+        verify(siteStyles.remove("github.com"));
+    }
+
     // A Private window has no Agent Space, and its pages take the reader's
     // site styles as their Spaces' pages do.
     function test_aPrivateWindowsPagesTakeSiteStyles() {

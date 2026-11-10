@@ -2869,6 +2869,33 @@ ApplicationWindow {
         siteStylePanel.focusEditor();
     }
 
+    // A site style's Edit in Settings: the panel on that host over a page of
+    // it, the one on show if it is one, or the file in the reader's editor
+    // where no page of the host is open here.
+    function editSiteStyle(host) {
+        const under = function (url) {
+            const match = String(url).match(/^https?:\/\/(?:[^@\/]*@)?([^:\/?#]+)/i);
+            const name = match ? match[1].toLowerCase() : "";
+            return name === host || name.endsWith("." + host);
+        };
+        let tabId = under(window.windowBrowser.activeUrl) ? window.windowBrowser.activeTabId : "";
+        const tabs = window.windowBrowser.tabs;
+        for (let row = 0; tabId.length === 0 && row < tabs.rowCount(); ++row) {
+            const index = tabs.index(row, 0);
+            if (under(tabs.data(index, Qt.UserRole + 3)))
+                tabId = String(tabs.data(index, Qt.UserRole + 1));
+        }
+        if (tabId.length === 0 || !window.siteStyleAvailable) {
+            window.readerSiteStyles.openInEditor(host);
+            return;
+        }
+        window.settingsOpen = false;
+        window.windowBrowser.activateTab(tabId);
+        window.siteStylePanelOpen = true;
+        siteStylePanel.showHost(host);
+        siteStylePanel.focusEditor();
+    }
+
     function closeSiteStylePanel() {
         const focused = window.focusedRegionName() === "site-style";
         window.siteStylePanelOpen = false;
@@ -5450,6 +5477,7 @@ ApplicationWindow {
                             httpsOnly: window.httpsOnlyPolicy
                             pageDarkening: window.pageDarkeningSetting
                             pageDarkeningAvailable: window.pageDarkeningAvailable
+                            siteStyles: window.readerSiteStyles
                             engineSuggestions: window.engineSuggestionSetting
                             webRtcPolicy: window.webRtcAddressPolicy
                             secureDns: window.dnsResolver
@@ -5546,6 +5574,9 @@ ApplicationWindow {
                                 window.revealDownload(path);
                             }
                             onProblemReportRequested: window.reportProblem()
+                            onSiteStyleEdited: function (host) {
+                                window.editSiteStyle(host);
+                            }
                             onSettingsFileRevealed: function (path) {
                                 SavedDownload.reveal(path);
                             }
