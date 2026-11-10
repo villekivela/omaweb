@@ -15687,7 +15687,7 @@ TestCase {
     // listed keeps the row drawn for it. Drawing every row again at each
     // edit held a frame of the Omnibar's opening past the budget on CI's
     // slower machines (#938).
-    function test_aNarrowingKeystrokeKeepsTheRowsThatStay() {
+    function test_omnibarNarrowingKeystrokeKeepsTheRowsThatStay() {
         const homeSpaceId = browser.activeSpaceId;
         const spaceId = browser.createSpace("Narrowing");
         verify(browser.switchSpace(spaceId));
@@ -15716,6 +15716,51 @@ TestCase {
         window.closeOmnibar();
         verify(browser.switchSpace(homeSpaceId));
         verify(browser.deleteSpace(spaceId, "Narrowing"));
+    }
+
+    // The list keeps the row Return would take as its current one, the row it
+    // scrolls into view, however the rows before it come and go.
+    function test_omnibarKeepsTheSelectedRowCurrentAsTheRowsChange() {
+        const homeSpaceId = browser.activeSpaceId;
+        const spaceId = browser.createSpace("Current row");
+        verify(browser.switchSpace(spaceId));
+        ["https://ab-one.example/", "https://ac-two.example/", "https://b-three.example/",
+        "https://ab-four.example/"].forEach(function (address) {
+            browser.openInputInBackground(address);
+        });
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const rows = findChild(window.contentItem, "omnibarRowList");
+        window.openOmnibar(false);
+        ["a", "ac", "a", "ab", "b"].forEach(function (text) {
+            input.text = text;
+            omnibarRowItem(rows, panel.rows.length - 1);
+            compare(rows.currentIndex, panel.selected, "the current row after \"" + text + "\"");
+        });
+
+        window.closeOmnibar();
+        verify(browser.switchSpace(homeSpaceId));
+        verify(browser.deleteSpace(spaceId, "Current row"));
+    }
+
+    // A row listed again beside itself is drawn in both places. In command
+    // scope, so no History answer lists the rows again meanwhile.
+    function test_omnibarDrawsARowListedTwiceTwice() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const rows = findChild(window.contentItem, "omnibarRowList");
+        window.openCommandScope();
+        tryCompare(panel, "visible", true);
+        const row = {
+            "kind": "history",
+            "title": "Twice",
+            "url": "https://twice.example/"
+        };
+        panel.rows = [row];
+        compare(omnibarRowItem(rows, 0).modelData, row);
+        panel.rows = [row, row];
+        compare(omnibarRowItem(rows, 0).modelData, row);
+        compare(omnibarRowItem(rows, 1).modelData, row);
+        window.closeOmnibar();
     }
 
     // A site the Space loaded keeps its favicon after its tab closes, and a

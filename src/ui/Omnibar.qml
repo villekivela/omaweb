@@ -510,23 +510,28 @@ Item {
         selected = named === null ? -1 : next.indexOf(named);
     }
 
-    // Brings the drawn rows to `rows`: the keys no longer listed go first,
-    // then each place takes its key, moved up from further down or added.
-    // Each run of neighbours goes in or out as one change rather than a
-    // hundred, since the list handles every change it is told of. The list
-    // takes the changes in at its next layout, before the frame is drawn, so
-    // a row read straight after an edit can still be one it drew before
-    // (#938); laying it out at once cost an opening most of what this saves.
+    // Brings the drawn rows to `rows`. Rows added or dropped side by side go
+    // in or out as one change rather than one each, since the list handles
+    // every change it is told of; a row moved goes alone. The list takes the
+    // changes in at its next layout, before the frame is drawn, so a row read
+    // straight after an edit can still be one it drew before (#938); laying
+    // it out at once cost an opening most of what this saves.
     function drawRows() {
-        const wanted = rows.map(function (row) {
-            if (!keyOfRow.has(row)) {
-                keyOfRow.set(row, nextRowKey);
-                rowOfKey.set(nextRowKey, row);
-                ++nextRowKey;
-            }
-            return keyOfRow.get(row);
-        });
-        const listed = new Set(wanted);
+        const wanted = [];
+        const listed = new Set();
+        for (let index = 0; index < rows.length; ++index) {
+            const row = rows[index];
+            if (!keyOfRow.has(row))
+                keyOfRow.set(row, nextRowKey++);
+            let key = keyOfRow.get(row);
+            // A row listed twice is drawn twice, each under a key of its
+            // own, so no key stands for two places.
+            if (listed.has(key))
+                key = nextRowKey++;
+            rowOfKey.set(key, row);
+            wanted.push(key);
+            listed.add(key);
+        }
         const drawn = [];
         let end = drawnRows.count;
         for (let index = drawnRows.count - 1; index >= -1; --index) {
@@ -566,10 +571,11 @@ Item {
             index += added.length;
         }
         rowOfKey.forEach(function (row, key) {
-            if (!listed.has(key)) {
-                rowOfKey.delete(key);
+            if (listed.has(key))
+                return;
+            rowOfKey.delete(key);
+            if (keyOfRow.get(row) === key)
                 keyOfRow.delete(row);
-            }
         });
     }
 
@@ -1309,7 +1315,16 @@ Item {
                 visible: root.rows.length > 0
                 clip: true
                 model: drawnRows
+                // The list moves its current row with the rows added or
+                // dropped before it when it next lays out, which `selected`
+                // has already allowed for, so the selected row is put back.
                 currentIndex: root.selected
+                onCurrentIndexChanged: {
+                    if (currentIndex !== root.selected)
+                        currentIndex = Qt.binding(function () {
+                            return root.selected;
+                        });
+                }
                 highlightMoveDuration: 0
                 boundsBehavior: Flickable.StopAtBounds
 
