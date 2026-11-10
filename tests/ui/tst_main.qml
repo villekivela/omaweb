@@ -962,7 +962,7 @@ TestCase {
             return menu.visible;
         });
         compare(labels(), ["Back", "Forward", "Reload", "Retry over insecure HTTP", "—",
-                           "Copy address", "—", "Inspect element"]);
+                           "Copy address", "—", "Style this site", "Inspect element"]);
         keyClick(Qt.Key_Escape);
         tryVerify(function () {
             return !menu.visible;
