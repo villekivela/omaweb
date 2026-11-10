@@ -17,7 +17,6 @@ Rectangle {
     property string iconFontFamily
     // The reader's site styles (`SiteStyles`).
     property var styles: null
-    // The address of the page on show.
     property url pageUrl
     // Against the window's left edge, when the sidebar is on the right.
     property bool dockedLeft: false
@@ -27,24 +26,18 @@ Rectangle {
     // The host the panel writes: the page's registrable site, unless the
     // reader picked a narrower one for this site and the page is under it.
     readonly property string site: root.styles ? root.styles.siteFor(root.pageUrl) : ""
-    readonly property string pageHost: {
-        const match = String(root.pageUrl).match(
-                  /^[a-z][a-z0-9+.-]*:\/\/(?:[^@\/]*@)?([^:\/?#]+)/i);
-        return match ? match[1].toLowerCase() : "";
-    }
     // The narrower host picked for each site, for as long as the panel stands.
     property var chosenHosts: ({})
     readonly property string host: {
         const chosen = root.chosenHosts[root.site];
-        if (chosen && (root.pageHost === chosen || root.pageHost.endsWith("." + chosen)))
-            return chosen;
-        return root.site;
+        return chosen && root.styles.reaches(chosen, root.pageUrl) ? chosen : root.site;
     }
 
-    // The panel on a host named elsewhere, as Settings' Edit names it.
-    function showHost(host) {
+    // Writes a host's style rather than its site's, on the site's pages under
+    // it: picked in the host picker, or named by Settings' Edit.
+    function chooseHost(host) {
+        const site = root.styles.siteFor("https://" + host + "/");
         const chosen = Object.assign({}, root.chosenHosts);
-        const site = root.styles ? root.styles.siteFor("https://" + host + "/") : host;
         if (host === site)
             delete chosen[site];
         else
@@ -52,14 +45,6 @@ Rectangle {
         root.chosenHosts = chosen;
     }
 
-    function chooseHost(host) {
-        const chosen = Object.assign({}, root.chosenHosts);
-        if (host === root.site)
-            delete chosen[root.site];
-        else
-            chosen[root.site] = host;
-        root.chosenHosts = chosen;
-    }
     // Read again whenever a style changes, here or in its file.
     readonly property var listed: root.styles ? root.styles.styles : []
     readonly property var entry: {
@@ -69,7 +54,7 @@ Rectangle {
         }
         return null;
     }
-    readonly property bool enabled_: root.entry === null || root.entry.enabled
+    readonly property bool styleApplies: root.entry === null || root.entry.enabled
     readonly property bool unsaved: root.styles !== null && root.styles.unsaved.indexOf(root.host)
                                     >= 0
     readonly property bool hostsOpen: hostList.visible
@@ -87,9 +72,12 @@ Rectangle {
         editor.forceActiveFocus();
     }
 
+    // The picker's keys are the page's, so the page takes the keyboard.
     function startPicking() {
-        if (root.engine && root.host.length > 0)
-            root.engine.startPicking();
+        if (!root.engine || root.host.length === 0)
+            return;
+        root.engine.startPicking();
+        root.engine.focusPage();
     }
 
     function stopPicking() {
@@ -115,7 +103,7 @@ Rectangle {
             return qsTr("Matches nothing on this page");
         if (count === 1)
             return qsTr("Matches 1 element on this page");
-        return qsTr("Matches %1 elements on this page").arg(count);
+        return qsTr("Matches %n elements on this page", "", count);
     }
 
     // The engine last shown, so a picker left running on a page the reader
@@ -210,8 +198,8 @@ Rectangle {
                     Glyph {
                         anchors.verticalCenter: parent.verticalCenter
                         name: "palette"
-                        color: root.enabled_ && root.entry !== null ? root.colors.accent :
-                                                                      root.colors.mutedText
+                        color: root.styleApplies && root.entry !== null ? root.colors.accent :
+                                                                          root.colors.mutedText
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
@@ -247,10 +235,10 @@ Rectangle {
                 anchors.rightMargin: Style.spacing.lg
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.entry !== null
-                checked: root.enabled_
+                checked: root.styleApplies
                 foreground: root.colors.text
                 accent: root.colors.accent
-                onToggled: root.styles.setEnabled(root.host, !root.enabled_)
+                onToggled: root.styles.setEnabled(root.host, !root.styleApplies)
                 Accessible.role: Accessible.Switch
                 Accessible.name: qsTr("Apply the style for %1").arg(root.host)
                 Accessible.checked: checked
@@ -285,11 +273,12 @@ Rectangle {
             color: root.colors.mutedText
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
-            text: root.host.length === 0 ? qsTr("Open a page to style its site.") : !root.enabled_ ? qsTr(
-                                                                                                         "Off. styles/%1.css is kept, and applies again when switched on.").arg(
-                                                                                                         root.host) :
-                                                                                                     qsTr("styles/%1.css · styles %1 and every host under it").arg(
-                                                                                                         root.host)
+            text: root.host.length === 0 ? qsTr("Open a page to style its site.") :
+                                           !root.styleApplies ? qsTr(
+                                                                    "Off. styles/%1.css is kept, and applies again when switched on.").arg(
+                                                                    root.host) : qsTr(
+                                                                    "styles/%1.css · styles %1 and every host under it").arg(
+                                                                    root.host)
         }
 
         // ---- the editor -----------------------------------------------------
@@ -299,7 +288,7 @@ Rectangle {
             width: body.width
             height: Math.max(Style.spacing.controlHeight * 4, root.height * 0.38)
             enabled: root.host.length > 0
-            opacity: root.enabled_ ? 1 : 0.55
+            opacity: root.styleApplies ? 1 : 0.55
             clip: true
 
             MultilineField {
@@ -421,8 +410,8 @@ Rectangle {
                         objectName: "siteStyleHiddenCount"
                         anchors.verticalCenter: parent.verticalCenter
                         text: hiddenRow.count < 0 ? "" : hiddenRow.count === 0 ? qsTr("none here") :
-                                                                                 qsTr("%1 here").arg(
-                                                                                     hiddenRow.count)
+                                                                                 qsTr("%n here", "",
+                                                                                      hiddenRow.count)
                         color: root.colors.mutedText
                         font.family: Style.font.family
                         font.pixelSize: Style.font.caption
@@ -528,6 +517,7 @@ Rectangle {
                     }
                     onTextEdited: root.engine.setPickSelector(selectorField.text)
                     onAccepted: root.engine.hidePick()
+                    Keys.onEscapePressed: root.stopPicking()
                     Accessible.name: qsTr("Selector to hide")
                 }
 

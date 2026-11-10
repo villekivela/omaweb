@@ -3376,6 +3376,35 @@ Päivitykset osoitteesta %3</translation>
         <source>Remove</source>
         <translation>Poista</translation>
     </message>
+    <message numerus="yes">
+        <source>%n lines</source>
+        <translation>
+            <numerusform>%n rivi</numerusform>
+            <numerusform>%n riviä</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n hidden</source>
+        <translation>
+            <numerusform>%n piilotettu</numerusform>
+            <numerusform>%n piilotettua</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>%1 · off</source>
+        <comment>a site style: its length · off</comment>
+        <translation>%1 · pois päältä</translation>
+    </message>
+    <message>
+        <source>%1 · %2</source>
+        <comment>a site style: its length · how many it hides</comment>
+        <translation>%1 · %2</translation>
+    </message>
+    <message>
+        <source>%1 · %2 · off</source>
+        <comment>a site style: its length · how many it hides · off</comment>
+        <translation>%1 · %2 · pois päältä</translation>
+    </message>
     <message>
         <source>Remove this download from the history</source>
         <translation>Poista tämä lataus historiasta</translation>
@@ -3994,20 +4023,8 @@ Päivitykset osoitteesta %3</translation>
         <translation>1 rivi</translation>
     </message>
     <message>
-        <source>%1 lines</source>
-        <translation>%1 riviä</translation>
-    </message>
-    <message>
         <source>1 hidden</source>
         <translation>1 piilotettu</translation>
-    </message>
-    <message>
-        <source>%1 hidden</source>
-        <translation>%1 piilotettua</translation>
-    </message>
-    <message>
-        <source>off</source>
-        <translation>pois päältä</translation>
     </message>
     <message>
         <source>Edit</source>
@@ -4785,10 +4802,6 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <translation>Osuu 1 elementtiin tällä sivulla</translation>
     </message>
     <message>
-        <source>Matches %1 elements on this page</source>
-        <translation>Osuu %1 elementtiin tällä sivulla</translation>
-    </message>
-    <message>
         <source>No site</source>
         <translation>Ei sivustoa</translation>
     </message>
@@ -4840,9 +4853,19 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <source>none here</source>
         <translation>ei täällä</translation>
     </message>
-    <message>
-        <source>%1 here</source>
-        <translation>%1 täällä</translation>
+    <message numerus="yes">
+        <source>Matches %n elements on this page</source>
+        <translation>
+            <numerusform>Osuu %n elementtiin tällä sivulla</numerusform>
+            <numerusform>Osuu %n elementtiin tällä sivulla</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n here</source>
+        <translation>
+            <numerusform>%n täällä</numerusform>
+            <numerusform>%n täällä</numerusform>
+        </translation>
     </message>
     <message>
         <source>Show %1 on the page</source>

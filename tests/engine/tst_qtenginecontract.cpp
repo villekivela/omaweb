@@ -4514,6 +4514,13 @@ void QtEngineContractTest::qtPicksAnElementToHide()
         </main>
         <div id="cookie-banner"
              style="position:absolute;left:0;top:400px;width:200px;height:40px">cookies</div>
+        <section style="position:absolute;left:320px;top:0;width:200px;height:100px">
+          <button data-testid="share" style="width:80px;height:30px">share</button>
+        </section>
+        <div style="position:absolute;left:320px;top:200px;width:200px;height:100px">
+          <span style="display:block;height:30px">a</span>
+          <span style="display:block;height:30px">b</span>
+        </div>
     </body></html>)HTML");
     QVERIFY(server.listen(QHostAddress::LocalHost));
 
@@ -4550,8 +4557,21 @@ void QtEngineContractTest::qtPicksAnElementToHide()
     QVERIFY(QMetaObject::invokeMethod(adapter.get(), "startPicking"));
     QVERIFY(adapter->property("picking").toBool());
     QTRY_VERIFY_WITH_TIMEOUT(pick().contains(QStringLiteral("levels")), 5000);
+    // Hovering highlights what is under the pointer, and a click picks it.
+    QTest::mouseMove(&window, QPoint(100, 420));
+    QTRY_COMPARE_WITH_TIMEOUT(selector(), QStringLiteral("#cookie-banner"), 5000);
     QVERIFY(input.click(webView, QPointF(100, 420)));
     QTRY_COMPARE_WITH_TIMEOUT(selector(), QStringLiteral("#cookie-banner"), 5000);
+    QCOMPARE(count(), 1);
+
+    // An element with no id or class of its own is named by an attribute that
+    // says what it is, and one with nothing to tell it from its siblings by
+    // its place among them.
+    QVERIFY(input.click(webView, QPointF(350, 15)));
+    QTRY_VERIFY_WITH_TIMEOUT(selector().contains(QStringLiteral("[data-testid=\"share\"]")), 5000);
+    QCOMPARE(count(), 1);
+    QVERIFY(input.click(webView, QPointF(350, 245)));
+    QTRY_VERIFY_WITH_TIMEOUT(selector().contains(QStringLiteral(":nth-child(2)")), 5000);
     QCOMPARE(count(), 1);
 
     QVERIFY(input.click(webView, QPointF(240, 30)));
@@ -4575,8 +4595,11 @@ void QtEngineContractTest::qtPicksAnElementToHide()
     // The keys are the picker's while it picks, and the page hears none.
     QVERIFY(input.pressKey(webView, QStringLiteral("ArrowUp")));
     QTRY_VERIFY_WITH_TIMEOUT(!selector().contains(QStringLiteral("promo")), 5000);
+    const auto article = selector();
     QVERIFY(input.pressKey(webView, QStringLiteral("ArrowRight")));
+    QTRY_VERIFY_WITH_TIMEOUT(selector() != article && count() == 1, 5000);
     QVERIFY(input.pressKey(webView, QStringLiteral("ArrowLeft")));
+    QTRY_COMPARE_WITH_TIMEOUT(selector(), article, 5000);
     QVERIFY(input.pressKey(webView, QStringLiteral("]")));
     QTRY_COMPARE_WITH_TIMEOUT(count(), 3, 5000);
     const auto widened = selector();
@@ -4639,6 +4662,8 @@ void QtEngineContractTest::qtCountsAndPreviewsWhatAStyleHides()
     QVERIFY(adapter->setProperty("currentUrl", pageUrl));
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString(), QStringLiteral("none"), 15000);
+    // Every change below restyles the document on show: none loads another.
+    const auto generation = adapter->property("pageGeneration").toInt();
 
     const QStringList selectors {QStringLiteral("#cookie-banner"), QStringLiteral(".note"),
         QStringLiteral("p["), QStringLiteral("#gone")};
@@ -4655,6 +4680,15 @@ void QtEngineContractTest::qtCountsAndPreviewsWhatAStyleHides()
         Q_ARG(QVariant, QStringLiteral("#cookie-banner")), Q_ARG(QVariant, false)));
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString(), QStringLiteral("none"), 5000);
+
+    // Undoing the hide shows the element again, and hiding it again hides it.
+    QVERIFY(siteStyles.unhide(QStringLiteral("127.0.0.1"), QStringLiteral("#cookie-banner")));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("flex"), 5000);
+    QVERIFY(siteStyles.hide(QStringLiteral("127.0.0.1"), QStringLiteral("#cookie-banner")));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("none"), 5000);
+    QCOMPARE(adapter->property("pageGeneration").toInt(), generation);
 }
 
 // Every document a navigation creates runs the view's scripts and the

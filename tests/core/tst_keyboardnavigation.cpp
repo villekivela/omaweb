@@ -237,7 +237,8 @@ void KeyboardNavigationTest::bindsSiteInformation()
 }
 
 // The shipped keymap toggles the Site style panel, rebindable as any other
-// command, on a chord no other default and no Omarchy binding takes.
+// command. A JSON object holds one command per chord, so no other default can
+// take it; Omarchy binds nothing to it either, which was checked by hand.
 void KeyboardNavigationTest::bindsTheSiteStylePanelByDefault()
 {
     QTemporaryDir root;

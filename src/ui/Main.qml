@@ -2874,9 +2874,7 @@ ApplicationWindow {
     // where no page of the host is open here.
     function editSiteStyle(host) {
         const under = function (url) {
-            const match = String(url).match(/^https?:\/\/(?:[^@\/]*@)?([^:\/?#]+)/i);
-            const name = match ? match[1].toLowerCase() : "";
-            return name === host || name.endsWith("." + host);
+            return window.readerSiteStyles.reaches(host, url);
         };
         let tabId = under(window.windowBrowser.activeUrl) ? window.windowBrowser.activeTabId : "";
         const tabs = window.windowBrowser.tabs;
@@ -2892,7 +2890,7 @@ ApplicationWindow {
         window.settingsOpen = false;
         window.windowBrowser.activateTab(tabId);
         window.siteStylePanelOpen = true;
-        siteStylePanel.showHost(host);
+        siteStylePanel.chooseHost(host);
         siteStylePanel.focusEditor();
     }
 

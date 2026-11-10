@@ -87,6 +87,9 @@ public:
     // The selectors a host's file hides, in the order they were added.
     Q_INVOKABLE QStringList hidden(const QString &host) const;
 
+    // Whether a host's file reaches the page at an address: the page's host
+    // is the host or one under it.
+    Q_INVOKABLE bool reaches(const QString &host, const QUrl &url) const;
     // The hosts a page's style can be written for: its own and each above it
     // that is still its site, the narrowest first. Each has its `host` and
     // whether a file `exists` for it.

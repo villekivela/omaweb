@@ -458,6 +458,21 @@ Rectangle {
     // Space: every Space loads the same package, and what they keep apart is
     // the storage the extension writes.
     signal knownExtensionToggled(string key, bool enabled)
+    // What a site style's row says under its host: how long it is, how many
+    // elements it hides, and whether it is off.
+    function siteStyleNote(style) {
+        const lines = style.lines === 1 ? qsTr("1 line") : qsTr("%n lines", "", style.lines);
+        const hidden = style.hidden === 1 ? qsTr("1 hidden") : qsTr("%n hidden", "", style.hidden);
+        if (style.hidden === 0)
+            return style.enabled ? lines : qsTr("%1 · off", "a site style: its length · off").arg(
+                                       lines);
+        if (style.enabled)
+            return qsTr("%1 · %2", "a site style: its length · how many it hides").arg(lines).arg(
+                        hidden);
+        return qsTr("%1 · %2 · off", "a site style: its length · how many it hides · off").arg(
+                    lines).arg(hidden);
+    }
+
     // A site style's Edit: the panel on that host, or its file.
     signal siteStyleEdited(string host)
     signal useFaviconsToggled(bool enabled)
@@ -2254,14 +2269,7 @@ Rectangle {
                                 width: pane.width
                                 colors: root.colors
                                 title: modelData.host
-                                note: (modelData.lines === 1 ? qsTr("1 line") : qsTr("%1 lines").arg(
-                                                                   modelData.lines)) + (
-                                          modelData.hidden === 0 ? "" : " · " + (modelData.hidden
-                                                                                 === 1 ? qsTr(
-                                                                                             "1 hidden") :
-                                                                                         qsTr("%1 hidden").arg(
-                                                                                             modelData.hidden)))
-                                      + (modelData.enabled ? "" : " · " + qsTr("off"))
+                                note: root.siteStyleNote(modelData)
 
                                 Row {
                                     spacing: Style.spacing.lg

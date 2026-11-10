@@ -5179,9 +5179,11 @@ TestCase {
         compare(panel.host, "bbc.co.uk");
         openPage("https://news.ycombinator.com/item?id=1");
         compare(panel.host, "ycombinator.com");
+        const secondTabId = browser.activeTabId;
         browser.activateTab(firstTabId);
         tryCompare(panel, "host", "github.com");
         verify(panel.visible);
+        browser.closeTab(secondTabId);
     }
 
     // An Agent Space reads every site as it is served, so it offers no Site
@@ -5199,6 +5201,15 @@ TestCase {
         compare(styleRow().length, 1);
         compare(styleRow()[0].label, "Style this site");
         verify(styleRow()[0].enabled);
+        // The Omnibar's command scope lists it under its name.
+        const listed = function () {
+            return window.commands.actions().filter(function (action) {
+                return action.command === "site-style";
+            });
+        };
+        compare(listed().length, 1);
+        compare(listed()[0].title, "Style this site");
+        verify(listed()[0].enabled);
         window.commands.run("site-style", -1);
         tryVerify(function () {
             return panel.visible;
@@ -5211,6 +5222,7 @@ TestCase {
         verify(!panel.visible);
         verify(!window.commands.available("site-style"));
         verify(!styleRow()[0].enabled);
+        verify(!listed()[0].enabled);
 
         verify(browser.switchSpace(readersSpaceId));
         tryVerify(function () {
@@ -5371,6 +5383,10 @@ TestCase {
         press(panel, "siteStylePick");
         verify(page.picking);
         verify(card.visible);
+        // The picker's keys are the page's, so the page takes the keyboard.
+        tryVerify(function () {
+            return page.activeFocus;
+        });
 
         page.simulatePick({
                               "selector": "#cookie-banner",
@@ -5423,6 +5439,10 @@ TestCase {
         press(panel, "siteStyleStopPicking");
         verify(!page.picking);
         press(panel, "siteStylePick");
+        field.forceActiveFocus();
+        keyClick(Qt.Key_Escape);
+        verify(!page.picking);
+        press(panel, "siteStylePick");
         browser.openInput("https://other.example/", true);
         tryVerify(function () {
             return !page.picking;
@@ -5432,6 +5452,7 @@ TestCase {
         verify(other.picking);
         window.commands.run("site-style", -1);
         verify(!other.picking);
+        browser.closeActiveTab();
         verify(siteStyles.remove("feed.example"));
     }
 

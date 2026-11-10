@@ -11,6 +11,7 @@
 #include <QSaveFile>
 #include <QStandardPaths>
 
+#include <optional>
 #include <utility>
 
 namespace omaweb {
@@ -45,6 +46,29 @@ namespace {
     constexpr QLatin1StringView hiddenRule(" { display: none !important; }");
 
     QString hiddenLine(const QString &selector) { return hiddenMark + selector + hiddenRule; }
+
+    // The selector a line hides, or none for a line that is not a hide's. A
+    // line may end in the CR of a file saved with CR LF.
+    std::optional<QString> hiddenSelector(QString line)
+    {
+        if (line.endsWith(u'\r')) {
+            line.chop(1);
+        }
+        if (!line.startsWith(hiddenMark) || !line.endsWith(hiddenRule)) {
+            return std::nullopt;
+        }
+        return line.sliced(hiddenMark.size()).chopped(hiddenRule.size());
+    }
+
+    // A file or folder in the desktop's own application for it.
+    bool openWithDesktop(const QString &path)
+    {
+#ifdef Q_OS_MACOS
+        return QProcess::startDetached(QStringLiteral("open"), {path});
+#else
+        return QProcess::startDetached(QStringLiteral("xdg-open"), {path});
+#endif
+    }
 
 } // namespace
 
@@ -196,11 +220,7 @@ bool SiteStyles::openInEditor(const QString &host)
     if (!omarchy.isEmpty()) {
         return QProcess::startDetached(omarchy, {file});
     }
-#ifdef Q_OS_MACOS
-    return QProcess::startDetached(QStringLiteral("open"), {QStringLiteral("-t"), file});
-#else
-    return QProcess::startDetached(QStringLiteral("xdg-open"), {file});
-#endif
+    return openWithDesktop(file);
 }
 
 bool SiteStyles::openFolder()
@@ -209,11 +229,7 @@ bool SiteStyles::openFolder()
     if (folder.isEmpty() || !QDir().mkpath(folder)) {
         return false;
     }
-#ifdef Q_OS_MACOS
-    return QProcess::startDetached(QStringLiteral("open"), {folder});
-#else
-    return QProcess::startDetached(QStringLiteral("xdg-open"), {folder});
-#endif
+    return openWithDesktop(folder);
 }
 
 bool SiteStyles::remove(const QString &host)
@@ -262,8 +278,8 @@ QString SiteStyles::styleSheetShowing(const QUrl &url, const QStringList &shown)
     }
     QStringList left;
     for (const auto &line : css.split(u'\n')) {
-        const auto hide = line.startsWith(hiddenMark) && line.endsWith(hiddenRule);
-        if (!hide || !shown.contains(line.sliced(hiddenMark.size()).chopped(hiddenRule.size()))) {
+        const auto selector = hiddenSelector(line);
+        if (!selector || !shown.contains(*selector)) {
             left.append(line);
         }
     }
@@ -308,8 +324,8 @@ QStringList SiteStyles::hidden(const QString &host) const
     QStringList selectors;
     const auto lines = m_sheets.value(canonicalHost(host)).split(u'\n');
     for (const auto &line : lines) {
-        if (line.startsWith(hiddenMark) && line.endsWith(hiddenRule)) {
-            selectors.append(line.sliced(hiddenMark.size()).chopped(hiddenRule.size()));
+        if (const auto selector = hiddenSelector(line)) {
+            selectors.append(*selector);
         }
     }
     return selectors;
@@ -342,6 +358,14 @@ bool SiteStyles::write(const QString &host, const QString &css)
         emit changed();
     }
     return true;
+}
+
+bool SiteStyles::reaches(const QString &host, const QUrl &url) const
+{
+    const auto key = canonicalHost(host);
+    const auto page = canonicalHost(url.host());
+    return !key.isEmpty() && !page.isEmpty()
+        && (page == key || (QHostAddress(page).isNull() && page.endsWith(u'.' + key)));
 }
 
 QVariantList SiteStyles::hostsFor(const QUrl &url) const

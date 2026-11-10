@@ -29,6 +29,7 @@ private slots:
     void hidesAnElementOnALineOfItsOwn_data();
     void hidesAnElementOnALineOfItsOwn();
     void undoesAHideAndNothingElse();
+    void readsAndUndoesAHideInAFileWithWindowsLineEnds();
     void restylesAnEditAtOnceAndWritesItAfterAPause();
     void writesAnEditStillWaitingWhenItCloses();
     void switchesAStyleOffAndKeepsItsFile();
@@ -39,6 +40,8 @@ private slots:
     void opensAStyleInTheReadersEditor();
     void opensTheStylesFolder();
     void leavesOutAHidePreviewed();
+    void saysWhichPagesAHostStyles_data();
+    void saysWhichPagesAHostStyles();
 };
 
 namespace {
@@ -529,6 +532,53 @@ void SiteStylesTest::leavesOutAHidePreviewed()
                        "/* Hidden by Omaweb */ #feedback { display: none !important; }\n"));
     QCOMPARE(styles.styleSheetShowing(QUrl(QStringLiteral("https://github.com/")), {}),
         styles.styleSheet(QUrl(QStringLiteral("https://github.com/"))));
+}
+
+void SiteStylesTest::saysWhichPagesAHostStyles_data()
+{
+    QTest::addColumn<QString>("host");
+    QTest::addColumn<QString>("address");
+    QTest::addColumn<bool>("styled");
+    QTest::newRow("its own") << QStringLiteral("gist.github.com")
+                             << QStringLiteral("https://gist.github.com/x") << true;
+    QTest::newRow("one under it") << QStringLiteral("github.com")
+                                  << QStringLiteral("https://gist.github.com/x") << true;
+    QTest::newRow("one above it") << QStringLiteral("gist.github.com")
+                                  << QStringLiteral("https://github.com/") << false;
+    QTest::newRow("in its own script")
+        << QStringLiteral("bücher.example") << QStringLiteral("https://www.xn--bcher-kva.example/")
+        << true;
+    QTest::newRow("a name ending the same")
+        << QStringLiteral("github.com") << QStringLiteral("https://notgithub.com/") << false;
+    QTest::newRow("no host") << QStringLiteral("github.com") << QStringLiteral("about:blank")
+                             << false;
+}
+
+// Whether a host's file reaches a page, as the panel and Settings ask it of
+// the page on show and of each tab.
+void SiteStylesTest::saysWhichPagesAHostStyles()
+{
+    QFETCH(QString, host);
+    QFETCH(QString, address);
+    QFETCH(bool, styled);
+    const SiteStyles styles {QString()};
+    QCOMPARE(styles.reaches(host, QUrl(address)), styled);
+}
+
+// An editor on another system may have saved the file with CR LF.
+void SiteStylesTest::readsAndUndoesAHideInAFileWithWindowsLineEnds()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto path = root.filePath(QStringLiteral("config/styles/github.com.css"));
+    write(path,
+        "a { color: red; }\r\n"
+        "/* Hidden by Omaweb */ .promo { display: none !important; }\r\n"
+        "p { margin: 0; }\r\n");
+    SiteStyles styles(root.filePath(QStringLiteral("config")));
+    QCOMPARE(styles.hidden(QStringLiteral("github.com")), QStringList {QStringLiteral(".promo")});
+    QVERIFY(styles.unhide(QStringLiteral("github.com"), QStringLiteral(".promo")));
+    QCOMPARE(read(path), QByteArray("a { color: red; }\r\np { margin: 0; }\r\n"));
 }
 
 QTEST_GUILESS_MAIN(SiteStylesTest)
