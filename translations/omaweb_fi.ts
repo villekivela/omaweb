@@ -4998,6 +4998,14 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <translation>Synkronoituja pikanäppäimiä ei voitu ottaa käyttöön</translation>
     </message>
     <message>
+        <source>Could not read a synced site style</source>
+        <translation>Synkronoitua sivustotyyliä ei voitu lukea</translation>
+    </message>
+    <message>
+        <source>Could not apply a synced site style</source>
+        <translation>Synkronoitua sivustotyyliä ei voitu ottaa käyttöön</translation>
+    </message>
+    <message>
         <source>The synced filter subscriptions are not valid</source>
         <translation>Synkronoidut suodatintilaukset eivät kelpaa</translation>
     </message>
@@ -5008,6 +5016,10 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Could not read the local keybindings</source>
         <translation>Paikallisia pikanäppäimiä ei voitu lukea</translation>
+    </message>
+    <message>
+        <source>Could not read a local site style</source>
+        <translation>Paikallista sivustotyyliä ei voitu lukea</translation>
     </message>
     <message>
         <source>Sync is unavailable in a Private window</source>

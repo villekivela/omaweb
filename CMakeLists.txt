@@ -424,6 +424,8 @@ add_library(omaweb-core STATIC
     src/core/HttpsOnly.h
     src/core/PageDarkening.cpp
     src/core/PageDarkening.h
+    src/core/SiteStyles.cpp
+    src/core/SiteStyles.h
     src/core/GlobalPrivacyControl.h
     src/core/SecureDns.cpp
     src/core/SecureDns.h
@@ -938,6 +940,7 @@ set(omaweb_ui_files
     src/ui/AddressTrigger.mjs
     src/ui/DevicePixels.mjs
     src/ui/PageDarkening.mjs
+    src/ui/SiteStyleRule.mjs
     src/ui/LinkRuleTargets.mjs
     src/ui/SceneColour.mjs
     src/ui/SettingsAttention.mjs
@@ -966,6 +969,7 @@ set(omaweb_ui_files
     src/ui/AgentWindowBar.qml
     src/ui/CommandDialog.qml
     src/ui/DarkeningFollow.qml
+    src/ui/SiteStyleFollow.qml
     src/ui/DiagnosticBanner.qml
     src/ui/DialogPanel.qml
     src/ui/FolderRow.qml
@@ -1908,6 +1912,11 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-page-darkening-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-page-darkening-tests)
     add_test(NAME omaweb-page-darkening COMMAND omaweb-page-darkening-tests)
+
+    qt_add_executable(omaweb-site-styles-tests tests/core/tst_sitestyles.cpp)
+    target_link_libraries(omaweb-site-styles-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-site-styles-tests)
+    add_test(NAME omaweb-site-styles COMMAND omaweb-site-styles-tests)
 
     qt_add_executable(omaweb-engine-suggestions-tests tests/core/tst_enginesuggestions.cpp)
     target_link_libraries(omaweb-engine-suggestions-tests PRIVATE omaweb-core Qt6::Test)

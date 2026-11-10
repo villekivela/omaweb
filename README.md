@@ -302,6 +302,9 @@ unset:
 - `agents.json` holds Allow agents and the agent command `:ask` runs. It is kept apart so that
   copying `settings.json` to another machine does not let Agents in there.
 - `keybindings.json` controls bindings and per-site key passthrough.
+- `styles/` holds your Site styles, your own CSS for sites, one file per host: `github.com.css`
+  styles github.com and every host under it. Saving a file restyles the site's open pages at once.
+  Agent Spaces are left unstyled.
 - `theme.json` controls the browser palette.
 - `search-engines.json` controls local search engines. DuckDuckGo is the default, and remote
   suggestions are off.
@@ -391,13 +394,13 @@ Omaweb has no telemetry, advertising identifier, browser account, hosted Omaweb 
 [network request ledger](docs/network-requests.md) lists every automatic request the browser makes.
 
 Sync is optional, off until you connect it, and unavailable in a Private window. It copies Spaces,
-tabs, keybindings, filter subscription addresses, and four approved Settings keys between your own
-machines through a private git repository you own. Spaces and tabs are encrypted before upload;
-keybindings, subscription addresses, and those settings are readable in that repository. Passwords,
-payment cards, cookies, browsing history, form history, saved addresses, downloads, site
-permissions, and every Private window never enter Sync. Payment cards are kept in your desktop's
-keyring and nowhere else. [What is synced, and what is not](docs/sync-privacy.md) states the full
-boundary and the forge permissions it asks for.
+tabs, keybindings, Site styles, filter subscription addresses, and four approved Settings keys
+between your own machines through a private git repository you own. Spaces and tabs are encrypted
+before upload; keybindings, Site styles, subscription addresses, and those settings are readable in
+that repository. Passwords, payment cards, cookies, browsing history, form history, saved addresses,
+downloads, site permissions, and every Private window never enter Sync. Payment cards are kept in
+your desktop's keyring and nowhere else. [What is synced, and what is not](docs/sync-privacy.md)
+states the full boundary and the forge permissions it asks for.
 
 HTTPS-only mode is on by default: a page's own address goes over HTTPS whoever wrote the link, and
 Omaweb asks before loading a site that cannot be reached that way over plain HTTP.

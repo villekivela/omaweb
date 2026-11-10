@@ -2,6 +2,7 @@
 #include "AgentCommand.h"
 #include "AgentConsole.h"
 #include "ContentBlocker.h"
+#include "SiteStyles.h"
 #include "QtCookiePolicy.h"
 #include "QtDiagnosticOverrides.h"
 #include "QtDrawnFavicons.h"
@@ -57,6 +58,7 @@ void setDnsAliasResolverForTesting(DnsAliasResolverForTesting resolver);
 #include <QDir>
 #include <QDirIterator>
 #include <QFileInfo>
+#include <QSaveFile>
 #include <QFile>
 #include <QFontDatabase>
 #include <QJSValue>
@@ -294,6 +296,7 @@ private slots:
     void qtHidesCosmeticRulesBeforeThePageRuns_data();
     void qtHidesCosmeticRulesBeforeThePageRuns();
     void qtScriptsEveryDocumentForItsOwnAddress();
+    void qtStylesAPageWithTheReadersSiteStyle();
     void qtRejectsObsoleteCosmeticSurveys_data();
     void qtRejectsObsoleteCosmeticSurveys();
     void qtSurveysAgainForAChangeWhileThePageLoads_data();
@@ -4409,6 +4412,78 @@ void QtEngineContractTest::qtHidesCosmeticRulesBeforeThePageRuns()
     contentBlocker.setSiteEnabled(pageUrl, true);
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString().section('|', 1, 1), QStringLiteral("SG-"), 15000);
+}
+
+// The reader's own sheet for a site is in the document before the page's own
+// script runs, under a policy that refuses inline style, and with Content
+// blocking off for the site: a style is the reader's, not the blocker's. A
+// saved edit, a removed file and a view whose styles are taken away restyle
+// the open page, never reloading it.
+void QtEngineContractTest::qtStylesAPageWithTheReadersSiteStyle()
+{
+    const QByteArray body(R"HTML(<!doctype html><html><head>
+        <meta http-equiv="Content-Security-Policy"
+              content="default-src 'self'; script-src 'unsafe-inline'">
+        </head><body>
+        <p id="text">text</p>
+        <script>
+            const colour = () => getComputedStyle(document.getElementById("text")).color;
+            const first = colour();
+            const report = () => {
+                document.title = performance.timeOrigin + "|" + first + "|" + colour();
+                requestAnimationFrame(report);
+            };
+            report();
+        </script>
+    </body></html>)HTML");
+    PageServer server(body);
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/page.html").arg(server.serverPort()));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto configRoot = root.filePath(QStringLiteral("config"));
+    const auto stylePath = root.filePath(QStringLiteral("config/styles/127.0.0.1.css"));
+    const auto writeStyle = [&stylePath](const QByteArray &css) {
+        QDir().mkpath(QFileInfo(stylePath).absolutePath());
+        QSaveFile file(stylePath);
+        return file.open(QIODevice::WriteOnly) && file.write(css) == css.size() && file.commit();
+    };
+    QVERIFY(writeStyle("#text { color: rgb(255, 0, 0); }"));
+    omaweb::SiteStyles siteStyles(configRoot);
+    omaweb::ContentBlocker contentBlocker(root.path(), omaweb::ContentBlocker::DefaultLists::None);
+    QTRY_VERIFY_WITH_TIMEOUT(!contentBlocker.compiling(), 5000);
+    contentBlocker.setSiteEnabled(pageUrl, false);
+
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("contentBlocker"), QVariant::fromValue<QObject *>(&contentBlocker)},
+        {QStringLiteral("siteStyles"), QVariant::fromValue<QObject *>(&siteStyles)},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    const auto title = [&adapter] { return adapter->property("pageTitle").toString(); };
+    const auto drawn = [&title] { return title().section('|', 2, 2); };
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        title().section('|', 1), QStringLiteral("rgb(255, 0, 0)|rgb(255, 0, 0)"), 15000);
+    const auto document = title().section('|', 0, 0);
+
+    QVERIFY(writeStyle("#text { color: rgb(0, 0, 255); }"));
+    QTRY_COMPARE_WITH_TIMEOUT(drawn(), QStringLiteral("rgb(0, 0, 255)"), 15000);
+    QVERIFY(adapter->setProperty("siteStyles", QVariant::fromValue<QObject *>(nullptr)));
+    QTRY_COMPARE_WITH_TIMEOUT(drawn(), QStringLiteral("rgb(0, 0, 0)"), 15000);
+    QVERIFY(adapter->setProperty("siteStyles", QVariant::fromValue<QObject *>(&siteStyles)));
+    QTRY_COMPARE_WITH_TIMEOUT(drawn(), QStringLiteral("rgb(0, 0, 255)"), 15000);
+    QVERIFY(QFile::remove(stylePath));
+    QTRY_COMPARE_WITH_TIMEOUT(drawn(), QStringLiteral("rgb(0, 0, 0)"), 15000);
+    QCOMPARE(title().section('|', 0, 0), document);
 }
 
 // Every document a navigation creates runs the view's scripts and the
