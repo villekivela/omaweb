@@ -200,6 +200,27 @@ TestCase {
         compare(process.lines, ["one", "two", "three"]);
     }
 
+    // `I18n` and `Translations` read their catalogs through a `FileView` that never preloads and
+    // blocks every read, so the first lookup already has the text.
+    Component {
+        id: blockingFileComponent
+
+        FileView {
+            property string source: String(Qt.resolvedUrl("tst_omarchy_kit.qml")).replace("file://",
+                                                                                          "")
+            path: source
+            preload: false
+            blockAllReads: true
+            watchChanges: true
+            printErrors: false
+        }
+    }
+
+    function test_theShimReadsAFileViewThatBlocksAllReadsAtOnce() {
+        const file = createTemporaryObject(blockingFileComponent, testCase);
+        verify(file.text().startsWith("import QtQuick"));
+    }
+
     // Omaweb's own Typography object is gone: the kit's scale is the only type
     // scale, so every size a Omaweb surface asks for has to exist on it.
     function test_theKitScaleCoversEverySizeOmawebAsksFor() {
