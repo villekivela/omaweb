@@ -2,6 +2,8 @@
 
 #include <QDir>
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSaveFile>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -24,6 +26,16 @@ private slots:
     void followsAFileReplacedByRename();
     void followsAFileRemoved();
     void followsTheDirectoryCreatedLater();
+    void hidesAnElementOnALineOfItsOwn_data();
+    void hidesAnElementOnALineOfItsOwn();
+    void undoesAHideAndNothingElse();
+    void restylesAnEditAtOnceAndWritesItAfterAPause();
+    void writesAnEditStillWaitingWhenItCloses();
+    void switchesAStyleOffAndKeepsItsFile();
+    void listsEveryStyleByHost();
+    void removesAStyleWithItsSwitch();
+    void offersEachHostUpToTheSite_data();
+    void offersEachHostUpToTheSite();
 };
 
 namespace {
@@ -34,6 +46,12 @@ void write(const QString &path, const QByteArray &contents)
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
     QCOMPARE(file.write(contents), contents.size());
+}
+
+QByteArray read(const QString &path)
+{
+    QFile file(path);
+    return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
 }
 
 } // namespace
@@ -200,6 +218,244 @@ void SiteStylesTest::followsTheDirectoryCreatedLater()
     write(root.filePath(QStringLiteral("config/styles/github.com.css")), "a { color: red; }");
     QTRY_VERIFY(!styles.styleSheet(QUrl(QStringLiteral("https://github.com/"))).isEmpty());
     QVERIFY(changed.count() >= 1);
+}
+
+void SiteStylesTest::hidesAnElementOnALineOfItsOwn_data()
+{
+    QTest::addColumn<QByteArray>("before");
+    QTest::addColumn<QByteArray>("after");
+    const QByteArray hidden(
+        "/* Hidden by Omaweb */ .promo > aside { display: none !important; }\n");
+    QTest::newRow("no file yet") << QByteArray() << hidden;
+    QTest::newRow("after the reader's own CSS")
+        << QByteArray("a { color: red; }\n") << QByteArray("a { color: red; }\n") + hidden;
+    QTest::newRow("after a last line with no end")
+        << QByteArray("a { color: red; }") << QByteArray("a { color: red; }\n") + hidden;
+}
+
+// A hidden element is an ordinary rule in the site's file, marked so the panel
+// can read it back, and nothing the reader wrote is rewritten to add it.
+void SiteStylesTest::hidesAnElementOnALineOfItsOwn()
+{
+    QFETCH(QByteArray, before);
+    QFETCH(QByteArray, after);
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto path = root.filePath(QStringLiteral("config/styles/github.com.css"));
+    if (!before.isEmpty()) {
+        write(path, before);
+    }
+    SiteStyles styles(root.filePath(QStringLiteral("config")));
+    QSignalSpy changed(&styles, &SiteStyles::changed);
+    QVERIFY(styles.hide(QStringLiteral("github.com"), QStringLiteral(".promo > aside")));
+    QCOMPARE(read(path), after);
+    QCOMPARE(styles.hidden(QStringLiteral("github.com")),
+        QStringList {QStringLiteral(".promo > aside")});
+    QVERIFY(styles.styleSheet(QUrl(QStringLiteral("https://gist.github.com/")))
+            .contains(QStringLiteral(".promo > aside { display: none !important; }")));
+    QVERIFY(changed.count() >= 1);
+}
+
+// The reader may have written around Omaweb's lines, or moved them: undoing a
+// hide takes out its line wherever it stands, and no other.
+void SiteStylesTest::undoesAHideAndNothingElse()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto path = root.filePath(QStringLiteral("config/styles/github.com.css"));
+    write(path,
+        "/* Hidden by Omaweb */ .cookie-notice { display: none !important; }\n"
+        "a { color: red; }\n"
+        "/* Hidden by Omaweb */ #feedback { display: none !important; }\n"
+        "  /* Hidden by Omaweb */ #feedback { display: none !important; }\n");
+    SiteStyles styles(root.filePath(QStringLiteral("config")));
+    QCOMPARE(styles.hidden(QStringLiteral("github.com")),
+        (QStringList {QStringLiteral(".cookie-notice"), QStringLiteral("#feedback")}));
+    QSignalSpy changed(&styles, &SiteStyles::changed);
+    QVERIFY(styles.unhide(QStringLiteral("github.com"), QStringLiteral("#feedback")));
+    QCOMPARE(read(path),
+        QByteArray("/* Hidden by Omaweb */ .cookie-notice { display: none !important; }\n"
+                   "a { color: red; }\n"
+                   "  /* Hidden by Omaweb */ #feedback { display: none !important; }\n"));
+    QCOMPARE(styles.styleSheet(QUrl(QStringLiteral("https://github.com/")))
+                 .count(QStringLiteral("#feedback")),
+        1);
+    QVERIFY(changed.count() >= 1);
+    QVERIFY(!styles.unhide(QStringLiteral("github.com"), QStringLiteral("#feedback")));
+}
+
+// Typing restyles the page with each key, and the file is written once the
+// typing pauses, so the reader's editor, the watch and Sync see one save and
+// not one per key. A read of the directory meanwhile keeps what was typed.
+void SiteStylesTest::restylesAnEditAtOnceAndWritesItAfterAPause()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto path = root.filePath(QStringLiteral("config/styles/github.com.css"));
+    write(path, "a { color: red; }");
+    SiteStyles styles(root.filePath(QStringLiteral("config")));
+    QSignalSpy changed(&styles, &SiteStyles::changed);
+    const QUrl github(QStringLiteral("https://github.com/"));
+
+    styles.edit(QStringLiteral("github.com"), QStringLiteral("a { color: blue; }"));
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(styles.styleSheet(github), QStringLiteral("a { color: blue; }"));
+    QCOMPARE(styles.source(QStringLiteral("github.com")), QStringLiteral("a { color: blue; }"));
+    QCOMPARE(styles.unsaved(), QStringList {QStringLiteral("github.com")});
+    QCOMPARE(read(path), QByteArray("a { color: red; }"));
+
+    styles.reload();
+    QCOMPARE(styles.styleSheet(github), QStringLiteral("a { color: blue; }"));
+
+    QTRY_COMPARE(read(path), QByteArray("a { color: blue; }"));
+    QVERIFY(styles.unsaved().isEmpty());
+    QCOMPARE(styles.styleSheet(github), QStringLiteral("a { color: blue; }"));
+}
+
+void SiteStylesTest::writesAnEditStillWaitingWhenItCloses()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    {
+        SiteStyles styles(root.filePath(QStringLiteral("config")));
+        styles.edit(QStringLiteral("github.com"), QStringLiteral("a { color: blue; }"));
+    }
+    QCOMPARE(read(root.filePath(QStringLiteral("config/styles/github.com.css"))),
+        QByteArray("a { color: blue; }"));
+}
+
+// Off is the reader's setting, in settings.json, so it syncs with the rest and
+// the file stays as it is. A switch turned off on another machine arrives as
+// an edit of that file.
+void SiteStylesTest::switchesAStyleOffAndKeepsItsFile()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto path = root.filePath(QStringLiteral("config/styles/github.com.css"));
+    const auto settings = root.filePath(QStringLiteral("config/settings.json"));
+    write(path, "a { color: red; }");
+    write(root.filePath(QStringLiteral("config/styles/gist.github.com.css")), "p { color: blue; }");
+    SiteStyles styles(root.filePath(QStringLiteral("config")));
+    QSignalSpy changed(&styles, &SiteStyles::changed);
+    const QUrl gist(QStringLiteral("https://gist.github.com/"));
+    QVERIFY(styles.enabled(QStringLiteral("github.com")));
+
+    QVERIFY(styles.setEnabled(QStringLiteral("github.com"), false));
+    QVERIFY(!styles.enabled(QStringLiteral("github.com")));
+    QCOMPARE(styles.styleSheet(gist), QStringLiteral("p { color: blue; }"));
+    QVERIFY(changed.count() >= 1);
+    QCOMPARE(read(path), QByteArray("a { color: red; }"));
+    QCOMPARE(QJsonDocument::fromJson(read(settings)).object().value(u"site-styles").toObject(),
+        (QJsonObject {{QStringLiteral("github.com"), false}}));
+
+    QVERIFY(styles.setEnabled(QStringLiteral("github.com"), true));
+    QVERIFY(styles.styleSheet(gist).contains(QStringLiteral("color: red")));
+    QVERIFY(!QJsonDocument::fromJson(read(settings)).object().contains(u"site-styles"));
+
+    write(settings, R"({"version": 1, "site-styles": {"gist.github.com": false}})");
+    QTRY_COMPARE(styles.styleSheet(gist), QStringLiteral("a { color: red; }"));
+    QVERIFY(!styles.enabled(QStringLiteral("gist.github.com")));
+}
+
+// What Settings lists: each file by the host it names, how long it is, how
+// many elements it hides, and whether it is on.
+void SiteStylesTest::listsEveryStyleByHost()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    write(root.filePath(QStringLiteral("config/styles/github.com.css")),
+        "a { color: red; }\n"
+        "/* Hidden by Omaweb */ .promo { display: none !important; }\n"
+        "/* Hidden by Omaweb */ #feedback { display: none !important; }\n");
+    write(root.filePath(QStringLiteral("config/styles/news.ycombinator.com.css")), "td { }");
+    write(root.filePath(QStringLiteral("config/settings.json")),
+        R"({"version": 1, "site-styles": {"news.ycombinator.com": false}})");
+    SiteStyles styles(root.filePath(QStringLiteral("config")));
+    QSignalSpy changed(&styles, &SiteStyles::changed);
+
+    const auto listed = styles.styles();
+    QCOMPARE(listed.size(), 2);
+    QCOMPARE(listed.at(0).toMap(),
+        (QVariantMap {{QStringLiteral("host"), QStringLiteral("github.com")},
+            {QStringLiteral("lines"), 3}, {QStringLiteral("hidden"), 2},
+            {QStringLiteral("enabled"), true},
+            {QStringLiteral("path"),
+                root.filePath(QStringLiteral("config/styles/github.com.css"))}}));
+    QCOMPARE(listed.at(1).toMap().value(QStringLiteral("host")),
+        QVariant(QStringLiteral("news.ycombinator.com")));
+    QCOMPARE(listed.at(1).toMap().value(QStringLiteral("lines")), QVariant(1));
+    QCOMPARE(listed.at(1).toMap().value(QStringLiteral("enabled")), QVariant(false));
+}
+
+// Removing a style deletes its file and forgets its switch, so a style made
+// later for the host starts on.
+void SiteStylesTest::removesAStyleWithItsSwitch()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto path = root.filePath(QStringLiteral("config/styles/github.com.css"));
+    write(path, "a { color: red; }");
+    SiteStyles styles(root.filePath(QStringLiteral("config")));
+    QVERIFY(styles.setEnabled(QStringLiteral("github.com"), false));
+    styles.edit(QStringLiteral("github.com"), QStringLiteral("a { color: blue; }"));
+    QSignalSpy changed(&styles, &SiteStyles::changed);
+
+    QVERIFY(styles.remove(QStringLiteral("github.com")));
+    QVERIFY(!QFile::exists(path));
+    QVERIFY(styles.styles().isEmpty());
+    QVERIFY(styles.unsaved().isEmpty());
+    QVERIFY(styles.enabled(QStringLiteral("github.com")));
+    QVERIFY(changed.count() >= 1);
+    QTest::qWait(500);
+    QVERIFY(!QFile::exists(path));
+}
+
+void SiteStylesTest::offersEachHostUpToTheSite_data()
+{
+    QTest::addColumn<QString>("address");
+    QTest::addColumn<QStringList>("hosts");
+    QTest::addColumn<QString>("site");
+    QTest::newRow("a host under a site")
+        << QStringLiteral("https://gist.github.com/villekivela")
+        << QStringList {QStringLiteral("gist.github.com"), QStringLiteral("github.com")}
+        << QStringLiteral("github.com");
+    QTest::newRow("the site itself")
+        << QStringLiteral("https://github.com/") << QStringList {QStringLiteral("github.com")}
+        << QStringLiteral("github.com");
+    QTest::newRow("under a public suffix of two labels")
+        << QStringLiteral("https://www.bbc.co.uk/news")
+        << QStringList {QStringLiteral("www.bbc.co.uk"), QStringLiteral("bbc.co.uk")}
+        << QStringLiteral("bbc.co.uk");
+    QTest::newRow("an IP address")
+        << QStringLiteral("http://10.0.1.1:8080/") << QStringList {QStringLiteral("10.0.1.1")}
+        << QStringLiteral("10.0.1.1");
+    QTest::newRow("a name with no suffix")
+        << QStringLiteral("http://localhost:8000/") << QStringList {QStringLiteral("localhost")}
+        << QStringLiteral("localhost");
+    QTest::newRow("no host") << QStringLiteral("about:blank") << QStringList() << QString();
+}
+
+// The panel's host picker: the page's host and each one above it that is
+// still the site, broadest last, with the site itself chosen first. A file
+// for `co.uk` would style every British site, so it is not offered.
+void SiteStylesTest::offersEachHostUpToTheSite()
+{
+    QFETCH(QString, address);
+    QFETCH(QStringList, hosts);
+    QFETCH(QString, site);
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    write(root.filePath(QStringLiteral("config/styles/github.com.css")), "a { color: red; }");
+    const SiteStyles styles(root.filePath(QStringLiteral("config")));
+    const auto offered = styles.hostsFor(QUrl(address));
+    QStringList names;
+    for (const auto &host : offered) {
+        names.append(host.toMap().value(QStringLiteral("host")).toString());
+        QCOMPARE(host.toMap().value(QStringLiteral("exists")).toBool(),
+            names.constLast() == u"github.com");
+    }
+    QCOMPARE(names, hosts);
+    QCOMPARE(styles.siteFor(QUrl(address)), site);
 }
 
 QTEST_GUILESS_MAIN(SiteStylesTest)
