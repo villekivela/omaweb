@@ -1,6 +1,7 @@
 import QtQuick
 import Omaweb
 import "DevicePixels.mjs" as DevicePixels
+import "SiteStyleRule.mjs" as SiteStyleRule
 
 Item {
     id: root
@@ -30,6 +31,9 @@ Item {
     // Whether pages with no dark theme are darkened (`PageDarkening`). Without
     // one, no page is.
     property var pageDarkening: null
+    // The reader's site styles (`SiteStyles`), which every page here takes
+    // unless its Space is an Agent's. Without them, no page is styled.
+    property var siteStyles: null
     // The window's Problem recording, which a Private window has none of.
     property var problemRecording: null
     readonly property real pageScaleValue: root.pageScale ? root.pageScale.value : 1
@@ -753,6 +757,13 @@ Item {
                                                         // its Refusal tally by.
                                                         "spaceId": spaceId !== undefined ? spaceId :
                                                                                            root.sessionSpaceId,
+                                                        // Styled from the first document.
+                                                        "siteStyles": SiteStyleRule.stylesFor(
+                                                                          root.siteStyles,
+                                                                          root.browserController,
+                                                                          spaceId !== undefined
+                                                                          ? spaceId :
+                                                                            root.sessionSpaceId),
                                                         "keyboardNavigationConfiguration":
                                                         root.keyboardConfiguration(tabUrl),
                                                         "keyboardNavigationScriptSource":
@@ -775,6 +786,12 @@ Item {
             darkeningComponent.createObject(engine, {
                                                 "engine": engine,
                                                 "setting": root.pageDarkening,
+                                                "browser": root.browserController
+                                            });
+        if (engine)
+            siteStyleComponent.createObject(engine, {
+                                                "engine": engine,
+                                                "styles": root.siteStyles,
                                                 "browser": root.browserController
                                             });
         if (engine)
@@ -918,6 +935,12 @@ Item {
         id: darkeningComponent
 
         DarkeningFollow {}
+    }
+
+    Component {
+        id: siteStyleComponent
+
+        SiteStyleFollow {}
     }
 
     function giveScrollbar(engine) {

@@ -276,9 +276,9 @@ installations through a replaceable provider. _Avoid_: Backup, account
 
 **Sync projection**: The positive allowlist of browser state Sync may copy: Space names, colours and
 order, ordinary and Pinned open tabs, Folders with their members, approved Settings, keybindings,
-and filter subscriptions. Active Space and tab selection stay local, as do which Folders are
-collapsed and which pages are released, and Browsing data and every Private window are outside the
-projection. _Avoid_: Browser backup, profile snapshot, all settings
+Site styles, and filter subscriptions. Active Space and tab selection stay local, as do which
+Folders are collapsed and which pages are released, and Browsing data and every Private window are
+outside the projection. _Avoid_: Browser backup, profile snapshot, all settings
 
 **Site permission**: A Space-specific decision that allows or blocks an origin from using a
 protected browser capability. A Private window retains its Site permissions only while the shared
@@ -485,6 +485,11 @@ reader has turned it on in Settings. It is off by default, does not follow the B
 leaves a page whose own ground is already dark as written. It can be turned off for one site in a
 Space from Site information: a registrable domain, or the host and port of `localhost` or an IP
 address. _Avoid_: Dark mode, force dark, dark reader
+
+**Site style**: The reader's own CSS for a site, a `<host>.css` file in `styles/` in the
+configuration directory that styles the host and every host under it. It applies whether or not
+Content blocking is on for the site, everywhere but an Agent Space, and an edit restyles open pages
+at once. _Avoid_: User style, user stylesheet, custom CSS
 
 **Zoom**: A tab's own enlargement of its page over the Page scale. It belongs to the tab and never
 to a site. _Avoid_: Site zoom, page scale

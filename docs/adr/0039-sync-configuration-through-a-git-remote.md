@@ -39,14 +39,14 @@ authenticated short-code exchange over the local network is a better candidate. 
 rotation needs a new repository and explicit migration; in-place rotation is not claimed. That work
 is tracked by [#206](https://github.com/villekivela/omaweb/issues/206).
 
-The readable records are the complete keybindings file, filter subscription addresses, and these
-Settings keys only: `floating-controls`, `use-favicons`, `tint-favicons`, and `app-icon`. Each
-setting remains a separate record, holding its value as the text `settings.json` writes it as.
-`ease-sidebar` was one of them until the chrome's ease stopped being a setting
-([#503](https://github.com/villekivela/omaweb/issues/503)); a repository still holding it has the
-record removed on the next sync. Space names, colours, ordinary tabs, and Pinned tabs are encrypted.
-Active Space and active tab selection remain local transients. Theme selection is deferred because
-the operating system normally owns it.
+The readable records are the complete keybindings file, each Site style file as it is written,
+filter subscription addresses, and these Settings keys only: `floating-controls`, `use-favicons`,
+`tint-favicons`, and `app-icon`. Each setting remains a separate record, holding its value as the
+text `settings.json` writes it as. `ease-sidebar` was one of them until the chrome's ease stopped
+being a setting ([#503](https://github.com/villekivela/omaweb/issues/503)); a repository still
+holding it has the record removed on the next sync. Space names, colours, ordinary tabs, and Pinned
+tabs are encrypted. Active Space and active tab selection remain local transients. Theme selection
+is deferred because the operating system normally owns it.
 
 Cookies, passwords, active logins, downloads, site permissions, browsing history, the per-site
 content-blocking disable list, user rules, and all Private-window information never enter Sync. The

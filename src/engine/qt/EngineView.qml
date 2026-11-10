@@ -1989,6 +1989,62 @@ Item {
                               WebEngineScript.ApplicationWorld);
     }
 
+    // ---- the reader's own styles ------------------------------------------
+    //
+    // The reader's CSS for a site (`SiteStyles`), or null where their styles
+    // do not apply, as in an Agent Space. A style is the reader's, not Content
+    // blocking's, so it rides a sheet and a script of its own, which no
+    // per-site blocking decision reaches. It goes in as the cosmetic sheet
+    // does, and for the same reasons: constructed rather than written into the
+    // document, so a page's policy cannot refuse it, and installed on the
+    // Engine profile for the page's origin at the navigation request, so it is
+    // in the document before the page renders. It is adopted after the
+    // cosmetic sheet, so the reader's rule wins a tie with a list's.
+    property var siteStyles: null
+    readonly property string siteStyleSheetId: "__omaweb_site_style"
+    readonly property string siteStyleScriptNamePrefix: "Omaweb site style "
+    // Whether the document on show was given a sheet, so a style removed
+    // while it is open is cleared from it, and a page that never had one is
+    // not sent a script to clear nothing.
+    property bool siteStyleInjected: false
+
+    function siteStyleSheet(url) {
+        return root.siteStyles ? root.siteStyles.styleSheet(url) : "";
+    }
+    function installSiteStyleScript(url) {
+        const css = root.siteStyleSheet(url);
+        root.installBlockingScriptPart(root.siteStyleScriptNamePrefix, root.blockingScriptPattern(
+                                           url), WebEngineScript.ApplicationWorld, css.length > 0
+                                       ? root.styleSheetSnippet(root.siteStyleSheetId, css) : "");
+        return css;
+    }
+    // The open document takes the sheet as it stands.
+    function applySiteStyle() {
+        const css = root.siteStyleSheet(root.currentUrl);
+        if (css.length === 0 && !root.siteStyleInjected)
+            return;
+        root.siteStyleInjected = css.length > 0;
+        webView.runJavaScript(root.styleSheetSnippet(root.siteStyleSheetId, css),
+                              WebEngineScript.ApplicationWorld);
+    }
+    // A changed sheet reaches the open document and the next one the page's
+    // origin creates.
+    function restyleSite() {
+        const scheme = root.currentUrl.toString().split(":")[0];
+        if (scheme === "http" || scheme === "https")
+            root.installSiteStyleScript(root.currentUrl);
+        root.applySiteStyle();
+    }
+    onSiteStylesChanged: root.restyleSite()
+
+    Connections {
+        target: root.siteStyles
+        ignoreUnknownSignals: true
+        function onChanged() {
+            root.restyleSite();
+        }
+    }
+
     // The generic rules are the ones written against no particular site, and
     // sending all of them cost a 617 KB stylesheet on every page. Each frame
     // reports the classes and ids it actually carries, and only the generic
@@ -4936,6 +4992,9 @@ Item {
                 root.documentSurveyed = false;
                 return;
             }
+            // A style saved while the load ran may have reached the document
+            // being left, or the script before the new one was installed.
+            root.applySiteStyle();
             // A document that loaded surveyed itself when its DOM was parsed
             // and verified the site stylesheet with the answer, unless the
             // survey script never reached it. The DOM is often parsed before
@@ -5068,8 +5127,10 @@ Item {
                 }
                 // Site rules and scriptlets are named by host, which only a
                 // web address has.
-                if (request.isMainFrame && (scheme === "http" || scheme === "https"))
+                if (request.isMainFrame && (scheme === "http" || scheme === "https")) {
                     root.installBlockingScript(request.url);
+                    root.siteStyleInjected = root.installSiteStyleScript(request.url).length > 0;
+                }
                 return;
             }
             request.reject();
