@@ -91,21 +91,25 @@ namespace {
 
     // The reader's site styles are synced as the files they are, one record
     // each, under this directory of the checkout.
-    const QString styleRecords = QStringLiteral("config/styles");
+    const QString styleRecordDirectory = QStringLiteral("config/styles");
 
-    QString styleRecord(const QString &name) { return styleRecords + u'/' + name; }
+    QString styleRecord(const QString &name) { return styleRecordDirectory + u'/' + name; }
 
-    // Each style file in a directory, by name, with its digest.
-    QJsonObject styleDigests(const QString &directory)
+    QString fileDigest(const QString &path)
     {
-        QJsonObject digests;
+        QFile file(path);
+        return file.open(QIODevice::ReadOnly) ? digest(file.readAll()) : QString();
+    }
+
+    // Each style file in a directory, under its record's path, with its digest.
+    void insertStyleDigests(QJsonObject &configuration, const QString &directory)
+    {
         for (const auto &name : SiteStyles::fileNames(directory)) {
-            QFile file(QDir(directory).filePath(name));
-            if (file.open(QIODevice::ReadOnly)) {
-                digests.insert(styleRecord(name), digest(file.readAll()));
+            const auto styleDigest = fileDigest(QDir(directory).filePath(name));
+            if (!styleDigest.isEmpty()) {
+                configuration.insert(styleRecord(name), styleDigest);
             }
         }
-        return digests;
     }
 
     QString recordDigest(QJsonObject record)
@@ -839,7 +843,7 @@ bool SyncModule::resolveMergeConflicts(QString *errorMessage)
             // empty default, or a site style, and the other changed it, the
             // change wins.
             const bool setting = path.startsWith(QLatin1String("settings/"))
-                || path.startsWith(styleRecords + u'/');
+                || path.startsWith(styleRecordDirectory + u'/');
             if ((!localRead || !remoteRead) && !(setting && (localRead || remoteRead))) {
                 setError(errorMessage,
                     QCoreApplication::translate(
@@ -1245,10 +1249,7 @@ bool SyncModule::writeAppliedRecordInventory(QString *errorMessage) const
             configuration.insert(relativePath, digest(file.readAll()));
         }
     }
-    const auto styles = styleDigests(QDir(checkoutRoot()).filePath(styleRecords));
-    for (auto style = styles.begin(); style != styles.end(); ++style) {
-        configuration.insert(style.key(), style.value());
-    }
+    insertStyleDigests(configuration, QDir(checkoutRoot()).filePath(styleRecordDirectory));
     inventory.insert(QStringLiteral("configuration"), configuration);
     // Holding a record back leaves local state deliberately behind the checkout, so do not record
     // this tree as applied: the next pass must come back for what was held back.
@@ -1324,11 +1325,8 @@ bool SyncModule::writeLocalBaselineInventory(SessionStore &store, QString *error
                                   .toJson(QJsonDocument::Indented);
         configuration.insert(QStringLiteral("settings/content-blocking.json"), digest(contents));
     }
-    const auto styles
-        = styleDigests(QDir(m_options.configRoot).filePath(SiteStyles::directoryName()));
-    for (auto style = styles.begin(); style != styles.end(); ++style) {
-        configuration.insert(style.key(), style.value());
-    }
+    insertStyleDigests(
+        configuration, QDir(m_options.configRoot).filePath(SiteStyles::directoryName()));
     inventory.insert(QStringLiteral("configuration"), configuration);
     return writeJsonObject(path, inventory, errorMessage);
 }
@@ -1455,38 +1453,41 @@ bool SyncModule::restoreConfiguration(QString *errorMessage)
         }
     }
 
-    // Each synced style is written where it differs. A style here that was
-    // applied from the checkout and is gone from it now is one another machine
-    // removed; one never applied here is the reader's own, still to be
-    // captured, and stays.
-    const QDir remoteStyles(QDir(checkoutRoot()).filePath(styleRecords));
+    // Each synced style is written where it differs, over a style that was
+    // applied here. One the reader had before this machine first took it is
+    // theirs and stays, for the next capture to send. A style applied here,
+    // unchanged since and gone from the checkout, is one another machine
+    // removed.
+    const QDir remoteStyles(QDir(checkoutRoot()).filePath(styleRecordDirectory));
     const QDir localStyles(QDir(m_options.configRoot).filePath(SiteStyles::directoryName()));
     const auto remoteStyleNames = SiteStyles::fileNames(remoteStyles.path());
     for (const auto &name : remoteStyleNames) {
         QFile source(remoteStyles.filePath(name));
-        if (!source.open(QIODevice::ReadOnly) || !QDir().mkpath(localStyles.path())) {
+        if (!source.open(QIODevice::ReadOnly)) {
             setError(errorMessage,
                 QCoreApplication::translate("SyncModule", "Could not read a synced site style"));
             return false;
         }
         const auto contents = source.readAll();
-        QFile local(localStyles.filePath(name));
-        const auto unchanged = local.open(QIODevice::ReadOnly) && local.readAll() == contents;
-        local.close();
-        if (unchanged) {
+        const auto localPath = localStyles.filePath(name);
+        const auto localDigest = fileDigest(localPath);
+        if (localDigest == digest(contents)
+            || (!localDigest.isEmpty() && !applied.contains(styleRecord(name)))) {
             continue;
         }
-        QSaveFile file(localStyles.filePath(name));
-        if (!file.open(QIODevice::WriteOnly) || file.write(contents) != contents.size()
-            || !file.commit()) {
+        QSaveFile file(localPath);
+        if (!QDir().mkpath(localStyles.path()) || !file.open(QIODevice::WriteOnly)
+            || file.write(contents) != contents.size() || !file.commit()) {
             setError(errorMessage,
                 QCoreApplication::translate("SyncModule", "Could not apply a synced site style"));
             return false;
         }
     }
     for (const auto &name : SiteStyles::fileNames(localStyles.path())) {
+        const auto localPath = localStyles.filePath(name);
         if (!remoteStyleNames.contains(name) && applied.contains(styleRecord(name))
-            && !QFile::remove(localStyles.filePath(name))) {
+            && fileDigest(localPath) == applied.value(styleRecord(name)).toString()
+            && !QFile::remove(localPath)) {
             setError(errorMessage,
                 QCoreApplication::translate("SyncModule", "Could not apply a synced site style"));
             return false;
@@ -1604,7 +1605,7 @@ bool SyncModule::captureConfiguration(QString *errorMessage)
             return false;
         }
     }
-    const QDir checkoutStyles(QDir(checkoutRoot()).filePath(styleRecords));
+    const QDir checkoutStyles(QDir(checkoutRoot()).filePath(styleRecordDirectory));
     for (const auto &name : SiteStyles::fileNames(checkoutStyles.path())) {
         if (localStyleNames.contains(name)) {
             continue;

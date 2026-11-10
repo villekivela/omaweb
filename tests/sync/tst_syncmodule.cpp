@@ -398,6 +398,7 @@ private slots:
     void syncsTheLinkRules();
     void syncsTheReadersSiteStyles();
     void keepsASiteStyleChangedWhereAnotherMachineRemovedIt();
+    void keepsASiteStyleThisMachineHadBeforeItSynced();
     void keepsFollowingTheDesktopThemeAfterAPick();
     void keepsAPickMadeWhileAnotherMachineFollowsTheDesktop();
     void keepsAPickNotYetAppliedWhereTheDesktopIsFollowed();
@@ -1151,6 +1152,54 @@ void SyncModuleTest::keepsASiteStyleChangedWhereAnotherMachineRemovedIt()
     QVERIFY(writeFile(secondStyle, "a { color: blue; }"));
     OMAWEB_VERIFY_SYNC(settle(second, secondStore));
     QCOMPARE(readFile(secondStyle), QByteArray("a { color: blue; }"));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+    QCOMPARE(readFile(firstStyle), QByteArray("a { color: blue; }"));
+}
+
+// A machine joining Sync takes the repository's Spaces before it sends its
+// own state. A style the reader wrote there before is theirs, not an old copy
+// of the repository's, so it is kept and sent to the other machines.
+void SyncModuleTest::keepsASiteStyleThisMachineHadBeforeItSynced()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir firstDataRoot;
+    QTemporaryDir firstConfigRoot;
+    QTemporaryDir secondDataRoot;
+    QTemporaryDir secondConfigRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key = QByteArray(32, 'i');
+    const auto firstStyle = firstConfigRoot.filePath(QStringLiteral("styles/github.com.css"));
+    const auto secondStyle = secondConfigRoot.filePath(QStringLiteral("styles/github.com.css"));
+
+    SqliteSessionStore firstStore(firstDataRoot.path());
+    QVERIFY(firstStore.open(&error));
+    QVERIFY(firstStore.saveSpace(SpaceState {
+        QStringLiteral("space-1"), QStringLiteral("Personal"), QStringLiteral("green"), true}));
+    QVERIFY(writeFile(firstStyle, "a { color: red; }"));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    SqliteSessionStore secondStore(secondDataRoot.path());
+    QVERIFY(secondStore.open(&error));
+    QVERIFY(writeFile(secondStyle, "a { color: blue; }"));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b")});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+    QCOMPARE(readFile(secondStyle), QByteArray("a { color: blue; }"));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
     OMAWEB_VERIFY_SYNC(settle(first, firstStore));
     QCOMPARE(readFile(firstStyle), QByteArray("a { color: blue; }"));
 }

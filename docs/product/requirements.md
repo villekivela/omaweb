@@ -701,14 +701,20 @@ reports the gap and remains experimental rather than imitating behavior it canno
   does, and either matches. A file names no path, because a file name cannot hold one. Only
   `<host>.css` is read: an editor's backup, a hidden file and a directory are left alone. The sheet
   is in the page before the page renders, constructed as the cosmetic sheet is, so a page whose
-  policy refuses inline style takes it, and it comes after the cosmetic sheet, so the reader's rule
-  wins a tie with a filter list's. It applies in the reader's Spaces, in Private windows and in a
-  window a page opens, and with Content blocking off for the site, since a style is the reader's and
-  not the blocker's. It does not apply in an Agent Space, so an Agent reads a page as the site
-  serves it; a Space the reader takes over takes the styles at once. Saving a file restyles the
-  site's open pages without a reload, whether the editor writes in place or renames a new file over
-  the old, and so does removing one. It styles the page's own document, not a frame from another
-  site in it. Sync carries the files, a removal included.
+  policy refuses inline style takes it, and it comes after the page's own sheets, so the reader's
+  rule wins a tie with the page's. An IP address takes its own file alone, since its last numbers
+  are no domain, and an IPv6 address has none, because Qt reads a path that starts with a colon as
+  one of its resources. It applies in the reader's Spaces, in Private windows and in a window a page
+  opens, and with Content blocking off for the site, since a style is the reader's and not the
+  blocker's. It does not apply in an Agent Space, so an Agent reads a page as the site serves it; a
+  Space the reader takes over takes the styles at once. Saving a file restyles the site's open pages
+  without a reload, whether the editor writes in place or renames a new file over the old, and so
+  does removing one, and a page loading as the file is saved takes the saved one. It styles the
+  page's own document, not a frame from another site in it. Sync carries the files, a removal
+  included. A style a machine had before it first synced is kept over the repository's copy of the
+  same name, and a style edited on one machine and removed on another is kept with the edit. Two
+  machines that edit one style before either syncs keep one of the two edits, as they do for any
+  synced file.
 - The sidebar's width belongs to the reader. The seam between it and the page drags, and
   `Primary+Shift+]` and `Primary+Shift+[` move that same seam from the keyboard, so a resize never
   depends on a pointer. The width is clamped so a tab row stays readable and the page keeps at least

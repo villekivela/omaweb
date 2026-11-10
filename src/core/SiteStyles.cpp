@@ -2,9 +2,8 @@
 
 #include <QDir>
 #include <QFile>
-#include <QFileInfo>
+#include <QHostAddress>
 
-#include <algorithm>
 #include <utility>
 
 namespace omaweb {
@@ -14,10 +13,20 @@ namespace {
     constexpr QLatin1StringView suffix(".css");
 
     // A host as the DNS writes it, so a file named in the reader's own script
-    // and an address in either form meet.
-    QString dnsHost(const QString &host)
+    // and an address in either form meet, and without the root's trailing
+    // dot, which names the same host. An IP address stays as it is.
+    QString canonicalHost(QString host)
     {
-        return QString::fromLatin1(QUrl::toAce(host.toLower()));
+        host = host.toLower();
+        if (host.endsWith(u'.')) {
+            host.chop(1);
+        }
+        return QHostAddress(host).isNull() ? QString::fromLatin1(QUrl::toAce(host)) : host;
+    }
+
+    QString hostOf(const QString &fileName)
+    {
+        return canonicalHost(fileName.chopped(suffix.size()));
     }
 
 } // namespace
@@ -45,7 +54,9 @@ QStringList SiteStyles::fileNames(const QString &directory)
     QStringList names;
     const auto entries = QDir(directory).entryList({QStringLiteral("*.css")}, QDir::Files);
     for (const auto &name : entries) {
-        if (!name.startsWith(u'.') && !dnsHost(name.chopped(suffix.size())).isEmpty()) {
+        // Qt reads a path that starts with a colon as one of its resources,
+        // so an IPv6 address cannot name a file.
+        if (!name.startsWith(u'.') && !name.startsWith(u':') && !hostOf(name).isEmpty()) {
             names.append(name);
         }
     }
@@ -59,9 +70,13 @@ QString SiteStyles::directory() const
 
 QString SiteStyles::styleSheet(const QUrl &url) const
 {
-    const auto host = dnsHost(url.host());
+    const auto host = canonicalHost(url.host());
     if (host.isEmpty()) {
         return {};
+    }
+    // An IP address has no hosts above it: its last numbers are no domain.
+    if (!QHostAddress(host).isNull()) {
+        return m_sheets.value(host);
     }
     // The broadest host first: `com`, then `github.com`, then `gist.github.com`.
     QStringList sheets;
@@ -86,7 +101,7 @@ void SiteStyles::reload()
                 qPrintable(file.errorString()));
             continue;
         }
-        sheets.insert(dnsHost(name.chopped(suffix.size())), QString::fromUtf8(file.readAll()));
+        sheets.insert(hostOf(name), QString::fromUtf8(file.readAll()));
     }
     watch();
     if (sheets != m_sheets) {

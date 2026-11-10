@@ -730,9 +730,8 @@ Item {
         // window is up too, and a request made in that moment is let
         // through unchecked. So a page asked for while either is pending
         // starts blank and is pointed at its address when the wait ends.
-        const host = root.spaceProfiles ? root.spaceProfiles.hostFor(spaceId !== undefined ? spaceId :
-                                                                                             root.sessionSpaceId) :
-                                          null;
+        const engineSpaceId = spaceId !== undefined ? spaceId : root.sessionSpaceId;
+        const host = root.spaceProfiles ? root.spaceProfiles.hostFor(engineSpaceId) : null;
         const held = root.pageWaits(host) && !root.pagelessAddress(tabUrl);
         // Every engine is this host's to destroy, wherever it is drawn: a
         // Glance's page kept as a tab outlives the window the Glance was in,
@@ -755,15 +754,12 @@ Item {
                                                         // this view runs on, which is
                                                         // what Content blocking keys
                                                         // its Refusal tally by.
-                                                        "spaceId": spaceId !== undefined ? spaceId :
-                                                                                           root.sessionSpaceId,
+                                                        "spaceId": engineSpaceId,
                                                         // Styled from the first document.
                                                         "siteStyles": SiteStyleRule.stylesFor(
                                                                           root.siteStyles,
                                                                           root.browserController,
-                                                                          spaceId !== undefined
-                                                                          ? spaceId :
-                                                                            root.sessionSpaceId),
+                                                                          engineSpaceId),
                                                         "keyboardNavigationConfiguration":
                                                         root.keyboardConfiguration(tabUrl),
                                                         "keyboardNavigationScriptSource":

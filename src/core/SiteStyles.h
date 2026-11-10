@@ -26,17 +26,17 @@ public:
     // a directory gets.
     explicit SiteStyles(QString configRoot, QObject *parent = nullptr);
 
-    // The directory's name in the configuration directory.
     static QString directoryName();
     // The style files in a directory, by name: each `<host>.css` that names a
-    // host. An editor's backup, a hidden file and a directory are not styles,
-    // and stay where they are, unread and unsynced.
+    // host other than an IPv6 address. An editor's backup, a hidden file and a
+    // directory are not styles, and stay where they are, unread and unsynced.
     static QStringList fileNames(const QString &directory);
 
     QString directory() const;
     // The CSS for the page at an address: every file whose host is the
     // address's or one above it, the broadest first, so a file for a narrower
-    // host wins a tie. Empty for an address with no host or no file.
+    // host wins a tie. An IP address takes its own file alone. Empty for an
+    // address with no host or no file.
     Q_INVOKABLE QString styleSheet(const QUrl &url) const;
 
     // Reads the directory again, as the watch does on its own.

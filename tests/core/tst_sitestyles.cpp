@@ -18,6 +18,7 @@ private slots:
     void stylesAHostAndTheHostsUnderIt();
     void putsANarrowerHostsFileLast();
     void readsAHostWrittenInItsOwnScript();
+    void stylesAnAddressByItsOwnFileAlone();
     void ignoresWhatIsNotAStyle();
     void followsAFileSavedInPlace();
     void followsAFileReplacedByRename();
@@ -103,6 +104,27 @@ void SiteStylesTest::readsAHostWrittenInItsOwnScript()
     const SiteStyles styles(root.filePath(QStringLiteral("config")));
     QVERIFY(!styles.styleSheet(QUrl(QStringLiteral("https://xn--bcher-kva.example/"))).isEmpty());
     QVERIFY(!styles.styleSheet(QUrl(QStringLiteral("https://www.bücher.example/"))).isEmpty());
+}
+
+// An IP address has no hosts under it: its last numbers are not a domain, so
+// `1.1.css` styles no address that ends in them. An IPv6 address has no file,
+// because Qt reads a path that starts with a colon as one of its resources. A
+// name written with the root's dot is the same name.
+void SiteStylesTest::stylesAnAddressByItsOwnFileAlone()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    write(root.filePath(QStringLiteral("config/styles/1.1.css")), "a { color: red; }");
+    write(root.filePath(QStringLiteral("config/styles/10.0.1.1.css")), "a { color: blue; }");
+    write(root.filePath(QStringLiteral("config/styles/::1.css")), "a { color: green; }");
+    write(root.filePath(QStringLiteral("config/styles/github.com.css")), "a { color: purple; }");
+    const SiteStyles styles(root.filePath(QStringLiteral("config")));
+    QVERIFY(styles.styleSheet(QUrl(QStringLiteral("http://192.168.1.1/"))).isEmpty());
+    QCOMPARE(styles.styleSheet(QUrl(QStringLiteral("http://10.0.1.1:8080/"))),
+        QStringLiteral("a { color: blue; }"));
+    QVERIFY(styles.styleSheet(QUrl(QStringLiteral("http://[::1]:8080/"))).isEmpty());
+    QCOMPARE(styles.styleSheet(QUrl(QStringLiteral("https://github.com./"))),
+        QStringLiteral("a { color: purple; }"));
 }
 
 void SiteStylesTest::ignoresWhatIsNotAStyle()
