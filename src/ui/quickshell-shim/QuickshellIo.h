@@ -143,6 +143,9 @@ class FileView : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString path READ path WRITE setPath NOTIFY pathChanged)
     Q_PROPERTY(bool blockLoading READ blockLoading WRITE setBlockLoading NOTIFY blockLoadingChanged)
+    Q_PROPERTY(
+        bool blockAllReads READ blockAllReads WRITE setBlockAllReads NOTIFY blockAllReadsChanged)
+    Q_PROPERTY(bool preload READ preload WRITE setPreload NOTIFY preloadChanged)
     Q_PROPERTY(bool watchChanges READ watchChanges WRITE setWatchChanges NOTIFY watchChangesChanged)
     Q_PROPERTY(bool printErrors READ printErrors WRITE setPrintErrors NOTIFY printErrorsChanged)
 
@@ -153,6 +156,10 @@ public:
     void setPath(const QString &path);
     bool blockLoading() const;
     void setBlockLoading(bool blockLoading);
+    bool blockAllReads() const;
+    void setBlockAllReads(bool blockAllReads);
+    bool preload() const;
+    void setPreload(bool preload);
     bool watchChanges() const;
     void setWatchChanges(bool watchChanges);
     bool printErrors() const;
@@ -164,6 +171,8 @@ public:
 signals:
     void pathChanged();
     void blockLoadingChanged();
+    void blockAllReadsChanged();
+    void preloadChanged();
     void watchChangesChanged();
     void printErrorsChanged();
     void loaded();
@@ -176,6 +185,8 @@ private:
     QString m_path;
     QString m_text;
     bool m_blockLoading = false;
+    bool m_blockAllReads = false;
+    bool m_preload = true;
     bool m_watchChanges = false;
     bool m_printErrors = true;
     QFileSystemWatcher *m_watcher = nullptr;

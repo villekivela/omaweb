@@ -1,8 +1,8 @@
 {
   "repository": "https://github.com/omacom/omarchy",
   "branch": "quattro",
-  "ref": "a69b19f64efa78143155f2f46c85e7e05a09e05f",
-  "fetched": "2026-11-06",
+  "ref": "b99593ed3c5d104210394669efc88a684f76ddbf",
+  "fetched": "2026-11-10",
   "license": "MIT",
   "files": {
     "LICENSE": {
@@ -37,8 +37,8 @@
     },
     "qs/Commons/I18n.qml": {
       "upstream": "shell/Commons/I18n.qml",
-      "blob": "50fd511ba16f88e0f3c1e82906adca1498b22f49",
-      "sha256": "ef01debf0303e3081630dbd4736b308a362f8454ae74417ff044a225156b233c"
+      "blob": "e6e944ac505e63c877dc8a56746ddf2a75f0e6f4",
+      "sha256": "b24767d3568f33ece5111b4cca6fd35b637bd5a2450e19c7252808527e52e31b"
     },
     "qs/Commons/InputDevices.qml": {
       "upstream": "shell/Commons/InputDevices.qml",
@@ -77,8 +77,8 @@
     },
     "qs/Commons/Translations.qml": {
       "upstream": "shell/Commons/Translations.qml",
-      "blob": "ea2bddbc6c9bb737b97a3bbd3361bb5b51fb6a24",
-      "sha256": "d719fd0774dd0820108231799c969c3eeb10cd89551a76f7e821f0ad6ff479e0"
+      "blob": "7f4ac1614866d7ef9eefc9d9be00b6538c6c1232",
+      "sha256": "d615d2782596173e9ff3c1c199d8b1d381b807f50ea0a9f37fa20f14bffb7b3e"
     },
     "qs/Commons/UntypedInput.qml": {
       "upstream": "shell/Commons/UntypedInput.qml",
