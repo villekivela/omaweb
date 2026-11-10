@@ -5506,6 +5506,10 @@ TestCase {
             return !window.settingsOpen && panel.visible;
         });
         compare(panel.host, "github.com");
+        // Settings opens on the section it was left on, and the next test
+        // expects the first.
+        settingsSurface.section = 0;
+        window.closeSiteStylePanel();
         verify(siteStyles.remove("github.com"));
     }
 
@@ -17571,6 +17575,9 @@ TestCase {
 
     function test_settingsOwnsTheKeyboardUntilItCloses() {
         browser.openInput("about:blank", true);
+        // The Start page focuses its field a turn after it is shown, which
+        // would take the keyboard from Settings if it came after it opened.
+        wait(0);
         const settings = findChild(window.contentItem, "settingsSurface");
         const activeTab = browser.activeTabId;
         verify(settings !== null);
