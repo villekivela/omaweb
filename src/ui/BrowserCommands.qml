@@ -209,6 +209,9 @@ QtObject {
         case "developer-tools":
             window.toggleDeveloperTools();
             return true;
+        case "site-style":
+            window.toggleSiteStylePanel();
+            return true;
         case "inspect-element":
             window.inspectElement();
             return true;
@@ -546,6 +549,11 @@ QtObject {
                                                  group: "interface",
                                                  title: qsTr("Fullscreen")
                                              },
+                                             "site-style": {
+                                                 group: "page",
+                                                 title: qsTr("Style this site"),
+                                                 requires: "site-style"
+                                             },
                                              "developer-tools": {
                                                  group: "developer",
                                                  title: qsTr("Developer tools"),
@@ -671,6 +679,8 @@ QtObject {
             return window.printingAvailable;
         case "inspector":
             return window.developerToolsAvailable;
+        case "site-style":
+            return window.siteStyleAvailable;
         case "private-windows":
             return windowManager.privateWindowsAvailable;
         case "ordinary-window":

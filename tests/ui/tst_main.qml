@@ -360,6 +360,7 @@ TestCase {
         window.endStartPageDrive();
         window.startPageSummoned = false;
         window.shortcutsOpen = false;
+        window.siteStylePanelOpen = false;
         window.settingsOpen = false;
         window.historyOpen = false;
         window.dialogMode = "";
@@ -508,7 +509,8 @@ TestCase {
 
     // A button in a row the positioner has not laid out yet sits on top of its
     // neighbours, so a press meant for one lands on another. The first answer
-    // in a row is at the left edge; every one after it has been moved.
+    // in a row is at the left edge; every one after it has been moved. A row
+    // still sliding in across the sidebar is waited for the same way.
     function settleActions(action) {
         if (!action)
             return;
@@ -840,10 +842,11 @@ TestCase {
     // behind the model, so a row read too early is read where it is not going
     // to be.
     function settleRow(row) {
-        let previous = -1;
+        let previous = "";
         let steady = 0;
         tryVerify(function () {
-            const at = row.mapToItem(window.contentItem, 0, 0).y;
+            const point = row.mapToItem(window.contentItem, 0, 0);
+            const at = point.x + "," + point.y;
             steady = at === previous ? steady + 1 : 0;
             previous = at;
             return steady >= 3;
@@ -961,7 +964,7 @@ TestCase {
             return menu.visible;
         });
         compare(labels(), ["Back", "Forward", "Reload", "Retry over insecure HTTP", "—",
-                           "Copy address", "—", "Inspect element"]);
+                           "Copy address", "—", "Style this site", "Inspect element"]);
         keyClick(Qt.Key_Escape);
         tryVerify(function () {
             return !menu.visible;
@@ -3518,6 +3521,7 @@ TestCase {
         verify(tabRow !== null);
         verify(speaker !== null);
         verify(tile !== null);
+        settleRow(tabRow);
 
         // A silent tab says nothing about sound and shows its chip.
         verify(!speaker.visible);
@@ -5119,6 +5123,426 @@ TestCase {
         verify(takenOver === siteStyles);
     }
 
+    // The Site style panel docks opposite the sidebar and the page narrows
+    // beside it, as it does beside Developer tools. It writes the page's site
+    // unless the reader picks a narrower host.
+    function test_siteStylePanelDocksOppositeTheSidebar() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        const viewport = findChild(window.contentItem, "engineViewport");
+        openPage("https://gist.github.com/villekivela");
+        const panel = findChild(window.contentItem, "siteStylePanel");
+        verify(panel !== null);
+        verify(!panel.visible);
+
+        window.commands.run("site-style", -1);
+        tryVerify(function () {
+            return panel.visible;
+        });
+        compare(panel.host, "github.com");
+        compare(panel.width, 400);
+        tryVerify(function () {
+            return Math.round(engineHost.width + panel.width) === Math.round(viewport.width);
+        });
+        compare(Math.round(engineHost.x + engineHost.width), Math.round(panel.x));
+
+        window.setSidebarSide("right");
+        tryVerify(function () {
+            return Math.round(panel.x) === 0 && Math.round(engineHost.x) === panel.width;
+        });
+
+        window.commands.run("site-style", -1);
+        tryVerify(function () {
+            return !panel.visible;
+        });
+        tryVerify(function () {
+            return Math.round(engineHost.width) === Math.round(viewport.width) && Math.round(
+                        engineHost.x) === 0;
+        });
+    }
+
+    // The panel stays open across tab switches and navigation, and follows
+    // the host of the page on show.
+    function test_siteStylePanelFollowsThePageOnShow() {
+        openPage("https://gist.github.com/villekivela");
+        const firstTabId = browser.activeTabId;
+        const panel = findChild(window.contentItem, "siteStylePanel");
+        window.commands.run("site-style", -1);
+        tryVerify(function () {
+            return panel.visible;
+        });
+
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        browser.openInput("https://www.bbc.co.uk/news", true);
+        tryVerify(function () {
+            return engineHost.item !== null && engineHost.item.currentUrl.toString()
+                    === "https://www.bbc.co.uk/news";
+        });
+        verify(browser.activeTabId !== firstTabId);
+        verify(panel.visible);
+        compare(panel.host, "bbc.co.uk");
+        openPage("https://news.ycombinator.com/item?id=1");
+        compare(panel.host, "ycombinator.com");
+        const secondTabId = browser.activeTabId;
+        browser.activateTab(firstTabId);
+        tryCompare(panel, "host", "github.com");
+        verify(panel.visible);
+        browser.closeTab(secondTabId);
+    }
+
+    // An Agent Space reads every site as it is served, so it offers no Site
+    // style panel, neither by command nor in the page menu. The panel is the
+    // reader's again when their Space is.
+    function test_siteStylePanelStaysOutOfAnAgentSpace() {
+        const readersSpaceId = browser.activeSpaceId;
+        const page = openPage("https://styled.example/");
+        const panel = findChild(window.contentItem, "siteStylePanel");
+        const styleRow = function () {
+            return window.pageMenuFor({}).filter(function (row) {
+                return row.command === "site-style";
+            });
+        };
+        compare(styleRow().length, 1);
+        compare(styleRow()[0].label, "Style this site");
+        verify(styleRow()[0].enabled);
+        // The Omnibar's command scope lists it under its name.
+        const listed = function () {
+            return window.commands.actions().filter(function (action) {
+                return action.command === "site-style";
+            });
+        };
+        compare(listed().length, 1);
+        compare(listed()[0].title, "Style this site");
+        verify(listed()[0].enabled);
+        window.commands.run("site-style", -1);
+        tryVerify(function () {
+            return panel.visible;
+        });
+
+        const spaceId = agentSpaceProbe.create("Unstyled agent", "claude-code", false);
+        verify(browser.switchSpace(spaceId));
+        tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
+        openPage("https://styled.example/agent");
+        verify(!panel.visible);
+        verify(!window.commands.available("site-style"));
+        verify(!styleRow()[0].enabled);
+        verify(!listed()[0].enabled);
+
+        verify(browser.switchSpace(readersSpaceId));
+        tryVerify(function () {
+            return panel.visible;
+        });
+        verify(browser.deleteSpace(spaceId, "Unstyled agent"));
+    }
+
+    // Typing in the panel restyles the site's pages at once. The file is
+    // written once the typing pauses, which the note beside Open in editor
+    // says, and an edit made to the file elsewhere shows in the editor.
+    function test_siteStylePanelEditsTheSitesFile() {
+        const page = openPage("https://gist.github.com/villekivela");
+        // The page takes the keyboard a turn after it is shown, and the panel
+        // takes it from the page after that.
+        tryVerify(function () {
+            return page.activeFocus;
+        });
+        const panel = findChild(window.contentItem, "siteStylePanel");
+        window.commands.run("site-style", -1);
+        tryVerify(function () {
+            return panel.visible;
+        });
+        const editor = findChild(panel, "siteStyleEditor");
+        const saved = findChild(panel, "siteStyleSaved");
+        verify(editor.activeFocus);
+        compare(editor.text, "");
+
+        keyClick(Qt.Key_P);
+        keyClick("{");
+        keyClick("}");
+        compare(siteStyles.source("github.com"), "p{}");
+        compare(siteStyles.styleSheet("https://gist.github.com/"), "p{}");
+        compare(siteStyles.unsaved, ["github.com"]);
+        compare(saved.text, "Not saved yet");
+        tryVerify(function () {
+            return siteStyles.unsaved.length === 0;
+        });
+        compare(saved.text, "Saved");
+        compare(siteStyles.styles[0].host, "github.com");
+
+        siteStyles.hide("github.com", ".promo");
+        tryCompare(editor, "text",
+                   "p{}\n/* Hidden by Omaweb */ .promo { display: none !important; }\n");
+        verify(siteStyles.remove("github.com"));
+        tryCompare(editor, "text", "");
+    }
+
+    // The panel is a region the keyboard moves to and from, as Developer
+    // tools are, and closing it hands the keyboard back to the page.
+    function test_siteStylePanelIsARegionOfTheKeyboard() {
+        const page = openPage("https://region.example/");
+        tryVerify(function () {
+            return page.activeFocus;
+        });
+        const panel = findChild(window.contentItem, "siteStylePanel");
+        const editor = findChild(panel, "siteStyleEditor");
+        window.commands.run("site-style", -1);
+        tryVerify(function () {
+            return editor.activeFocus;
+        });
+        window.moveFocus(-1, 0);
+        tryVerify(function () {
+            return page.activeFocus;
+        });
+        window.moveFocus(1, 0);
+        tryVerify(function () {
+            return editor.activeFocus;
+        });
+        mouseClick(findChild(panel, "siteStyleClose"));
+        tryVerify(function () {
+            return !panel.visible && page.activeFocus;
+        });
+    }
+
+    // The host picker lists the page's host and each one above it that is
+    // still the site, and says which have a file. A narrower host chosen stays
+    // chosen on the site's pages under it, for as long as the panel stands. The switch turns a style off without
+    // touching its file, and is the reader's setting.
+    function test_siteStylePanelPicksTheHostAndSwitchesItsStyle() {
+        verify(siteStyles.hide("github.com", ".promo"));
+        openPage("https://gist.github.com/villekivela");
+        const panel = findChild(window.contentItem, "siteStylePanel");
+        const editor = findChild(panel, "siteStyleEditor");
+        const caption = findChild(panel, "siteStyleCaption");
+        window.commands.run("site-style", -1);
+        tryVerify(function () {
+            return panel.visible;
+        });
+        compare(panel.host, "github.com");
+        verify(editor.text.indexOf(".promo") >= 0);
+
+        mouseClick(findChild(panel, "siteStyleHostButton"));
+        const hosts = findChild(panel, "siteStyleHosts");
+        // Laid out once the list is drawn, the narrowest host first.
+        tryVerify(function () {
+            const narrow = findChild(panel, "siteStyleHost-gist.github.com");
+            const site = findChild(panel, "siteStyleHost-github.com");
+            return hosts.visible && narrow !== null && site !== null && narrow.y < site.y;
+        });
+        mouseClick(findChild(panel, "siteStyleHost-gist.github.com"));
+        verify(!hosts.visible);
+        compare(panel.host, "gist.github.com");
+        compare(editor.text, "");
+        openPage("https://gist.github.com/another");
+        compare(panel.host, "gist.github.com");
+        openPage("https://example.org/");
+        compare(panel.host, "example.org");
+        openPage("https://gist.github.com/villekivela");
+        compare(panel.host, "gist.github.com");
+        mouseClick(findChild(panel, "siteStyleHostButton"));
+        tryVerify(function () {
+            const site = findChild(panel, "siteStyleHost-github.com");
+            return hosts.visible && site !== null && site.y > 0;
+        });
+        mouseClick(findChild(panel, "siteStyleHost-github.com"));
+        compare(panel.host, "github.com");
+
+        const styleSwitch = findChild(panel, "siteStyleSwitch");
+        verify(styleSwitch.visible && styleSwitch.checked);
+        mouseClick(styleSwitch);
+        tryVerify(function () {
+            return !siteStyles.enabled("github.com");
+        });
+        verify(!styleSwitch.checked);
+        verify(caption.text.indexOf("Off.") === 0);
+        compare(siteStyles.styleSheet("https://gist.github.com/"), "");
+        verify(editor.text.indexOf(".promo") >= 0);
+        mouseClick(styleSwitch);
+        tryVerify(function () {
+            return siteStyles.enabled("github.com");
+        });
+        verify(siteStyles.remove("github.com"));
+    }
+
+    // Pick, adjust and hide: the card shows what the page reports, the slider
+    // and its keys widen it, and Hide writes the selector into the site's file.
+    // Each hidden element is listed with how many it hides here, a preview and
+    // an undo. The picker stops with the panel and with the tab.
+    function test_siteStylePanelHidesAPickedElement() {
+        const page = openPage("https://feed.example/");
+        tryVerify(function () {
+            return page.activeFocus;
+        });
+        const panel = findChild(window.contentItem, "siteStylePanel");
+        window.commands.run("site-style", -1);
+        tryVerify(function () {
+            return panel.visible;
+        });
+        const card = findChild(panel, "siteStylePickCard");
+        // The column below the editor is laid out again as rows and the card
+        // come and go, and a click waits for it.
+        const press = function (item, name) {
+            waitForItemPolished(findChild(panel, "siteStyleHiding"));
+            mouseClick(findChild(item, name));
+        };
+        verify(!card.visible);
+        press(panel, "siteStylePick");
+        verify(page.picking);
+        verify(card.visible);
+        // The picker's keys are the page's, so the page takes the keyboard.
+        tryVerify(function () {
+            return page.activeFocus;
+        });
+
+        page.simulatePick({
+                              "selector": "#cookie-banner",
+                              "count": 1,
+                              "level": 0,
+                              "levels": 3,
+                              "valid": true
+                          });
+        const field = findChild(panel, "siteStyleSelector");
+        const matches = findChild(panel, "siteStyleMatches");
+        tryCompare(field, "text", "#cookie-banner");
+        compare(matches.text, "Matches 1 element on this page");
+        const widening = findChild(panel, "siteStyleWidening");
+        widening.forceActiveFocus();
+        keyClick(Qt.Key_BracketRight);
+        verify(page.pickerCalls.indexOf("widen:1") >= 0);
+        keyClick(Qt.Key_Right);
+        verify(page.pickerCalls.indexOf("widen:2") >= 0);
+        keyClick(Qt.Key_BracketLeft);
+        verify(page.pickerCalls.indexOf("widen:1") >= 0);
+
+        page.matchCounts = {
+            ".banner": 2,
+            "div[": 0
+        };
+        field.forceActiveFocus();
+        field.selectAll();
+        keyClick(Qt.Key_Period);
+        for (const letter of "banner")
+            keyClick(letter);
+        verify(page.pickerCalls.indexOf("select:.banner") >= 0);
+        compare(matches.text, "Matches 2 elements on this page");
+        keyClick(Qt.Key_Return);
+        verify(!page.picking);
+        verify(!card.visible);
+        compare(siteStyles.hidden("feed.example"), [".banner"]);
+
+        const row = findChild(panel, "siteStyleHidden-.banner");
+        verify(row !== null);
+        tryCompare(findChild(row, "siteStyleHiddenCount"), "text", "2 here");
+        press(row, "siteStylePreview");
+        compare(page.previewedHidden, [".banner"]);
+        press(row, "siteStylePreview");
+        compare(page.previewedHidden, []);
+        press(row, "siteStyleUndo");
+        compare(siteStyles.hidden("feed.example"), []);
+
+        press(panel, "siteStylePick");
+        verify(page.picking);
+        press(panel, "siteStyleStopPicking");
+        verify(!page.picking);
+        press(panel, "siteStylePick");
+        field.forceActiveFocus();
+        keyClick(Qt.Key_Escape);
+        verify(!page.picking);
+        press(panel, "siteStylePick");
+        browser.openInput("https://other.example/", true);
+        tryVerify(function () {
+            return !page.picking;
+        });
+        press(panel, "siteStylePick");
+        const other = findChild(window.contentItem, "engineLoader").item;
+        verify(other.picking);
+        window.commands.run("site-style", -1);
+        verify(!other.picking);
+        browser.closeActiveTab();
+        verify(siteStyles.remove("feed.example"));
+    }
+
+    // Settings lists every site style by host, after Content blocking, each
+    // with its switch, Edit and Remove. Edit opens the panel on that host
+    // where a page of it is open.
+    function test_settingsListsEverySiteStyle() {
+        verify(siteStyles.hide("github.com", ".promo"));
+        siteStyles.edit("news.ycombinator.com", "td { color: grey; }");
+        verify(siteStyles.setEnabled("news.ycombinator.com", false));
+        openPage("https://gist.github.com/villekivela");
+        const settingsSurface = findChild(window.contentItem, "settingsSurface");
+        window.requestSettings();
+        tryCompare(settingsSurface, "opacity", 1);
+        tryCompare(settingsSurface, "lift", 0);
+        const section = settingsSurface.sections.indexOf("site styles");
+        compare(section, settingsSurface.sections.indexOf("content blocking") + 1);
+        settingsSurface.section = section;
+
+        const github = findChild(settingsSurface, "siteStyle-github.com");
+        const news = findChild(settingsSurface, "siteStyle-news.ycombinator.com");
+        verify(github !== null && github.visible);
+        verify(news !== null);
+        // The rows are laid out once the section is drawn, by host.
+        tryVerify(function () {
+            return news.mapToItem(null, 0, 0).y > github.mapToItem(null, 0, 0).y + github.height
+                    / 2;
+        });
+        compare(github.title, "github.com");
+        verify(github.note.indexOf("1 hidden") >= 0);
+        verify(findChild(news, "siteStyleRowSwitch").checked === false);
+        verify(findChild(settingsSurface, "openStylesFolder").visible);
+
+        mouseClick(findChild(news, "siteStyleRowSwitch"));
+        tryVerify(function () {
+            return siteStyles.enabled("news.ycombinator.com");
+        });
+        // The rows are built again as the list changes.
+        const switchedOn = findChild(settingsSurface, "siteStyle-news.ycombinator.com");
+        verify(switchedOn.note.indexOf("off") < 0);
+        waitForItemPolished(switchedOn);
+        mouseClick(findChild(switchedOn, "removeSiteStyle"));
+        tryVerify(function () {
+            return findChild(settingsSurface, "siteStyle-news.ycombinator.com") === null;
+        });
+        compare(siteStyles.source("news.ycombinator.com"), "");
+
+        mouseClick(findChild(findChild(settingsSurface, "siteStyle-github.com"), "editSiteStyle"));
+        const panel = findChild(window.contentItem, "siteStylePanel");
+        tryVerify(function () {
+            return !window.settingsOpen && panel.visible;
+        });
+        compare(panel.host, "github.com");
+        // Settings opens on the section it was left on, and the next test
+        // expects the first.
+        settingsSurface.section = 0;
+        window.closeSiteStylePanel();
+        verify(siteStyles.remove("github.com"));
+    }
+
+    // A Private window offers the panel too, and what is typed there writes
+    // the same file a reader's Space reads.
+    function test_aPrivateWindowStylesTheSameFiles() {
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        privateBrowser.windowBrowser.openInput("https://private-styled.example/", false);
+        const panel = findChild(privateBrowser.contentItem, "siteStylePanel");
+        verify(privateBrowser.commands.available("site-style"));
+        privateBrowser.commands.run("site-style", -1);
+        tryVerify(function () {
+            return panel.visible;
+        });
+        compare(panel.host, "private-styled.example");
+        findChild(panel, "siteStyleEditor").text = "body { color: red; }";
+        const listed = siteStyles.source("private-styled.example");
+
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        compare(listed, "body { color: red; }");
+        tryVerify(function () {
+            return siteStyles.unsaved.length === 0;
+        });
+        verify(siteStyles.remove("private-styled.example"));
+    }
+
     // A Private window has no Agent Space, and its pages take the reader's
     // site styles as their Spaces' pages do.
     function test_aPrivateWindowsPagesTakeSiteStyles() {
@@ -5576,35 +6000,42 @@ TestCase {
         engine.simulateUserActivation();
         const tabId = browser.activeTabId;
         browser.toggleActivePinned();
-        tryVerify(function () {
-            return findChild(window.contentItem, "pinned-" + tabId) !== null;
-        });
-        const pinRow = findChild(window.contentItem, "pinned-" + tabId);
-        const audioButton = findChild(window.contentItem, "audio-" + tabId);
-        verify(audioButton !== null);
-        verify(!audioButton.visible);
+        try {
+            tryVerify(function () {
+                return findChild(window.contentItem, "pinned-" + tabId) !== null;
+            });
+            const pinRow = findChild(window.contentItem, "pinned-" + tabId);
+            const audioButton = findChild(window.contentItem, "audio-" + tabId);
+            verify(audioButton !== null);
+            verify(!audioButton.visible);
+            // The pin arrives in a block of its own, and a press meant for its
+            // corner while it still moves lands beside it.
+            settleRow(pinRow);
 
-        engine.simulateAudible(true);
-        tryVerify(function () {
-            return audioButton.visible;
-        });
-        verify(audioButton.x + audioButton.width > pinRow.width / 2);
-        verify(audioButton.y + audioButton.height < pinRow.height / 2);
+            engine.simulateAudible(true);
+            tryVerify(function () {
+                return audioButton.visible;
+            });
+            verify(audioButton.x + audioButton.width > pinRow.width / 2);
+            verify(audioButton.y + audioButton.height < pinRow.height / 2);
 
-        mouseClick(pinRow, audioButton.x + audioButton.width / 2, audioButton.y + audioButton.height
-                   / 2);
-        tryVerify(function () {
-            return engine.audioMuted;
-        });
-        // The pin was not activated by the click that muted it.
-        compare(browser.activeTabId, tabId);
+            mouseClick(pinRow, audioButton.x + audioButton.width / 2, audioButton.y
+                       + audioButton.height / 2);
+            tryVerify(function () {
+                return engine.audioMuted;
+            });
+            // The pin was not activated by the click that muted it.
+            compare(browser.activeTabId, tabId);
 
-        browser.toggleTabMuted(tabId);
-        tryVerify(function () {
-            return !engine.audioMuted;
-        });
-        engine.simulateAudible(false);
-        browser.toggleActivePinned();
+            browser.toggleTabMuted(tabId);
+            tryVerify(function () {
+                return !engine.audioMuted;
+            });
+            engine.simulateAudible(false);
+        } finally {
+            if (browser.activeTabPinned)
+                browser.toggleActivePinned();
+        }
     }
 
     // Every pin is one column wide, so a partial row leaves its columns empty
@@ -17154,6 +17585,9 @@ TestCase {
 
     function test_settingsOwnsTheKeyboardUntilItCloses() {
         browser.openInput("about:blank", true);
+        // The Start page focuses its field a turn after it is shown, which
+        // would take the keyboard from Settings if it came after it opened.
+        wait(0);
         const settings = findChild(window.contentItem, "settingsSurface");
         const activeTab = browser.activeTabId;
         verify(settings !== null);

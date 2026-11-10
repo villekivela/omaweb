@@ -3220,7 +3220,12 @@ TestCase {
         const page = makePage();
         const pane = findChild(page, "settingsPane");
         verify(pane !== null);
-        compare(page.sections.length, 15);
+        compare(page.sections.length, 16);
+        // Site styles lays out rows of its own, with a long host among them.
+        siteStyles.edit("a-rather-long-host-name.subdomain.example.org", "p { margin: 0; }");
+        verify(siteStyles.hide("github.com", ".promo"));
+        verify(siteStyles.setEnabled("github.com", false));
+        page.siteStyles = siteStyles;
 
         theme.useTypeTokens(2);
         for (let section = 0; section < page.sections.length; ++section) {
@@ -3234,5 +3239,7 @@ TestCase {
                 return pane.height > 0;
             });
         }
+        verify(siteStyles.remove("a-rather-long-host-name.subdomain.example.org"));
+        verify(siteStyles.remove("github.com"));
     }
 }

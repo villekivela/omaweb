@@ -78,6 +78,15 @@ ApplicationWindow {
     readonly property real developerToolsMinimumWidth: 320
     readonly property real developerToolsMaximumWidth: Math.max(developerToolsMinimumWidth, Math.min(
                                                                     920, window.width * 0.6))
+    // Whether the reader asked for the Site style panel. It stands only where
+    // their styles apply, so not in an Agent Space, and comes back with the
+    // reader's Space. It stays open across navigation and tab switches.
+    property bool siteStylePanelOpen: false
+    readonly property bool siteStyleAvailable: window.readerSiteStyles !== null &&
+                                               !window.agentSpaceOnShow
+    readonly property bool siteStylePanelShown: window.siteStylePanelOpen
+                                                && window.siteStyleAvailable
+    readonly property int siteStylePanelWidth: 400
     readonly property real developerToolsDefaultWidth: 480
     property real developerToolsWidth: developerToolsDefaultWidth
     // The dock stands only for the tab on show, and only once the engine has
@@ -1709,6 +1718,9 @@ ApplicationWindow {
         if (developerToolsDock.visible)
             regions.push(window.measureRegion("developer-tools", developerToolsDock, 0,
                                               developerToolsDock.width));
+        if (siteStylePanel.visible)
+            regions.push(window.measureRegion("site-style", siteStylePanel, 0,
+                                              siteStylePanel.width));
         return regions;
     }
 
@@ -1743,6 +1755,8 @@ ApplicationWindow {
             return "sidebar";
         if (item === developerToolsDock || item === developerToolsResizer)
             return "developer-tools";
+        if (item === siteStylePanel)
+            return "site-style";
         if (item === engineLoader || item === startPage || (item === omnibar && omnibar.resting))
             return window.pageRegionName();
         return "";
@@ -1766,6 +1780,10 @@ ApplicationWindow {
         }
         if (name === "developer-tools") {
             developerToolsDock.focusInspector();
+            return;
+        }
+        if (name === "site-style") {
+            siteStylePanel.focusEditor();
             return;
         }
         // The pane that is not showing the active tab is reached by focusing
@@ -1988,6 +2006,11 @@ ApplicationWindow {
                   });
         rows.push({
                       "separator": true
+                  });
+        rows.push({
+                      "label": qsTr("Style this site"),
+                      "command": "site-style",
+                      "enabled": window.siteStyleAvailable
                   });
         rows.push({
                       "label": qsTr("Inspect element"),
@@ -2831,6 +2854,51 @@ ApplicationWindow {
 
     function exitSiteFullscreen() {
         engineLoader.exitSiteFullscreen();
+    }
+
+    // The panel is opened to type in, so the editor takes the keyboard; closed,
+    // the keyboard goes back to the page.
+    function toggleSiteStylePanel() {
+        if (window.siteStylePanelOpen) {
+            window.closeSiteStylePanel();
+            return;
+        }
+        if (!window.siteStyleAvailable)
+            return;
+        window.siteStylePanelOpen = true;
+        siteStylePanel.focusEditor();
+    }
+
+    // A site style's Edit in Settings: the panel on that host over a page of
+    // it, the one on show if it is one, or the file in the reader's editor
+    // where no page of the host is open here.
+    function editSiteStyle(host) {
+        const under = function (url) {
+            return window.readerSiteStyles.reaches(host, url);
+        };
+        let tabId = under(window.windowBrowser.activeUrl) ? window.windowBrowser.activeTabId : "";
+        const tabs = window.windowBrowser.tabs;
+        for (let row = 0; tabId.length === 0 && row < tabs.rowCount(); ++row) {
+            const index = tabs.index(row, 0);
+            if (under(tabs.data(index, Qt.UserRole + 3)))
+                tabId = String(tabs.data(index, Qt.UserRole + 1));
+        }
+        if (tabId.length === 0 || !window.siteStyleAvailable) {
+            window.readerSiteStyles.openInEditor(host);
+            return;
+        }
+        window.settingsOpen = false;
+        window.windowBrowser.activateTab(tabId);
+        window.siteStylePanelOpen = true;
+        siteStylePanel.chooseHost(host);
+        siteStylePanel.focusEditor();
+    }
+
+    function closeSiteStylePanel() {
+        const focused = window.focusedRegionName() === "site-style";
+        window.siteStylePanelOpen = false;
+        if (focused)
+            window.focusPage();
     }
 
     function toggleDeveloperTools() {
@@ -4391,14 +4459,17 @@ ApplicationWindow {
                     // over the seam and paint the sidebar's edge out for the
                     // length of the nudge.
                     clip: sidebar.tabOffsetX !== 0
-                    anchors.left: parent.left
+                    // The page gives up the width a dock takes rather than
+                    // being covered by it, so nothing the inspector or the
+                    // picker points at is hidden behind the panel doing so.
+                    anchors.left: siteStylePanel.visible && siteStylePanel.dockedLeft
+                                  ? siteStylePanel.right : parent.left
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    // The page gives up the width the dock takes rather than
-                    // being covered by it, so nothing the inspector points at
-                    // is hidden behind the inspector.
                     anchors.right: developerToolsDock.visible ? developerToolsDock.left :
-                                                                parent.right
+                                                                siteStylePanel.visible &&
+                                                                !siteStylePanel.dockedLeft
+                                                                ? siteStylePanel.left : parent.right
                     focus: true
                     browserController: window.windowBrowser
                     agentControl: window.agentControlSource
@@ -4602,16 +4673,42 @@ ApplicationWindow {
                              !engineLoader.siteFullscreenActive
                 }
 
+                // Opposite the sidebar, against the viewport's outer edge, with
+                // Developer tools inside it when both are open.
+                SiteStylePanel {
+                    id: siteStylePanel
+                    objectName: "siteStylePanel"
+                    dockedLeft: chromeRow.sidebarOnRight
+                    x: dockedLeft ? 0 : DevicePixels.snap(parent.width - width,
+                                                          window.devicePixelRatio)
+                    width: window.siteStylePanelWidth
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    visible: window.siteStylePanelShown && !window.settingsOpen &&
+                             !window.historyOpen
+                    z: 4
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    styles: window.readerSiteStyles
+                    pageUrl: window.windowBrowser.activeUrl
+                    engine: engineLoader.item
+                    onCloseRequested: window.closeSiteStylePanel()
+                }
+
                 DeveloperToolsDock {
                     id: developerToolsDock
                     objectName: "developerToolsDock"
-                    // Against the right edge, starting on a whole pixel of the
-                    // display, so the page beside it ends on one.
-                    x: DevicePixels.snap(parent.width - window.developerToolsWidth,
+                    // Against the right edge, or the Site style panel there,
+                    // starting on a whole pixel of the display, so the page
+                    // beside it ends on one.
+                    readonly property real outerEdge: siteStylePanel.visible &&
+                                                      !siteStylePanel.dockedLeft ? siteStylePanel.x :
+                                                                                   parent.width
+                    x: DevicePixels.snap(outerEdge - window.developerToolsWidth,
                                          window.devicePixelRatio)
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    width: parent.width - x
+                    width: outerEdge - x
                     visible: window.developerToolsOpen && !window.settingsOpen &&
                              !window.historyOpen
                     z: 4
@@ -5378,6 +5475,7 @@ ApplicationWindow {
                             httpsOnly: window.httpsOnlyPolicy
                             pageDarkening: window.pageDarkeningSetting
                             pageDarkeningAvailable: window.pageDarkeningAvailable
+                            siteStyles: window.readerSiteStyles
                             engineSuggestions: window.engineSuggestionSetting
                             webRtcPolicy: window.webRtcAddressPolicy
                             secureDns: window.dnsResolver
@@ -5474,6 +5572,9 @@ ApplicationWindow {
                                 window.revealDownload(path);
                             }
                             onProblemReportRequested: window.reportProblem()
+                            onSiteStyleEdited: function (host) {
+                                window.editSiteStyle(host);
+                            }
                             onSettingsFileRevealed: function (path) {
                                 SavedDownload.reveal(path);
                             }

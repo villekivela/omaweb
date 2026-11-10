@@ -99,6 +99,18 @@ Rectangle {
     // The lab draws no page to style, so the reader's site styles are only
     // held, for a test to read which views were given them.
     property var siteStyles: null
+    // The Site style picker, which the lab cannot run in a page: a test or the
+    // lab says what was picked with `simulatePick`, and each call the panel
+    // makes is kept in `pickerCalls`, as `name` or `name:argument`.
+    property bool picking: false
+    property var pick: ({})
+    property var hiddenCounts: ({})
+    property var previewedHidden: []
+    property var pickerCalls: []
+    // How many elements a selector matches on the lab's page, by selector;
+    // one not named matches one.
+    property var matchCounts: ({})
+    signal pickHidden(string selector)
     property var engineContentBlocker: null
     property var engineCookiePolicy: null
     property var permissionController: null
@@ -976,6 +988,63 @@ Rectangle {
         step(0);
     }
 
+    function recordPickerCall(call) {
+        root.pickerCalls = root.pickerCalls.concat([call]);
+    }
+    function startPicking() {
+        root.recordPickerCall("start");
+        root.pick = ({});
+        root.picking = true;
+    }
+    function stopPicking() {
+        root.recordPickerCall("stop");
+        root.picking = false;
+    }
+    function movePick(direction) {
+        root.recordPickerCall("move:" + direction);
+    }
+    function widenPick(level) {
+        root.recordPickerCall("widen:" + level);
+        root.pick = Object.assign({}, root.pick, {
+                                      "level": level
+                                  });
+    }
+    function setPickSelector(text) {
+        root.recordPickerCall("select:" + text);
+        root.pick = Object.assign({}, root.pick, {
+                                      "selector": text,
+                                      "count": root.matchCount(text)
+                                  });
+    }
+    function hidePick() {
+        root.recordPickerCall("hide");
+        if (!root.picking || !root.pick.selector)
+            return;
+        root.picking = false;
+        root.pickHidden(root.pick.selector);
+    }
+    function matchCount(selector) {
+        return root.matchCounts[selector] !== undefined ? root.matchCounts[selector] : 1;
+    }
+    function countHidden(selectors) {
+        const counts = {};
+        for (const selector of selectors)
+            counts[selector] = root.matchCount(selector);
+        root.hiddenCounts = counts;
+    }
+    function previewHidden(selector, on) {
+        const others = root.previewedHidden.filter(each => each !== selector);
+        root.previewedHidden = on ? others.concat([selector]) : others;
+    }
+    // What the reader picked in the page, as the engine reports it.
+    function simulatePick(picked) {
+        root.pick = picked;
+    }
+    // Enter pressed in the page while picking.
+    function simulatePickHidden() {
+        root.hidePick();
+    }
+
     function exitSiteFullscreen() {
         if (!root.siteFullscreenActive)
             return;
@@ -1388,6 +1457,7 @@ Rectangle {
                 font.pixelSize: 15
             }
             Rectangle {
+                id: codeBlock
                 width: parent.width
                 height: code.implicitHeight + 36
                 radius: 6
@@ -1414,6 +1484,7 @@ Rectangle {
                 }
             }
             Rectangle {
+                id: diagram
                 width: parent.width
                 height: 170
                 radius: 6
@@ -1448,6 +1519,65 @@ Rectangle {
                 opacity: 0.85
                 font.family: samplePage.family
                 font.pixelSize: 15
+            }
+        }
+
+        // The Site style picker's highlight, as the engine draws it over the
+        // page: the picked element, and the others the selector matches when
+        // it is widened. The lab has no page to match a selector against, so
+        // the documentation page's diagram is the picked element and its code
+        // sample the other.
+        Repeater {
+            id: pickMarks
+            model: root.picking && root.pick.selector && !samplePage.pictures ? (root.pick.count
+                                                                                 > 1 ? [diagram,
+                                                                                        codeBlock] :
+                                                                                       [diagram]) :
+                                                                                []
+
+            Item {
+                id: mark
+                required property var modelData
+                required property int index
+                readonly property bool picked: index === 0
+                x: article.x + modelData.x - 3
+                y: article.y + modelData.y - 3
+                width: modelData.width + 6
+                height: modelData.height + 6
+                z: 20
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 8
+                    color: Qt.rgba(samplePage.accent.r, samplePage.accent.g, samplePage.accent.b,
+                                   mark.picked ? 0.22 : 0.12)
+                    border.width: 2
+                    border.color: samplePage.accent
+                    opacity: mark.picked ? 1 : 0.7
+                }
+
+                Rectangle {
+                    visible: mark.picked
+                    x: 10
+                    y: 10
+                    width: chip.implicitWidth + 20
+                    height: chip.implicitHeight + 10
+                    radius: 4
+                    color: samplePage.accent
+
+                    Text {
+                        id: chip
+                        anchors.centerIn: parent
+                        text: root.pick.selector + "  " + Math.round(mark.modelData.width) + " × "
+                              + Math.round(mark.modelData.height) + (root.pick.count > 1 ? "  · "
+                                                                                           + root.pick.count :
+                                                                                           "")
+                        color: samplePage.ground
+                        font.family: samplePage.family
+                        font.pixelSize: 12
+                        font.weight: Font.DemiBold
+                    }
+                }
             }
         }
 

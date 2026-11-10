@@ -25,6 +25,7 @@ private slots:
     void readsTheCommandPanelIdAsTheCommandScope();
     void bindsTheScreenshotCommands();
     void bindsSiteInformation();
+    void bindsTheSiteStylePanelByDefault();
     void persistsTheEnabledSetting();
     void adoptsNewDefaultsOnceWithoutResurrectingRemovedBindings();
     void replacesRetiredDefaultWithoutChangingCustomBindings();
@@ -233,6 +234,23 @@ void KeyboardNavigationTest::bindsSiteInformation()
     QCOMPARE(browser.value(QStringLiteral("Primary+Shift+L")).toString(),
         QStringLiteral("site-information"));
     QCOMPARE(browser.value(QStringLiteral("Alt+I")).toString(), QStringLiteral("site-information"));
+}
+
+// The shipped keymap toggles the Site style panel, rebindable as any other
+// command. A JSON object holds one command per chord, so no other default can
+// take it; Omarchy binds nothing to it either, which was checked by hand.
+void KeyboardNavigationTest::bindsTheSiteStylePanelByDefault()
+{
+    QTemporaryDir root;
+    const auto path = root.path() + QStringLiteral("/keybindings.json");
+    QVERIFY(QFile::copy(QStringLiteral(OMAWEB_DEFAULT_KEYBINDINGS_PATH), path));
+    QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    KeyboardNavigation navigation(path);
+
+    QVERIFY2(navigation.errorMessage().isEmpty(), qPrintable(navigation.errorMessage()));
+    const auto browser = navigation.browserBindings();
+    QCOMPARE(
+        browser.value(QStringLiteral("Primary+Shift+S")).toString(), QStringLiteral("site-style"));
 }
 
 void KeyboardNavigationTest::persistsTheEnabledSetting()

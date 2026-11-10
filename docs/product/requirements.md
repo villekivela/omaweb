@@ -715,6 +715,43 @@ reports the gap and remains experimental rather than imitating behavior it canno
   same name, and a style edited on one machine and removed on another is kept with the edit. Two
   machines that edit one style before either syncs keep one of the two edits, as they do for any
   synced file.
+- The Site style panel writes a site's style from inside Omaweb. "Style this site" in the page menu
+  and in the Omnibar, and `Primary+Shift+S`, a command the reader can rebind, toggle it. It docks
+  opposite the sidebar, 400 pixels wide, on the right or on the left when the sidebar is on the
+  right, and the page narrows beside it. It stays open across navigation and tab switches and
+  follows the page on show, takes the keyboard when it opens, and is a region `Alt+H` and `Alt+L`
+  move to. It opens in the reader's Spaces and Private windows, whose edits write the same files,
+  and is not offered in an Agent Space.
+- The panel's host picker lists the page's host and each host above it that is still the site, and
+  says which already have a file. It writes the registrable site, `github.com` for
+  `gist.github.com`, unless the reader picks a narrower host, which stays picked on the site's pages
+  under it while the panel stands. An IP address and a name with no public suffix are their own
+  site.
+- The panel's editor is monospace CSS, coloured by comment, selector, property and value. Typing
+  restyles the site's pages at once, and the file is written 400 milliseconds after the typing
+  pauses, or when the browser quits, so the reader's own editor, the live reload and Sync see one
+  save. A note beside Open in editor says whether the typing is saved yet. Open in editor writes the
+  file if it has none and opens it with `omarchy-launch-editor`, or the desktop's handler without
+  Omarchy. An edit made to the file elsewhere shows in the panel.
+- Pick an element to hide starts the picker on the page on show. Hover highlights an element, and a
+  click picks it without the page hearing the click. While picking, `Up` and `Down` move to the
+  parent and back to the child, `Left` and `Right` to the siblings, `[` and `]` narrow and widen,
+  `Enter` hides and `Escape` stops. The panel shows the selector, editable, how many elements it
+  matches on the page, and a slider from this element to all related ones that takes `Left`,
+  `Right`, `[` and `]` too. A selector prefers a stable id, then classes and attributes that a build
+  tool did not generate, and uses `:nth-child` only where nothing else tells the element from its
+  siblings. The picker stops with the panel, the tab and the document.
+- A hidden element is an ordinary rule in the site's file, on a line of its own at the end:
+  `/* Hidden by Omaweb */ <selector> { display: none !important; }`. The panel reads those lines
+  back and lists each with how many elements it hides on the page, a preview that draws the page
+  without it and outlines what it hides, and an undo that takes out that line alone. No line the
+  reader wrote is rewritten.
+- A Site style can be switched off in the panel or in Settings. Off is kept in `settings.json` as
+  `"site-styles": {"<host>": false}`, so it syncs and the file stays as it is.
+- Settings has a Site styles section after Content blocking that lists every style by host, with how
+  long it is, how many elements it hides, its switch, Edit and Remove, and opens the styles folder.
+  Edit opens the panel on that host over a page of it, or the file in the reader's editor where no
+  page of the host is open. Remove deletes the file and its switch.
 - The sidebar's width belongs to the reader. The seam between it and the page drags, and
   `Primary+Shift+]` and `Primary+Shift+[` move that same seam from the keyboard, so a resize never
   depends on a pointer. The width is clamped so a tab row stays readable and the page keeps at least
@@ -1149,7 +1186,8 @@ The default browser commands include:
   `Primary+K` or `:` for the Omnibar's command scope.
 - `Alt+H`, `Alt+J`, `Alt+K` and `Alt+L` to move the keyboard between the regions on screen.
 - `Primary+Shift+I` for Developer tools, `Primary+Alt+C` to inspect an element, `Primary+Shift+C` to
-  copy the address of the page on show, and `Primary+Shift+L` for Site information.
+  copy the address of the page on show, `Primary+Shift+L` for Site information, and
+  `Primary+Shift+S` for the Site style panel.
 - `Primary+F` or `/` to find in the page, `Primary+G` or `n` for the next match and
   `Primary+Shift+G` or `N` for the previous one.
 - `Primary+=`, `Primary+-` and `Primary+0` to zoom the tab in, out and back to 100 percent.

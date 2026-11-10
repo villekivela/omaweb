@@ -69,6 +69,12 @@ bool matches(const QString &pattern, const QUrl &url)
 
 std::optional<QString> sitePattern(const QUrl &url)
 {
+    const auto domain = registrableDomain(url);
+    return domain ? std::optional(QStringLiteral("*.") + *domain) : std::nullopt;
+}
+
+std::optional<QString> registrableDomain(const QUrl &url)
+{
     if (url.scheme() != QLatin1String("https") && url.scheme() != QLatin1String("http")) {
         return std::nullopt;
     }
@@ -85,12 +91,12 @@ std::optional<QString> sitePattern(const QUrl &url)
     for (qsizetype first = 1; first < labels.size(); ++first) {
         const auto suffix = labels.sliced(first).join(u'.');
         if (qIsEffectiveTLD(suffix)) {
-            return QStringLiteral("*.") + labels.sliced(first - 1).join(u'.');
+            return labels.sliced(first - 1).join(u'.');
         }
     }
     // The list's default rule: a top-level name it does not know is a public
     // suffix of its own.
-    return QStringLiteral("*.") + labels.sliced(labels.size() - 2).join(u'.');
+    return labels.sliced(labels.size() - 2).join(u'.');
 }
 
 QList<LinkRule> read(const QJsonValue &value)
