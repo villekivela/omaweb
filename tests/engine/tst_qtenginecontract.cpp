@@ -15,6 +15,7 @@
 #include "GlobalPrivacyControl.h"
 #include "HttpsOnly.h"
 #include "QtAgentInput.h"
+#include "QtPageScripts.h"
 #include "QtCertificates.h"
 #include "QtContentBlocker.h"
 #include "QtEnginePaths.h"
@@ -297,6 +298,8 @@ private slots:
     void qtHidesCosmeticRulesBeforeThePageRuns();
     void qtScriptsEveryDocumentForItsOwnAddress();
     void qtStylesAPageWithTheReadersSiteStyle();
+    void qtPicksAnElementToHide();
+    void qtCountsAndPreviewsWhatAStyleHides();
     void qtRejectsObsoleteCosmeticSurveys_data();
     void qtRejectsObsoleteCosmeticSurveys();
     void qtSurveysAgainForAChangeWhileThePageLoads_data();
@@ -4484,6 +4487,174 @@ void QtEngineContractTest::qtStylesAPageWithTheReadersSiteStyle()
     QVERIFY(QFile::remove(stylePath));
     QTRY_COMPARE_WITH_TIMEOUT(drawn(), QStringLiteral("rgb(0, 0, 0)"), 15000);
     QCOMPARE(title().section('|', 0, 0), document);
+}
+
+// The Site style panel's picker. A click picks the element under it and the
+// page never hears the click. The selector prefers an id, then classes that
+// are not generated, and widens from the element to all related ones. The
+// keys move the pick and hide it, and a selector the reader edits is counted.
+void QtEngineContractTest::qtPicksAnElementToHide()
+{
+    PageServer server(R"HTML(<!doctype html><html><head><title>ready</title></head>
+        <body style="margin:0" onclick="document.title = 'clicked'">
+        <main id="feed">
+          <article class="post" style="position:absolute;left:0;top:0;width:300px;height:100px">
+            <p>one</p>
+            <aside class="promo sc-a1b2c3"
+                   style="position:absolute;left:200px;top:10px;width:80px;height:40px">ad</aside>
+          </article>
+          <article class="post" style="position:absolute;left:0;top:120px;width:300px;height:100px">
+            <p>two</p>
+            <aside class="promo sc-d4e5f6"
+                   style="position:absolute;left:200px;top:10px;width:80px;height:40px">ad</aside>
+          </article>
+          <article class="post" style="position:absolute;left:0;top:240px;width:300px;height:100px">
+            <p>three</p>
+          </article>
+        </main>
+        <div id="cookie-banner"
+             style="position:absolute;left:0;top:400px;width:200px;height:40px">cookies</div>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    window.resize(600, 600);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(600, 600));
+    window.show();
+    auto *webView = adapter->findChild<QQuickItem *>(QStringLiteral("qtWebView"));
+    QVERIFY(webView);
+    omaweb::QtAgentInput input;
+
+    QVERIFY(adapter->setProperty(
+        "currentUrl", QUrl(QStringLiteral("http://127.0.0.1:%1/").arg(server.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("ready"), 15000);
+    const auto pick = [&adapter] { return adapter->property("pick").toMap(); };
+    const auto selector = [&pick] { return pick().value(QStringLiteral("selector")).toString(); };
+    const auto count = [&pick] { return pick().value(QStringLiteral("count")).toInt(); };
+    QSignalSpy hidden(adapter.get(), SIGNAL(pickHidden(QString)));
+
+    // The picker says so once it runs in the page, before which a click is
+    // the page's.
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "startPicking"));
+    QVERIFY(adapter->property("picking").toBool());
+    QTRY_VERIFY_WITH_TIMEOUT(pick().contains(QStringLiteral("levels")), 5000);
+    QVERIFY(input.click(webView, QPointF(100, 420)));
+    QTRY_COMPARE_WITH_TIMEOUT(selector(), QStringLiteral("#cookie-banner"), 5000);
+    QCOMPARE(count(), 1);
+
+    QVERIFY(input.click(webView, QPointF(240, 30)));
+    QTRY_VERIFY_WITH_TIMEOUT(selector().contains(QStringLiteral("promo")), 5000);
+    QVERIFY2(!selector().contains(QStringLiteral("sc-")), qPrintable(selector()));
+    QCOMPARE(count(), 1);
+    QVERIFY(pick().value(QStringLiteral("levels")).toInt() >= 2);
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "widenPick", Q_ARG(QVariant, 1)));
+    QTRY_COMPARE_WITH_TIMEOUT(count(), 2, 5000);
+    QCOMPARE(pick().value(QStringLiteral("level")).toInt(), 1);
+
+    QVERIFY(QMetaObject::invokeMethod(
+        adapter.get(), "movePick", Q_ARG(QVariant, QStringLiteral("parent"))));
+    QTRY_VERIFY_WITH_TIMEOUT(!selector().contains(QStringLiteral("promo")), 5000);
+    QCOMPARE(count(), 1);
+    QCOMPARE(pick().value(QStringLiteral("level")).toInt(), 0);
+    QVERIFY(QMetaObject::invokeMethod(
+        adapter.get(), "movePick", Q_ARG(QVariant, QStringLiteral("child"))));
+    QTRY_VERIFY_WITH_TIMEOUT(selector().contains(QStringLiteral("promo")), 5000);
+
+    // The keys are the picker's while it picks, and the page hears none.
+    QVERIFY(input.pressKey(webView, QStringLiteral("ArrowUp")));
+    QTRY_VERIFY_WITH_TIMEOUT(!selector().contains(QStringLiteral("promo")), 5000);
+    QVERIFY(input.pressKey(webView, QStringLiteral("ArrowRight")));
+    QVERIFY(input.pressKey(webView, QStringLiteral("ArrowLeft")));
+    QVERIFY(input.pressKey(webView, QStringLiteral("]")));
+    QTRY_COMPARE_WITH_TIMEOUT(count(), 3, 5000);
+    const auto widened = selector();
+    QVERIFY(input.pressKey(webView, QStringLiteral("Enter")));
+    QTRY_COMPARE_WITH_TIMEOUT(hidden.count(), 1, 5000);
+    QCOMPARE(hidden.at(0).at(0).toString(), widened);
+    QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("picking").toBool(), 5000);
+    QCOMPARE(adapter->property("pageTitle").toString(), QStringLiteral("ready"));
+
+    // A selector the reader writes is counted as it stands, and one that does
+    // not parse matches nothing.
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "startPicking"));
+    QTRY_VERIFY_WITH_TIMEOUT(pick().contains(QStringLiteral("levels")), 5000);
+    QVERIFY(QMetaObject::invokeMethod(
+        adapter.get(), "setPickSelector", Q_ARG(QVariant, QStringLiteral("article p"))));
+    QTRY_COMPARE_WITH_TIMEOUT(count(), 3, 5000);
+    QVERIFY(QMetaObject::invokeMethod(
+        adapter.get(), "setPickSelector", Q_ARG(QVariant, QStringLiteral("article["))));
+    QTRY_VERIFY_WITH_TIMEOUT(!pick().value(QStringLiteral("valid")).toBool(), 5000);
+    QCOMPARE(count(), 0);
+    QVERIFY(input.pressKey(webView, QStringLiteral("Escape")));
+    QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("picking").toBool(), 5000);
+    QCOMPARE(hidden.count(), 1);
+}
+
+// Each row the panel lists for a hidden element says how many it hides on the
+// page, and its preview shows them again, outlined, until it is let go.
+void QtEngineContractTest::qtCountsAndPreviewsWhatAStyleHides()
+{
+    PageServer server(R"HTML(<!doctype html><html><head><title>ready</title></head><body>
+        <div id="cookie-banner" style="display:flex">cookies</div>
+        <p class="note">one</p><p class="note">two</p>
+        <script>
+            const report = () => {
+                document.title = getComputedStyle(document.getElementById("cookie-banner")).display;
+                requestAnimationFrame(report);
+            };
+            addEventListener("load", report);
+        </script>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/").arg(server.serverPort()));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    omaweb::SiteStyles siteStyles(root.filePath(QStringLiteral("config")));
+    QVERIFY(siteStyles.hide(QStringLiteral("127.0.0.1"), QStringLiteral("#cookie-banner")));
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+        {QStringLiteral("siteStyles"), QVariant::fromValue<QObject *>(&siteStyles)},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    qobject_cast<QQuickItem *>(adapter.get())->setParentItem(window.contentItem());
+    window.show();
+
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("none"), 15000);
+
+    const QStringList selectors {QStringLiteral("#cookie-banner"), QStringLiteral(".note"),
+        QStringLiteral("p["), QStringLiteral("#gone")};
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "countHidden", Q_ARG(QVariant, selectors)));
+    const QVariantMap counted {{QStringLiteral("#cookie-banner"), 1}, {QStringLiteral(".note"), 2},
+        {QStringLiteral("p["), 0}, {QStringLiteral("#gone"), 0}};
+    QTRY_COMPARE_WITH_TIMEOUT(adapter->property("hiddenCounts").toMap(), counted, 5000);
+
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "previewHidden",
+        Q_ARG(QVariant, QStringLiteral("#cookie-banner")), Q_ARG(QVariant, true)));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("flex"), 5000);
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "previewHidden",
+        Q_ARG(QVariant, QStringLiteral("#cookie-banner")), Q_ARG(QVariant, false)));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("none"), 5000);
 }
 
 // Every document a navigation creates runs the view's scripts and the
@@ -13491,6 +13662,7 @@ int main(int argc, char *argv[])
     omaweb::registerEngineBuild();
     omaweb::registerQtCertificates();
     omaweb::registerQtAgentInput();
+    omaweb::registerQtPageScripts();
     omaweb::QtPageGlide pageGlide;
     omaweb::registerQtPageGlide(&pageGlide);
     omaweb::registerWindowExposure();

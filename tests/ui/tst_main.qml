@@ -5346,6 +5346,95 @@ TestCase {
         verify(siteStyles.remove("github.com"));
     }
 
+    // Pick, adjust and hide: the card shows what the page reports, the slider
+    // and its keys widen it, and Hide writes the selector into the site's file.
+    // Each hidden element is listed with how many it hides here, a preview and
+    // an undo. The picker stops with the panel and with the tab.
+    function test_siteStylePanelHidesAPickedElement() {
+        const page = openPage("https://feed.example/");
+        tryVerify(function () {
+            return page.activeFocus;
+        });
+        const panel = findChild(window.contentItem, "siteStylePanel");
+        window.commands.run("site-style", -1);
+        tryVerify(function () {
+            return panel.visible;
+        });
+        const card = findChild(panel, "siteStylePickCard");
+        // The column below the editor is laid out again as rows and the card
+        // come and go, and a click waits for it.
+        const press = function (item, name) {
+            waitForItemPolished(findChild(panel, "siteStyleHiding"));
+            mouseClick(findChild(item, name));
+        };
+        verify(!card.visible);
+        press(panel, "siteStylePick");
+        verify(page.picking);
+        verify(card.visible);
+
+        page.simulatePick({
+                              "selector": "#cookie-banner",
+                              "count": 1,
+                              "level": 0,
+                              "levels": 3,
+                              "valid": true
+                          });
+        const field = findChild(panel, "siteStyleSelector");
+        const matches = findChild(panel, "siteStyleMatches");
+        tryCompare(field, "text", "#cookie-banner");
+        compare(matches.text, "Matches 1 element on this page");
+        const widening = findChild(panel, "siteStyleWidening");
+        widening.forceActiveFocus();
+        keyClick(Qt.Key_BracketRight);
+        verify(page.pickerCalls.indexOf("widen:1") >= 0);
+        keyClick(Qt.Key_Right);
+        verify(page.pickerCalls.indexOf("widen:2") >= 0);
+        keyClick(Qt.Key_BracketLeft);
+        verify(page.pickerCalls.indexOf("widen:1") >= 0);
+
+        page.matchCounts = {
+            ".banner": 2,
+            "div[": 0
+        };
+        field.forceActiveFocus();
+        field.selectAll();
+        keyClick(Qt.Key_Period);
+        for (const letter of "banner")
+            keyClick(letter);
+        verify(page.pickerCalls.indexOf("select:.banner") >= 0);
+        compare(matches.text, "Matches 2 elements on this page");
+        keyClick(Qt.Key_Return);
+        verify(!page.picking);
+        verify(!card.visible);
+        compare(siteStyles.hidden("feed.example"), [".banner"]);
+
+        const row = findChild(panel, "siteStyleHidden-.banner");
+        verify(row !== null);
+        tryCompare(findChild(row, "siteStyleHiddenCount"), "text", "2 here");
+        press(row, "siteStylePreview");
+        compare(page.previewedHidden, [".banner"]);
+        press(row, "siteStylePreview");
+        compare(page.previewedHidden, []);
+        press(row, "siteStyleUndo");
+        compare(siteStyles.hidden("feed.example"), []);
+
+        press(panel, "siteStylePick");
+        verify(page.picking);
+        press(panel, "siteStyleStopPicking");
+        verify(!page.picking);
+        press(panel, "siteStylePick");
+        browser.openInput("https://other.example/", true);
+        tryVerify(function () {
+            return !page.picking;
+        });
+        press(panel, "siteStylePick");
+        const other = findChild(window.contentItem, "engineLoader").item;
+        verify(other.picking);
+        window.commands.run("site-style", -1);
+        verify(!other.picking);
+        verify(siteStyles.remove("feed.example"));
+    }
+
     // A Private window has no Agent Space, and its pages take the reader's
     // site styles as their Spaces' pages do.
     function test_aPrivateWindowsPagesTakeSiteStyles() {

@@ -753,6 +753,8 @@ if(OMAWEB_BUILD_BROWSER)
         src/engine/qt/PageGlide.h
         src/engine/qt/QtAgentInput.cpp
         src/engine/qt/QtAgentInput.h
+        src/engine/qt/QtPageScripts.cpp
+        src/engine/qt/QtPageScripts.h
         src/engine/qt/QtCertificates.cpp
         src/engine/qt/QtCertificates.h
         src/engine/qt/QtContentBlocker.cpp
@@ -803,7 +805,7 @@ if(OMAWEB_BUILD_BROWSER)
     qt_add_resources(omaweb-engine-qt "omaweb_agent_page_script"
         PREFIX "/omaweb/engine-qt"
         BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/engine/api"
-        FILES src/engine/api/agent-page.js
+        FILES src/engine/api/agent-page.js src/engine/api/site-style-picker.js
     )
 endif()
 

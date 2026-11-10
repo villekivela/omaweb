@@ -254,6 +254,22 @@ bool SiteStyles::setEnabled(const QString &host, bool enabled)
         switchesKey, key, enabled ? QJsonValue(QJsonValue::Null) : QJsonValue(false));
 }
 
+QString SiteStyles::styleSheetShowing(const QUrl &url, const QStringList &shown) const
+{
+    const auto css = styleSheet(url);
+    if (shown.isEmpty()) {
+        return css;
+    }
+    QStringList left;
+    for (const auto &line : css.split(u'\n')) {
+        const auto hide = line.startsWith(hiddenMark) && line.endsWith(hiddenRule);
+        if (!hide || !shown.contains(line.sliced(hiddenMark.size()).chopped(hiddenRule.size()))) {
+            left.append(line);
+        }
+    }
+    return left.join(u'\n');
+}
+
 bool SiteStyles::hide(const QString &host, const QString &selector)
 {
     const auto key = canonicalHost(host);

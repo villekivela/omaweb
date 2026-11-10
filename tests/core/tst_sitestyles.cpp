@@ -38,6 +38,7 @@ private slots:
     void offersEachHostUpToTheSite();
     void opensAStyleInTheReadersEditor();
     void opensTheStylesFolder();
+    void leavesOutAHidePreviewed();
 };
 
 namespace {
@@ -509,6 +510,25 @@ void SiteStylesTest::opensTheStylesFolder()
     const auto folder = root.filePath(QStringLiteral("config/styles"));
     QVERIFY(QDir(folder).exists());
     QTRY_COMPARE(read(launched), folder.toUtf8() + '\n');
+}
+
+// A preview shows a hidden element as the page draws it, so the sheet leaves
+// that hide's line out rather than overriding it.
+void SiteStylesTest::leavesOutAHidePreviewed()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    write(root.filePath(QStringLiteral("config/styles/github.com.css")),
+        "a { color: red; }\n"
+        "/* Hidden by Omaweb */ .promo { display: none !important; }\n"
+        "/* Hidden by Omaweb */ #feedback { display: none !important; }\n");
+    const SiteStyles styles(root.filePath(QStringLiteral("config")));
+    QCOMPARE(styles.styleSheetShowing(
+                 QUrl(QStringLiteral("https://gist.github.com/")), {QStringLiteral(".promo")}),
+        QStringLiteral("a { color: red; }\n"
+                       "/* Hidden by Omaweb */ #feedback { display: none !important; }\n"));
+    QCOMPARE(styles.styleSheetShowing(QUrl(QStringLiteral("https://github.com/")), {}),
+        styles.styleSheet(QUrl(QStringLiteral("https://github.com/"))));
 }
 
 QTEST_GUILESS_MAIN(SiteStylesTest)

@@ -4666,6 +4666,7 @@ ApplicationWindow {
                     iconFontFamily: materialSymbols.name
                     styles: window.readerSiteStyles
                     pageUrl: window.windowBrowser.activeUrl
+                    engine: engineLoader.item
                     onCloseRequested: window.closeSiteStylePanel()
                 }
 

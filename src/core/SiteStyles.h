@@ -46,6 +46,8 @@ public:
     // host wins a tie. An IP address takes its own file alone. Empty for an
     // address with no host or no file.
     Q_INVOKABLE QString styleSheet(const QUrl &url) const;
+    // The same, with the hides of `shown` left out, as a preview of them asks.
+    Q_INVOKABLE QString styleSheetShowing(const QUrl &url, const QStringList &shown) const;
 
     // A host's own CSS as it stands, typed or saved.
     Q_INVOKABLE QString source(const QString &host) const;

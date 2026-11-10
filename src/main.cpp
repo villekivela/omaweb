@@ -9,6 +9,7 @@
 #include "ContentBlocker.h"
 #include "ControlSocket.h"
 #include "QtAgentInput.h"
+#include "QtPageScripts.h"
 #include "PageSnapshot.h"
 #include "WindowExposure.h"
 #include "ReleaseWatch.h"
@@ -647,6 +648,7 @@ int main(int argc, char *argv[])
     omaweb::registerInputMethodReport(&inputMethod);
     omaweb::registerLocaleReport(&localeReport);
     omaweb::registerQtAgentInput();
+    omaweb::registerQtPageScripts();
     // Fingers resting on the touchpad stop a page's glide, as in GTK 4 (#808).
     omaweb::QtPageGlide pageGlide;
     omaweb::TouchpadHold touchpadHold;

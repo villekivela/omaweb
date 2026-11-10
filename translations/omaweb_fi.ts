@@ -4712,6 +4712,22 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
 <context>
     <name>SiteStylePanel</name>
     <message>
+        <source>This selector does not parse</source>
+        <translation>Valitsinta ei voi jäsentää</translation>
+    </message>
+    <message>
+        <source>Matches nothing on this page</source>
+        <translation>Ei osu mihinkään tällä sivulla</translation>
+    </message>
+    <message>
+        <source>Matches 1 element on this page</source>
+        <translation>Osuu 1 elementtiin tällä sivulla</translation>
+    </message>
+    <message>
+        <source>Matches %1 elements on this page</source>
+        <translation>Osuu %1 elementtiin tällä sivulla</translation>
+    </message>
+    <message>
         <source>No site</source>
         <translation>Ei sivustoa</translation>
     </message>
@@ -4754,6 +4770,68 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Saved</source>
         <translation>Tallennettu</translation>
+    </message>
+    <message>
+        <source>Hidden on this site</source>
+        <translation>Piilotettu tällä sivustolla</translation>
+    </message>
+    <message>
+        <source>none here</source>
+        <translation>ei täällä</translation>
+    </message>
+    <message>
+        <source>%1 here</source>
+        <translation>%1 täällä</translation>
+    </message>
+    <message>
+        <source>Show %1 on the page</source>
+        <translation>Näytä %1 sivulla</translation>
+    </message>
+    <message>
+        <source>Stop hiding %1</source>
+        <translation>Lopeta kohteen %1 piilottaminen</translation>
+    </message>
+    <message>
+        <source>Pick an element to hide</source>
+        <translation>Valitse piilotettava elementti</translation>
+    </message>
+    <message>
+        <source>Picking</source>
+        <translation>Valitaan</translation>
+    </message>
+    <message>
+        <source>Point at an element on the page</source>
+        <translation>Osoita elementtiä sivulla</translation>
+    </message>
+    <message>
+        <source>Selector to hide</source>
+        <translation>Piilotettava valitsin</translation>
+    </message>
+    <message>
+        <source>Widen from this element to all related ones</source>
+        <translation>Laajenna tästä elementistä kaikkiin samankaltaisiin</translation>
+    </message>
+    <message>
+        <source>This element</source>
+        <translation>Tämä elementti</translation>
+    </message>
+    <message>
+        <source>All related</source>
+        <translation>Kaikki samankaltaiset</translation>
+    </message>
+    <message>
+        <source>Hide</source>
+        <translation>Piilota</translation>
+    </message>
+    <message>
+        <source>Stop picking</source>
+        <translation>Lopeta valinta</translation>
+    </message>
+    <message>
+        <source>↑ ↓ parent and child · ← → siblings
+[ ] narrow and widen · Enter hides · Esc stops</source>
+        <translation>↑ ↓ ylempi ja alempi · ← → viereiset
+[ ] kavenna ja laajenna · Enter piilottaa · Esc lopettaa</translation>
     </message>
     <message>
         <source>applies</source>

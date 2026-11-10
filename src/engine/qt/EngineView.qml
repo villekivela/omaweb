@@ -2017,7 +2017,7 @@ Item {
     }
 
     function siteStyleSheet(url) {
-        return root.siteStyles ? root.siteStyles.styleSheet(url) : "";
+        return root.siteStyles ? root.siteStyles.styleSheetShowing(url, root.previewedHidden) : "";
     }
     function installSiteStyleScript(url) {
         const css = root.siteStyleSheet(url);
@@ -2056,6 +2056,98 @@ Item {
         }
     }
 
+    // ---- the Site style picker ----------------------------------------------
+    //
+    // The Site style panel's picker (`site-style-picker.js`), run in the
+    // application world while the reader picks. It reports what is picked as
+    // `pick`: its `selector`, how many elements it matches (`count`), how far
+    // it is widened (`level`, of `levels`) and whether a typed selector parses
+    // (`valid`). Enter in the page, or `hidePick`, hands the selector over as
+    // `pickHidden`; Escape, a navigation or `stopPicking` ends it.
+    property bool picking: false
+    property var pick: ({})
+    // The colour the highlight is drawn in: the window's accent, which a page's
+    // own controls take too.
+    readonly property color siteStylePickerAccent: root.pageControlAccent.a > 0
+                                                   ? root.pageControlAccent : "#7c6cff"
+    signal pickHidden(string selector)
+
+    function pickerCall(call) {
+        webView.runJavaScript(
+                    "globalThis.__omawebSiteStylePicker && globalThis.__omawebSiteStylePicker."
+                    + call + ";", WebEngineScript.ApplicationWorld);
+    }
+    function startPicking() {
+        root.pick = ({});
+        root.picking = true;
+        webView.runJavaScript(root.reporting("globalThis.__omawebSiteStyleAccent = "
+                                             + JSON.stringify(String(root.siteStylePickerAccent))
+                                             + ";" + QtPageScripts.siteStylePicker),
+                              WebEngineScript.ApplicationWorld);
+    }
+    function stopPicking() {
+        if (!root.picking)
+            return;
+        root.picking = false;
+        root.pickerCall("stop(false)");
+    }
+    function movePick(direction) {
+        root.pickerCall("move(" + JSON.stringify(String(direction)) + ")");
+    }
+    function widenPick(level) {
+        root.pickerCall("widen(" + Number(level) + ")");
+    }
+    function setPickSelector(text) {
+        root.pickerCall("select(" + JSON.stringify(String(text)) + ")");
+    }
+    function hidePick() {
+        root.pickerCall("hide()");
+    }
+    // How many elements each selector the panel lists matches on the page, by
+    // selector, as of the last `countHidden`. One that does not parse
+    // matches none.
+    property var hiddenCounts: ({})
+    function countHidden(selectors) {
+        const list = Array.from(selectors, String);
+        webView.runJavaScript("(" + JSON.stringify(list) + ").reduce((counts, selector) => {"
+                              + "try { counts[selector] = document.querySelectorAll(selector).length; }"
+                              + "catch (error) { counts[selector] = 0; } return counts; }, {})",
+                              WebEngineScript.ApplicationWorld, function (counts) {
+                                  root.hiddenCounts = counts || ({});
+                              });
+    }
+    // The hides the reader is previewing: the page is drawn without them, and
+    // what they hide is outlined.
+    property var previewedHidden: []
+    readonly property string siteStylePreviewSheetId: "__omaweb_site_style_preview"
+    function previewHidden(selector, on) {
+        const others = root.previewedHidden.filter(each => each !== String(selector));
+        root.previewedHidden = on ? others.concat([String(selector)]) : others;
+        root.applySiteStyle();
+        const outline = root.previewedHidden.map(each => each + " { outline: 2px dashed " + String(
+                                                             root.siteStylePickerAccent)
+                                                         + " !important; outline-offset: 2px !important; }");
+        webView.runJavaScript(root.styleSheetSnippet(root.siteStylePreviewSheetId, outline.join(
+                                                         "\n")), WebEngineScript.ApplicationWorld);
+    }
+    function pickerReported(channel, body) {
+        if (!root.picking)
+            return;
+        if (channel === "site_style_pick") {
+            try {
+                root.pick = JSON.parse(body);
+            } catch (error) {
+                root.pick = ({});
+            }
+        } else if (channel === "site_style_hide") {
+            root.picking = false;
+            try {
+                root.pickHidden(String(JSON.parse(body).selector));
+            } catch (error) {}
+        } else if (channel === "site_style_stop") {
+            root.picking = false;
+        }
+    }
     // The generic rules are the ones written against no particular site, and
     // sending all of them cost a 617 KB stylesheet on every page. Each frame
     // reports the classes and ids it actually carries, and only the generic
@@ -4959,6 +5051,9 @@ Item {
                 if (/^(https?|file):/i.test(String(loadRequest.url)))
                     root.externalProtocolReports = ({});
                 root.problemEvent("navigated", loadRequest.url, "");
+                // The picker and a preview are the document's, and go with it.
+                root.picking = false;
+                root.previewedHidden = [];
                 // A glide the reader's fingers gave the last document would scroll this one.
                 QtPageGlide.stopIn(webView);
                 root.pageGeneration += 1;
@@ -5193,7 +5288,9 @@ Item {
                                             root.pageGeneration);
                 return;
             }
-            if (report.channel === "site_data_cleared") {
+            if (report.channel.startsWith("site_style_")) {
+                root.pickerReported(report.channel, report.body);
+            } else if (report.channel === "site_data_cleared") {
                 try {
                     const cleared = JSON.parse(report.body);
                     root.pageSiteDataCleared(String(cleared.origin), cleared.cleared,
