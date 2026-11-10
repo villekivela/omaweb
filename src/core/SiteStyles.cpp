@@ -7,7 +7,9 @@
 #include <QFileInfo>
 #include <QHostAddress>
 #include <QJsonObject>
+#include <QProcess>
 #include <QSaveFile>
+#include <QStandardPaths>
 
 #include <utility>
 
@@ -178,6 +180,40 @@ QString SiteStyles::path(const QString &host) const
         return {};
     }
     return QDir(directory()).filePath(m_files.value(key, QUrl::fromAce(key.toLatin1()) + suffix));
+}
+
+bool SiteStyles::openInEditor(const QString &host)
+{
+    const auto key = canonicalHost(host);
+    if (key.isEmpty()) {
+        return false;
+    }
+    if ((!m_files.contains(key) || m_unsaved.contains(key)) && !write(key, m_sheets.value(key))) {
+        return false;
+    }
+    const auto file = path(key);
+    const auto omarchy = QStandardPaths::findExecutable(QStringLiteral("omarchy-launch-editor"));
+    if (!omarchy.isEmpty()) {
+        return QProcess::startDetached(omarchy, {file});
+    }
+#ifdef Q_OS_MACOS
+    return QProcess::startDetached(QStringLiteral("open"), {QStringLiteral("-t"), file});
+#else
+    return QProcess::startDetached(QStringLiteral("xdg-open"), {file});
+#endif
+}
+
+bool SiteStyles::openFolder()
+{
+    const auto folder = directory();
+    if (folder.isEmpty() || !QDir().mkpath(folder)) {
+        return false;
+    }
+#ifdef Q_OS_MACOS
+    return QProcess::startDetached(QStringLiteral("open"), {folder});
+#else
+    return QProcess::startDetached(QStringLiteral("xdg-open"), {folder});
+#endif
 }
 
 bool SiteStyles::remove(const QString &host)

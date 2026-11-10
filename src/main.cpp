@@ -19,6 +19,7 @@
 #include "DevelopmentLaunch.h"
 #include "DiagnosticOverrides.h"
 #include "ExternalProtocolHandler.h"
+#include "CssHighlighter.h"
 #include "FaviconTint.h"
 #include "DesktopTextScaling.h"
 #include "FontSettings.h"
@@ -609,6 +610,7 @@ int main(int argc, char *argv[])
 
     omaweb::registerBrowserController();
     omaweb::registerDownloads();
+    omaweb::registerCssHighlighter();
     omaweb::registerFaviconTint();
     omaweb::registerFontSettings();
     omaweb::registerEngineCapabilities();

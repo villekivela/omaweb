@@ -611,6 +611,8 @@ if(OMAWEB_BUILD_SYNC)
 endif()
 
 add_library(omaweb-ui STATIC
+    src/ui/CssHighlighter.cpp
+    src/ui/CssHighlighter.h
     src/ui/FaviconTint.cpp
     src/ui/FaviconTint.h
     src/ui/KitTheme.cpp
@@ -2298,6 +2300,14 @@ if(BUILD_TESTING)
     )
     omaweb_strict_target(omaweb-app-icon-tests)
     add_test(NAME omaweb-app-icon COMMAND omaweb-app-icon-tests)
+
+    qt_add_executable(omaweb-css-highlighter-tests tests/ui/tst_csshighlighter.cpp)
+    target_link_libraries(omaweb-css-highlighter-tests PRIVATE omaweb-ui Qt6::Gui Qt6::Test)
+    omaweb_strict_target(omaweb-css-highlighter-tests)
+    add_test(NAME omaweb-css-highlighter COMMAND omaweb-css-highlighter-tests)
+    set_tests_properties(omaweb-css-highlighter PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
 
     qt_add_executable(omaweb-favicon-tint-tests tests/ui/tst_favicontint.cpp)
     target_link_libraries(omaweb-favicon-tint-tests PRIVATE omaweb-ui Qt6::Gui Qt6::Test)

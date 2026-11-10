@@ -61,6 +61,12 @@ public:
     QVariantList styles() const;
     // Where a host's file is, or will be once something is written to it.
     Q_INVOKABLE QString path(const QString &host) const;
+    // Opens a host's file in the reader's editor, writing it first: Omarchy's
+    // choice of editor, or the desktop's for CSS where there is no Omarchy.
+    Q_INVOKABLE bool openInEditor(const QString &host);
+    // Opens the folder of styles in the desktop's file manager, making it
+    // first if there is none yet.
+    Q_INVOKABLE bool openFolder();
     // Deletes a host's file, what was typed into it and its switch.
     Q_INVOKABLE bool remove(const QString &host);
 

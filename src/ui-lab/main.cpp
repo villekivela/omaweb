@@ -16,6 +16,7 @@
 #include "ReleaseWatch.h"
 #include "EngineCapabilities.h"
 #include "PageImages.h"
+#include "CssHighlighter.h"
 #include "FaviconTint.h"
 #include "FontSettings.h"
 #include "DesktopTextScaling.h"
@@ -662,6 +663,7 @@ int main(int argc, char *argv[])
 
     omaweb::registerBrowserController();
     omaweb::registerDownloads();
+    omaweb::registerCssHighlighter();
     omaweb::registerFaviconTint();
     omaweb::registerFontSettings();
     omaweb::registerEngineCapabilities();

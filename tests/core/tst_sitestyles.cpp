@@ -36,6 +36,8 @@ private slots:
     void removesAStyleWithItsSwitch();
     void offersEachHostUpToTheSite_data();
     void offersEachHostUpToTheSite();
+    void opensAStyleInTheReadersEditor();
+    void opensTheStylesFolder();
 };
 
 namespace {
@@ -456,6 +458,57 @@ void SiteStylesTest::offersEachHostUpToTheSite()
     }
     QCOMPARE(names, hosts);
     QCOMPARE(styles.siteFor(QUrl(address)), site);
+}
+
+// The reader's own editor is the one Omarchy launches for them. The file is
+// written first, so a style typed and not yet saved, or one with nothing in
+// it yet, is there to open.
+void SiteStylesTest::opensAStyleInTheReadersEditor()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto launched = root.filePath(QStringLiteral("launched"));
+    write(root.filePath(QStringLiteral("bin/omarchy-launch-editor")),
+        "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"" + launched.toUtf8() + "\"\n");
+    QFile::setPermissions(root.filePath(QStringLiteral("bin/omarchy-launch-editor")),
+        QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+    const auto path = qgetenv("PATH");
+    qputenv("PATH", root.filePath(QStringLiteral("bin")).toUtf8() + ':' + path);
+    SiteStyles styles(root.filePath(QStringLiteral("config")));
+    styles.edit(QStringLiteral("github.com"), QStringLiteral("a { color: blue; }"));
+
+    const auto opened = styles.openInEditor(QStringLiteral("github.com"));
+    qputenv("PATH", path);
+    QVERIFY(opened);
+    const auto file = root.filePath(QStringLiteral("config/styles/github.com.css"));
+    QCOMPARE(read(file), QByteArray("a { color: blue; }"));
+    QTRY_COMPARE(read(launched), file.toUtf8() + '\n');
+}
+
+// The folder is opened even before it has a style, so a reader can drop
+// files into it.
+void SiteStylesTest::opensTheStylesFolder()
+{
+#ifdef Q_OS_MACOS
+    QSKIP("The desktop opens a folder with `open` on macOS, which is not faked here.");
+#endif
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto launched = root.filePath(QStringLiteral("launched"));
+    write(root.filePath(QStringLiteral("bin/xdg-open")),
+        "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"" + launched.toUtf8() + "\"\n");
+    QFile::setPermissions(root.filePath(QStringLiteral("bin/xdg-open")),
+        QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+    const auto path = qgetenv("PATH");
+    qputenv("PATH", root.filePath(QStringLiteral("bin")).toUtf8() + ':' + path);
+    SiteStyles styles(root.filePath(QStringLiteral("config")));
+
+    const auto opened = styles.openFolder();
+    qputenv("PATH", path);
+    QVERIFY(opened);
+    const auto folder = root.filePath(QStringLiteral("config/styles"));
+    QVERIFY(QDir(folder).exists());
+    QTRY_COMPARE(read(launched), folder.toUtf8() + '\n');
 }
 
 QTEST_GUILESS_MAIN(SiteStylesTest)
