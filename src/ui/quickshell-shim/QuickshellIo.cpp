@@ -264,7 +264,7 @@ void FileView::setPath(const QString &path)
     // A file that asked to block has its text the moment the path is set. Any other loads after
     // the component finishes binding, so an `onLoaded` handler declared alongside `path` is
     // connected before the signal fires.
-    if (m_blockLoading) {
+    if (m_blockLoading || m_blockAllReads) {
         reload();
         return;
     }
@@ -280,6 +280,29 @@ void FileView::setBlockLoading(bool blockLoading)
     }
     m_blockLoading = blockLoading;
     emit blockLoadingChanged();
+}
+
+bool FileView::blockAllReads() const { return m_blockAllReads; }
+
+void FileView::setBlockAllReads(bool blockAllReads)
+{
+    if (m_blockAllReads == blockAllReads) {
+        return;
+    }
+    m_blockAllReads = blockAllReads;
+    emit blockAllReadsChanged();
+}
+
+// Every read here is already synchronous or queued by `setPath`, so `preload` only has to exist.
+bool FileView::preload() const { return m_preload; }
+
+void FileView::setPreload(bool preload)
+{
+    if (m_preload == preload) {
+        return;
+    }
+    m_preload = preload;
+    emit preloadChanged();
 }
 
 bool FileView::watchChanges() const { return m_watchChanges; }
