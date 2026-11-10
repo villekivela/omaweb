@@ -1718,6 +1718,9 @@ ApplicationWindow {
         if (developerToolsDock.visible)
             regions.push(window.measureRegion("developer-tools", developerToolsDock, 0,
                                               developerToolsDock.width));
+        if (siteStylePanel.visible)
+            regions.push(window.measureRegion("site-style", siteStylePanel, 0,
+                                              siteStylePanel.width));
         return regions;
     }
 
@@ -1752,6 +1755,8 @@ ApplicationWindow {
             return "sidebar";
         if (item === developerToolsDock || item === developerToolsResizer)
             return "developer-tools";
+        if (item === siteStylePanel)
+            return "site-style";
         if (item === engineLoader || item === startPage || (item === omnibar && omnibar.resting))
             return window.pageRegionName();
         return "";
@@ -1775,6 +1780,10 @@ ApplicationWindow {
         }
         if (name === "developer-tools") {
             developerToolsDock.focusInspector();
+            return;
+        }
+        if (name === "site-style") {
+            siteStylePanel.focusEditor();
             return;
         }
         // The pane that is not showing the active tab is reached by focusing
@@ -2847,10 +2856,24 @@ ApplicationWindow {
         engineLoader.exitSiteFullscreen();
     }
 
+    // The panel is opened to type in, so the editor takes the keyboard; closed,
+    // the keyboard goes back to the page.
     function toggleSiteStylePanel() {
+        if (window.siteStylePanelOpen) {
+            window.closeSiteStylePanel();
+            return;
+        }
         if (!window.siteStyleAvailable)
             return;
-        window.siteStylePanelOpen = !window.siteStylePanelOpen;
+        window.siteStylePanelOpen = true;
+        siteStylePanel.focusEditor();
+    }
+
+    function closeSiteStylePanel() {
+        const focused = window.focusedRegionName() === "site-style";
+        window.siteStylePanelOpen = false;
+        if (focused)
+            window.focusPage();
     }
 
     function toggleDeveloperTools() {
@@ -4643,7 +4666,7 @@ ApplicationWindow {
                     iconFontFamily: materialSymbols.name
                     styles: window.readerSiteStyles
                     pageUrl: window.windowBrowser.activeUrl
-                    onCloseRequested: window.siteStylePanelOpen = false
+                    onCloseRequested: window.closeSiteStylePanel()
                 }
 
                 DeveloperToolsDock {

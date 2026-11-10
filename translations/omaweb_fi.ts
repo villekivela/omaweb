@@ -4710,6 +4710,65 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     </message>
 </context>
 <context>
+    <name>SiteStylePanel</name>
+    <message>
+        <source>No site</source>
+        <translation>Ei sivustoa</translation>
+    </message>
+    <message>
+        <source>Style the pages of %1</source>
+        <translation>Muotoile sivuston %1 sivuja</translation>
+    </message>
+    <message>
+        <source>Apply the style for %1</source>
+        <translation>Käytä sivuston %1 tyyliä</translation>
+    </message>
+    <message>
+        <source>Close the Site style panel</source>
+        <translation>Sulje sivustotyylin paneeli</translation>
+    </message>
+    <message>
+        <source>Open a page to style its site.</source>
+        <translation>Avaa sivu muotoillaksesi sen sivustoa.</translation>
+    </message>
+    <message>
+        <source>Off. styles/%1.css is kept, and applies again when switched on.</source>
+        <translation>Pois päältä. styles/%1.css säilyy ja on taas käytössä, kun kytket sen päälle.</translation>
+    </message>
+    <message>
+        <source>styles/%1.css · styles %1 and every host under it</source>
+        <translation>styles/%1.css · muotoilee sivuston %1 ja kaikki sen alla olevat palvelimet</translation>
+    </message>
+    <message>
+        <source>CSS for %1</source>
+        <translation>Sivuston %1 CSS</translation>
+    </message>
+    <message>
+        <source>Open in editor</source>
+        <translation>Avaa editorissa</translation>
+    </message>
+    <message>
+        <source>Not saved yet</source>
+        <translation>Ei vielä tallennettu</translation>
+    </message>
+    <message>
+        <source>Saved</source>
+        <translation>Tallennettu</translation>
+    </message>
+    <message>
+        <source>applies</source>
+        <translation>käytössä</translation>
+    </message>
+    <message>
+        <source>off</source>
+        <translation>pois päältä</translation>
+    </message>
+    <message>
+        <source>no file yet</source>
+        <translation>ei vielä tiedostoa</translation>
+    </message>
+</context>
+<context>
     <name>SpaceOutline</name>
     <message>
         <source>Show sidebar</source>

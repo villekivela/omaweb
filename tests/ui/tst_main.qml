@@ -5219,6 +5219,133 @@ TestCase {
         verify(browser.deleteSpace(spaceId, "Unstyled agent"));
     }
 
+    // Typing in the panel restyles the site's pages at once. The file is
+    // written once the typing pauses, which the note beside Open in editor
+    // says, and an edit made to the file elsewhere shows in the editor.
+    function test_siteStylePanelEditsTheSitesFile() {
+        const page = openPage("https://gist.github.com/villekivela");
+        // The page takes the keyboard a turn after it is shown, and the panel
+        // takes it from the page after that.
+        tryVerify(function () {
+            return page.activeFocus;
+        });
+        const panel = findChild(window.contentItem, "siteStylePanel");
+        window.commands.run("site-style", -1);
+        tryVerify(function () {
+            return panel.visible;
+        });
+        const editor = findChild(panel, "siteStyleEditor");
+        const saved = findChild(panel, "siteStyleSaved");
+        verify(editor.activeFocus);
+        compare(editor.text, "");
+
+        keyClick(Qt.Key_P);
+        keyClick("{");
+        keyClick("}");
+        compare(siteStyles.source("github.com"), "p{}");
+        compare(siteStyles.styleSheet("https://gist.github.com/"), "p{}");
+        compare(siteStyles.unsaved, ["github.com"]);
+        compare(saved.text, "Not saved yet");
+        tryVerify(function () {
+            return siteStyles.unsaved.length === 0;
+        });
+        compare(saved.text, "Saved");
+        compare(siteStyles.styles[0].host, "github.com");
+
+        siteStyles.hide("github.com", ".promo");
+        tryCompare(editor, "text",
+                   "p{}\n/* Hidden by Omaweb */ .promo { display: none !important; }\n");
+        verify(siteStyles.remove("github.com"));
+        tryCompare(editor, "text", "");
+    }
+
+    // The panel is a region the keyboard moves to and from, as Developer
+    // tools are, and closing it hands the keyboard back to the page.
+    function test_siteStylePanelIsARegionOfTheKeyboard() {
+        const page = openPage("https://region.example/");
+        tryVerify(function () {
+            return page.activeFocus;
+        });
+        const panel = findChild(window.contentItem, "siteStylePanel");
+        const editor = findChild(panel, "siteStyleEditor");
+        window.commands.run("site-style", -1);
+        tryVerify(function () {
+            return editor.activeFocus;
+        });
+        window.moveFocus(-1, 0);
+        tryVerify(function () {
+            return page.activeFocus;
+        });
+        window.moveFocus(1, 0);
+        tryVerify(function () {
+            return editor.activeFocus;
+        });
+        mouseClick(findChild(panel, "siteStyleClose"));
+        tryVerify(function () {
+            return !panel.visible && page.activeFocus;
+        });
+    }
+
+    // The host picker lists the page's host and each one above it that is
+    // still the site, and says which have a file. A narrower host chosen stays
+    // chosen on the site's pages under it, for as long as the panel stands. The switch turns a style off without
+    // touching its file, and is the reader's setting.
+    function test_siteStylePanelPicksTheHostAndSwitchesItsStyle() {
+        verify(siteStyles.hide("github.com", ".promo"));
+        openPage("https://gist.github.com/villekivela");
+        const panel = findChild(window.contentItem, "siteStylePanel");
+        const editor = findChild(panel, "siteStyleEditor");
+        const caption = findChild(panel, "siteStyleCaption");
+        window.commands.run("site-style", -1);
+        tryVerify(function () {
+            return panel.visible;
+        });
+        compare(panel.host, "github.com");
+        verify(editor.text.indexOf(".promo") >= 0);
+
+        mouseClick(findChild(panel, "siteStyleHostButton"));
+        const hosts = findChild(panel, "siteStyleHosts");
+        // Laid out once the list is drawn, the narrowest host first.
+        tryVerify(function () {
+            const narrow = findChild(panel, "siteStyleHost-gist.github.com");
+            const site = findChild(panel, "siteStyleHost-github.com");
+            return hosts.visible && narrow !== null && site !== null && narrow.y < site.y;
+        });
+        mouseClick(findChild(panel, "siteStyleHost-gist.github.com"));
+        verify(!hosts.visible);
+        compare(panel.host, "gist.github.com");
+        compare(editor.text, "");
+        openPage("https://gist.github.com/another");
+        compare(panel.host, "gist.github.com");
+        openPage("https://example.org/");
+        compare(panel.host, "example.org");
+        openPage("https://gist.github.com/villekivela");
+        compare(panel.host, "gist.github.com");
+        mouseClick(findChild(panel, "siteStyleHostButton"));
+        tryVerify(function () {
+            const site = findChild(panel, "siteStyleHost-github.com");
+            return hosts.visible && site !== null && site.y > 0;
+        });
+        mouseClick(findChild(panel, "siteStyleHost-github.com"));
+        compare(panel.host, "github.com");
+
+        const styleSwitch = findChild(panel, "siteStyleSwitch");
+        verify(styleSwitch.visible && styleSwitch.checked);
+        mouseClick(styleSwitch);
+        tryVerify(function () {
+            return !siteStyles.enabled("github.com");
+        });
+        verify(!styleSwitch.checked);
+        verify(caption.text.indexOf("Off.") === 0);
+        compare(siteStyles.styleSheet("https://gist.github.com/"), "");
+        verify(editor.text.indexOf(".promo") >= 0);
+        mouseClick(styleSwitch);
+        tryVerify(function () {
+            return siteStyles.enabled("github.com");
+        });
+        verify(siteStyles.remove("github.com"));
+    }
+
     // A Private window has no Agent Space, and its pages take the reader's
     // site styles as their Spaces' pages do.
     function test_aPrivateWindowsPagesTakeSiteStyles() {
