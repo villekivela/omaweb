@@ -1388,6 +1388,7 @@ Rectangle {
                 font.pixelSize: 15
             }
             Rectangle {
+                id: codeBlock
                 width: parent.width
                 height: code.implicitHeight + 36
                 radius: 6
@@ -1414,6 +1415,7 @@ Rectangle {
                 }
             }
             Rectangle {
+                id: diagram
                 width: parent.width
                 height: 170
                 radius: 6
@@ -1448,6 +1450,59 @@ Rectangle {
                 opacity: 0.85
                 font.family: samplePage.family
                 font.pixelSize: 15
+            }
+        }
+
+        // PROTOTYPE #939: the picker's highlight, a mockup only.
+        Repeater {
+            id: pickMarks
+            readonly property string mode: typeof prototype939 !== "undefined" ? prototype939 : ""
+            model: mode === "pick" ? [diagram] : mode === "pick-wide" ? [diagram, codeBlock] : []
+
+            Item {
+                id: mark
+                required property var modelData
+                required property int index
+                readonly property bool picked: index === 0
+                x: article.x + modelData.x - 3
+                y: article.y + modelData.y - 3
+                width: modelData.width + 6
+                height: modelData.height + 6
+                z: 20
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 8
+                    color: Qt.rgba(samplePage.accent.r, samplePage.accent.g, samplePage.accent.b,
+                                   mark.picked ? 0.22 : 0.12)
+                    border.width: 2
+                    border.color: samplePage.accent
+                    opacity: mark.picked ? 1 : 0.7
+                }
+
+                Rectangle {
+                    visible: mark.picked
+                    x: 10
+                    y: 10
+                    width: chip.implicitWidth + 20
+                    height: chip.implicitHeight + 10
+                    radius: 4
+                    color: samplePage.accent
+
+                    Text {
+                        id: chip
+                        anchors.centerIn: parent
+                        textFormat: Text.StyledText
+                        text: "<b>" + (pickMarks.mode === "pick-wide" ? "article .figure" :
+                                                                        "#scene-graph-diagram")
+                              + "</b>  " + Math.round(mark.modelData.width) + " × " + Math.round(
+                                  mark.modelData.height) + (pickMarks.mode === "pick-wide"
+                                                            ? "  ·  2 matches" : "")
+                        color: samplePage.ground
+                        font.family: samplePage.family
+                        font.pixelSize: 12
+                    }
+                }
             }
         }
 

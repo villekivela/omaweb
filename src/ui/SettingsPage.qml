@@ -225,13 +225,13 @@ Rectangle {
 
     // The keys the rest of the chrome finds a section by, and what the rail
     // calls each one, in the same order.
-    readonly property var sections: ["tabs", "interface", "keyboard", "content blocking", "network",
-        "downloads", "search", "privacy", "addresses", "payment cards", "spaces", "agents",
-        "extensions", "sync", "about"]
+    readonly property var sections: ["tabs", "interface", "keyboard", "content blocking",
+        "site styles", "network", "downloads", "search", "privacy", "addresses", "payment cards",
+        "spaces", "agents", "extensions", "sync", "about"]
     readonly property var sectionTitles: [qsTr("tabs"), qsTr("interface"), qsTr("keyboard"), qsTr("content blocking"),
-        qsTr("network"), qsTr("downloads"), qsTr("search"), qsTr("privacy"), qsTr("addresses"), qsTr(
-            "payment cards"), qsTr("spaces"), qsTr("agents"), qsTr("extensions"), qsTr("sync"), qsTr(
-            "about")]
+        qsTr("site styles"), qsTr("network"), qsTr("downloads"), qsTr("search"), qsTr("privacy"),
+        qsTr("addresses"), qsTr("payment cards"), qsTr("spaces"), qsTr("agents"), qsTr("extensions"), qsTr(
+            "sync"), qsTr("about")]
 
     // The rail is as wide as the longest section name it draws, measured in the
     // bold face the current section takes so the pane beside it does not shift
@@ -2210,11 +2210,109 @@ Rectangle {
                     }
                 }
 
-                // ---- network -----------------------------------------------
+                // ---- site styles (PROTOTYPE #939, a mockup only) ---------
 
                 Column {
                     width: pane.width
                     visible: root.section === 4
+                    spacing: pane.spacing
+
+                    Text {
+                        text: qsTr("Site styles")
+                        color: root.colors.text
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.display
+                    }
+
+                    Text {
+                        width: pane.width
+                        wrapMode: Text.WordWrap
+                        color: root.colors.mutedText
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.bodySmall
+                        text: qsTr(
+                                  "Your own CSS for a site, one file per host in styles/ in the configuration folder. A file styles its host and every host under it. Switching one off keeps the file, and Sync carries both.")
+                    }
+
+                    Column {
+                        width: pane.width
+                        spacing: 0
+
+                        Repeater {
+                            model: root.section === 4 ? [
+                                                            {
+                                                                "host": "github.com",
+                                                                "note": qsTr(
+                                                                            "24 lines · 3 hidden · also styles gist.github.com"),
+                                                                "on": true
+                                                            },
+                                                            {
+                                                                "host": "gist.github.com",
+                                                                "note": qsTr("6 lines"),
+                                                                "on": true
+                                                            },
+                                                            {
+                                                                "host": "qt.io",
+                                                                "note": qsTr("13 lines · 2 hidden"),
+                                                                "on": true
+                                                            },
+                                                            {
+                                                                "host": "news.ycombinator.com",
+                                                                "note": qsTr("41 lines · off"),
+                                                                "on": false
+                                                            }
+                                                        ] : []
+
+                            SettingRow {
+                                required property var modelData
+
+                                width: pane.width
+                                colors: root.colors
+                                title: modelData.host
+                                note: modelData.note
+
+                                Row {
+                                    spacing: Style.spacing.lg
+
+                                    ActionButton {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        colors: root.colors
+                                        label: qsTr("Edit", "verb: edit a site style")
+                                    }
+
+                                    ActionButton {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        colors: root.colors
+                                        label: qsTr("Remove")
+                                        destructive: true
+                                    }
+
+                                    Omarchy.ToggleSwitch {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        checked: modelData.on
+                                        foreground: root.colors.text
+                                        accent: root.colors.accent
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Row {
+                        spacing: Style.spacing.lg
+
+                        ActionButton {
+                            colors: root.colors
+                            label: qsTr("Open the styles folder")
+                        }
+                    }
+                }
+
+                // ---- network -----------------------------------------------
+
+                Column {
+                    width: pane.width
+                    visible: root.section === 5
                     spacing: 0
 
                     // Browser-wide and off by default: on, what is typed in
@@ -2260,7 +2358,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 5
+                    visible: root.section === 6
                     spacing: 0
 
                     SettingRow {
@@ -2282,7 +2380,7 @@ Rectangle {
                     }
 
                     Repeater {
-                        model: root.section === 5 ? root.downloads : null
+                        model: root.section === 6 ? root.downloads : null
 
                         SettingRow {
                             id: downloadRow
@@ -2387,7 +2485,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 6
+                    visible: root.section === 7
                     spacing: pane.spacing
 
                     Column {
@@ -2397,7 +2495,7 @@ Rectangle {
                         Repeater {
                             id: searchEngineList
                             objectName: "searchEngineList"
-                            model: root.section === 6 ? root.engines : []
+                            model: root.section === 7 ? root.engines : []
 
                             SettingRow {
                                 required property var modelData
@@ -2566,7 +2664,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 7
+                    visible: root.section === 8
                     spacing: pane.spacing
 
                     // The section is named for what it will hold rather than
@@ -2898,7 +2996,7 @@ Rectangle {
                 // engine's sit in their section.
                 Column {
                     width: pane.width
-                    visible: root.section === 8
+                    visible: root.section === 9
                     spacing: pane.spacing
 
                     Column {
@@ -2908,7 +3006,7 @@ Rectangle {
                         Repeater {
                             id: addressList
                             objectName: "addressList"
-                            model: root.section === 8 ? root.savedAddresses : []
+                            model: root.section === 9 ? root.savedAddresses : []
 
                             SettingRow {
                                 required property var modelData
@@ -3272,7 +3370,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 10
+                    visible: root.section === 11
                     spacing: pane.spacing
 
                     SettingToggle {
@@ -3728,7 +3826,7 @@ Rectangle {
                 Column {
                     id: agentsSection
                     width: pane.width
-                    visible: root.section === 11
+                    visible: root.section === 12
                     spacing: 0
 
                     readonly property bool setupShown: !!root.agentControl
@@ -3892,7 +3990,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 12
+                    visible: root.section === 13
                     spacing: pane.spacing
 
                     Text {
@@ -3957,7 +4055,7 @@ Rectangle {
                         visible: root.knownExtensionsAvailable && !root.privateWindow
 
                         Repeater {
-                            model: root.section === 12 ? root.knownExtensions : []
+                            model: root.section === 13 ? root.knownExtensions : []
 
                             SettingToggle {
                                 required property var modelData
@@ -3993,7 +4091,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 13
+                    visible: root.section === 14
                     spacing: pane.spacing
 
                     Text {
@@ -4317,7 +4415,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 14
+                    visible: root.section === 15
                     spacing: pane.spacing
 
                     Text {

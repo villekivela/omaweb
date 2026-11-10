@@ -713,6 +713,9 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineHeldDownloads"), QVariant::fromValue<QObject *>(nullptr));
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
+    // PROTOTYPE #939: which mockup of the Site style panel to stand.
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("prototype939"), qEnvironmentVariable("OMAWEB_PROTOTYPE_939"));
     engine.rootContext()->setContextProperty(QStringLiteral("fontSettings"), &fontSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("sidebarOpacity"), &sidebarOpacity);
     engine.rootContext()->setContextProperty(QStringLiteral("pageScale"), &pageScale);
@@ -1158,8 +1161,11 @@ int main(int argc, char *argv[])
     // section nor the tab list, so the sidebar that distinguishes this browser
     // is the one thing a capture of it cannot show. `--tabs` seeds a day.
     if (arguments.contains(QStringLiteral("--tabs"))) {
-        seedSampleTabs(
-            browser, mockFavicons, siteIcons, browse ? QString::fromUtf8(browsedTab) : QString());
+        // PROTOTYPE #939: the mockups stand on the documentation page.
+        const auto prototypeTab = qEnvironmentVariableIsSet("OMAWEB_PROTOTYPE_939")
+            ? QStringLiteral("https://doc.qt.io/qt-6/qtquick-visualcanvas-scenegraph.html")
+            : QString::fromUtf8(browsedTab);
+        seedSampleTabs(browser, mockFavicons, siteIcons, browse ? prototypeTab : QString());
     }
     // `--put-away` has the sample day's ordinary tabs last shown one by one
     // over the past few days, then lets the check put away those past twelve

@@ -4397,8 +4397,10 @@ ApplicationWindow {
                     // The page gives up the width the dock takes rather than
                     // being covered by it, so nothing the inspector points at
                     // is hidden behind the inspector.
-                    anchors.right: developerToolsDock.visible ? developerToolsDock.left :
-                                                                parent.right
+                    anchors.right: prototype939Panel.visible ? prototype939Panel.left :
+                                                               developerToolsDock.visible
+                                                               ? developerToolsDock.left :
+                                                                 parent.right
                     focus: true
                     browserController: window.windowBrowser
                     agentControl: window.agentControlSource
@@ -4600,6 +4602,23 @@ ApplicationWindow {
                     allowed: engineLoader.splitOnShow && !window.settingsOpen &&
                              !window.historyOpen && !window.shortcutsOpen &&
                              !engineLoader.siteFullscreenActive
+                }
+
+                // PROTOTYPE #939: the Site style panel, a mockup only.
+                Prototype939StylePanel {
+                    id: prototype939Panel
+                    readonly property string labMode: typeof prototype939 !== "undefined"
+                                                      ? prototype939 : ""
+                    x: DevicePixels.snap(parent.width - 400, window.devicePixelRatio)
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    width: parent.width - x
+                    visible: labMode.length > 0 && labMode !== "settings" && !window.settingsOpen
+                    mode: labMode
+                    z: 4
+                    colors: window.colors
+                    iconFontFamily: materialSymbols.name
+                    privateWindow: window.privateWindow
                 }
 
                 DeveloperToolsDock {
