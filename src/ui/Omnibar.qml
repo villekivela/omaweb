@@ -103,6 +103,18 @@ Item {
     // command scope that is the commands alone.
     property var rows: []
     property int selected: 0
+    // The rows as the list draws them, each by a key that stands for one row
+    // object for as long as it is listed. A new list moves, adds and drops
+    // keys rather than handing the list a new array, which would draw every
+    // row again: a hundred tabs narrowed by a keystroke kept a frame waiting
+    // past the budget on slower machines (#938).
+    ListModel {
+        id: drawnRows
+    }
+    property var keyOfRow: new Map()
+    property var rowOfKey: new Map()
+    property int nextRowKey: 0
+    onRowsChanged: drawRows()
     // A row's text stands in the field in place of what the reader typed,
     // which `typedText` and `typedCaret` keep for putting back.
     property bool filled: false
@@ -490,13 +502,75 @@ Item {
                 continue;
             next.push(all[index].row);
         }
-        // Each new list builds the rows on show again, so an answer that
-        // lists the very rows already listed, as an empty one does, leaves
-        // them standing.
+        // An answer that lists the very rows already listed, as an empty one
+        // does, leaves them standing.
         const shown = next.concat(proposedRows());
         if (!sameRows(shown, rows))
             rows = shown;
         selected = named === null ? -1 : next.indexOf(named);
+    }
+
+    // Brings the drawn rows to `rows`: the keys no longer listed go first,
+    // then each place takes its key, moved up from further down or added.
+    // Each run of neighbours goes in or out as one change rather than a
+    // hundred, since the list handles every change it is told of. The list
+    // takes the changes in at its next layout, before the frame is drawn, so
+    // a row read straight after an edit can still be one it drew before
+    // (#938); laying it out at once cost an opening most of what this saves.
+    function drawRows() {
+        const wanted = rows.map(function (row) {
+            if (!keyOfRow.has(row)) {
+                keyOfRow.set(row, nextRowKey);
+                rowOfKey.set(nextRowKey, row);
+                ++nextRowKey;
+            }
+            return keyOfRow.get(row);
+        });
+        const listed = new Set(wanted);
+        const drawn = [];
+        let end = drawnRows.count;
+        for (let index = drawnRows.count - 1; index >= -1; --index) {
+            const key = index >= 0 ? drawnRows.get(index).key : -1;
+            if (index >= 0 && !listed.has(key))
+                continue;
+            if (end > index + 1)
+                drawnRows.remove(index + 1, end - index - 1);
+            end = index;
+            if (index >= 0)
+                drawn.unshift(key);
+        }
+        let index = 0;
+        while (index < wanted.length) {
+            if (drawn[index] === wanted[index]) {
+                ++index;
+                continue;
+            }
+            const from = drawn.indexOf(wanted[index], index + 1);
+            if (from >= 0) {
+                drawnRows.move(from, index, 1);
+                drawn.splice(from, 1);
+                drawn.splice(index, 0, wanted[index]);
+                ++index;
+                continue;
+            }
+            let runEnd = index;
+            while (runEnd < wanted.length && !drawn.includes(wanted[runEnd]))
+                ++runEnd;
+            const added = wanted.slice(index, runEnd);
+            drawnRows.insert(index, added.map(function (key) {
+                return {
+                    "key": key
+                };
+            }));
+            drawn.splice(index, 0, ...added);
+            index += added.length;
+        }
+        rowOfKey.forEach(function (row, key) {
+            if (!listed.has(key)) {
+                rowOfKey.delete(key);
+                keyOfRow.delete(row);
+            }
+        });
     }
 
     function sameRows(next, shown) {
@@ -1234,7 +1308,7 @@ Item {
                 anchors.topMargin: 4
                 visible: root.rows.length > 0
                 clip: true
-                model: root.rows
+                model: drawnRows
                 currentIndex: root.selected
                 highlightMoveDuration: 0
                 boundsBehavior: Flickable.StopAtBounds
@@ -1242,7 +1316,10 @@ Item {
                 delegate: Item {
                     id: row
                     required property int index
-                    required property var modelData
+                    required property int key
+                    // A key's row never changes while it is listed, so this
+                    // is read once, when the row is drawn.
+                    readonly property var modelData: root.rowOfKey.get(key)
 
                     readonly property bool isSelected: index === root.selected
                     readonly property string title: modelData.kind === "keyword"
