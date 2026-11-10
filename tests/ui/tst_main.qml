@@ -5488,6 +5488,33 @@ TestCase {
         verify(siteStyles.remove("github.com"));
     }
 
+    // A Private window offers the panel too, and what is typed there writes
+    // the same file a reader's Space reads.
+    function test_aPrivateWindowStylesTheSameFiles() {
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateBrowser = window.privateWindows[0];
+        privateBrowser.windowBrowser.openInput("https://private-styled.example/", false);
+        const panel = findChild(privateBrowser.contentItem, "siteStylePanel");
+        verify(privateBrowser.commands.available("site-style"));
+        privateBrowser.commands.run("site-style", -1);
+        tryVerify(function () {
+            return panel.visible;
+        });
+        compare(panel.host, "private-styled.example");
+        findChild(panel, "siteStyleEditor").text = "body { color: red; }";
+        const listed = siteStyles.source("private-styled.example");
+
+        privateBrowser.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        window.requestActivate();
+        compare(listed, "body { color: red; }");
+        tryVerify(function () {
+            return siteStyles.unsaved.length === 0;
+        });
+        verify(siteStyles.remove("private-styled.example"));
+    }
+
     // A Private window has no Agent Space, and its pages take the reader's
     // site styles as their Spaces' pages do.
     function test_aPrivateWindowsPagesTakeSiteStyles() {

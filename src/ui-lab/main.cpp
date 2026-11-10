@@ -767,6 +767,26 @@ int main(int argc, char *argv[])
     static omaweb::PageDarkening pageDarkening(dataRootPath);
     engine.rootContext()->setContextProperty(QStringLiteral("pageDarkening"), &pageDarkening);
     static omaweb::SiteStyles siteStyles(dataRootPath);
+    // `--site-style-sample` writes the styles a reader has after a while: one
+    // for the documentation page's site with two hidden elements, one for a
+    // host under another, and one switched off. Settings lists them, and the
+    // Site style panel opens on one.
+    if (arguments.contains(QStringLiteral("--site-style-sample"))) {
+        siteStyles.edit(QStringLiteral("qt.io"),
+            QStringLiteral(
+                "/* Wider measure, quieter links */\narticle {\n  max-width: 64rem;\n}\n\n"
+                "a:not(:hover) {\n  text-decoration: none;\n}\n"));
+        siteStyles.hide(QStringLiteral("qt.io"), QStringLiteral(".cookie-notice"));
+        siteStyles.hide(QStringLiteral("qt.io"), QStringLiteral("#feedback-widget"));
+        siteStyles.edit(
+            QStringLiteral("github.com"), QStringLiteral("body { font-size: 15px; }\n"));
+        siteStyles.hide(QStringLiteral("github.com"), QStringLiteral(".js-notice"));
+        siteStyles.edit(
+            QStringLiteral("gist.github.com"), QStringLiteral(".file { max-width: none; }\n"));
+        siteStyles.edit(QStringLiteral("news.ycombinator.com"),
+            QStringLiteral("td { font-family: serif; }\n.title { font-size: 16px; }\n"));
+        siteStyles.setEnabled(QStringLiteral("news.ycombinator.com"), false);
+    }
     engine.rootContext()->setContextProperty(QStringLiteral("siteStyles"), &siteStyles);
     static omaweb::WebRtcPolicy webRtcPolicy(dataRootPath);
     static omaweb::SecureDns secureDns(dataRootPath);
@@ -1487,6 +1507,12 @@ int main(int argc, char *argv[])
             {QStringLiteral("page-menu:link"), {}},
             {QStringLiteral("page-menu:link-spaces"), {}},
             {QStringLiteral("page-menu:selection"), {}},
+            // The Site style panel over the documentation page, with its host
+            // picker open, or with the picker on the page's diagram.
+            {QStringLiteral("site-style"), {}},
+            {QStringLiteral("site-style:hosts"), {}},
+            {QStringLiteral("site-style:pick"), {}},
+            {QStringLiteral("site-style:pick-wide"), {}},
         };
         const auto requested = arguments.at(showIndex + 1);
         auto *root = engine.rootObjects().constFirst();
@@ -1498,6 +1524,43 @@ int main(int argc, char *argv[])
             if (!tabId.isEmpty()) {
                 browser.activateTab(tabId);
             }
+        }
+        const auto siteStyle = requested.startsWith(QLatin1String("site-style"));
+        if (siteStyle) {
+            auto *tabs = browser.unpinnedTabs();
+            for (int row = 0; row < tabs->rowCount(); ++row) {
+                const auto index = tabs->index(row, 0);
+                if (tabs->data(index, omaweb::TabListModel::UrlRole).toUrl().host()
+                    == u"doc.qt.io") {
+                    browser.activateTab(tabs->data(index, omaweb::TabListModel::IdRole).toString());
+                }
+            }
+            QTimer::singleShot(300, root, [root, requested] {
+                QMetaObject::invokeMethod(root, "toggleSiteStylePanel");
+                auto *panel = root->findChild<QObject *>(QStringLiteral("siteStylePanel"));
+                auto *host = root->findChild<QObject *>(QStringLiteral("engineLoader"));
+                auto *view = host ? host->property("item").value<QObject *>() : nullptr;
+                if (panel == nullptr || view == nullptr) {
+                    qCritical("No page to style for --show %s; pass --tabs", qPrintable(requested));
+                    return;
+                }
+                if (requested == u"site-style:hosts") {
+                    if (auto *hosts
+                        = panel->findChild<QObject *>(QStringLiteral("siteStyleHosts"))) {
+                        hosts->setProperty("visible", true);
+                    }
+                } else if (requested.startsWith(QLatin1String("site-style:pick"))) {
+                    const auto wide = requested == u"site-style:pick-wide";
+                    QMetaObject::invokeMethod(view, "startPicking");
+                    const QVariantMap picked {{QStringLiteral("selector"),
+                                                  wide ? QStringLiteral("article .figure")
+                                                       : QStringLiteral("#scene-graph-diagram")},
+                        {QStringLiteral("count"), wide ? 2 : 1},
+                        {QStringLiteral("level"), wide ? 1 : 0}, {QStringLiteral("levels"), 3},
+                        {QStringLiteral("valid"), true}};
+                    QMetaObject::invokeMethod(view, "simulatePick", Q_ARG(QVariant, picked));
+                }
+            });
         }
         // Both are asked by the page on show rather than set on the window.
         const auto securityKey = requested.startsWith(QLatin1String("security-key:"));
@@ -1960,7 +2023,7 @@ QtObject {
                         .evaluate();
                 });
             });
-        } else if (state.isEmpty() && !pageAsks) {
+        } else if (state.isEmpty() && !pageAsks && !siteStyle) {
             qCritical("Unknown --show state %s", qPrintable(requested));
             return 1;
         }

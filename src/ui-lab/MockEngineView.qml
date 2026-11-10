@@ -1457,6 +1457,7 @@ Rectangle {
                 font.pixelSize: 15
             }
             Rectangle {
+                id: codeBlock
                 width: parent.width
                 height: code.implicitHeight + 36
                 radius: 6
@@ -1483,6 +1484,7 @@ Rectangle {
                 }
             }
             Rectangle {
+                id: diagram
                 width: parent.width
                 height: 170
                 radius: 6
@@ -1517,6 +1519,65 @@ Rectangle {
                 opacity: 0.85
                 font.family: samplePage.family
                 font.pixelSize: 15
+            }
+        }
+
+        // The Site style picker's highlight, as the engine draws it over the
+        // page: the picked element, and the others the selector matches when
+        // it is widened. The lab has no page to match a selector against, so
+        // the documentation page's diagram is the picked element and its code
+        // sample the other.
+        Repeater {
+            id: pickMarks
+            model: root.picking && root.pick.selector && !samplePage.pictures ? (root.pick.count
+                                                                                 > 1 ? [diagram,
+                                                                                        codeBlock] :
+                                                                                       [diagram]) :
+                                                                                []
+
+            Item {
+                id: mark
+                required property var modelData
+                required property int index
+                readonly property bool picked: index === 0
+                x: article.x + modelData.x - 3
+                y: article.y + modelData.y - 3
+                width: modelData.width + 6
+                height: modelData.height + 6
+                z: 20
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 8
+                    color: Qt.rgba(samplePage.accent.r, samplePage.accent.g, samplePage.accent.b,
+                                   mark.picked ? 0.22 : 0.12)
+                    border.width: 2
+                    border.color: samplePage.accent
+                    opacity: mark.picked ? 1 : 0.7
+                }
+
+                Rectangle {
+                    visible: mark.picked
+                    x: 10
+                    y: 10
+                    width: chip.implicitWidth + 20
+                    height: chip.implicitHeight + 10
+                    radius: 4
+                    color: samplePage.accent
+
+                    Text {
+                        id: chip
+                        anchors.centerIn: parent
+                        text: root.pick.selector + "  " + Math.round(mark.modelData.width) + " × "
+                              + Math.round(mark.modelData.height) + (root.pick.count > 1 ? "  · "
+                                                                                           + root.pick.count :
+                                                                                           "")
+                        color: samplePage.ground
+                        font.family: samplePage.family
+                        font.pixelSize: 12
+                        font.weight: Font.DemiBold
+                    }
+                }
             }
         }
 

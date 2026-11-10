@@ -52,6 +52,8 @@ Omaweb's own words are translated once, here, so every batch agrees:
 | Link rule           | Linkkisääntö          | Where a link from another app opens. Its pattern is "kaava".                                    |
 | Page darkening      | Sivujen tummennus     | The engine drawing a page with no dark theme dark. Darkening is "tummentaa".                    |
 | Site style          | Sivustotyyli          | The reader's own CSS for a site, a file in `styles/`.                                           |
+| Site style panel    | Sivustotyylin paneeli | Where a site's style is written beside the page. Opening it is "Muotoile sivustoa".             |
+| Picker              | Valinta               | Hiding an element by pointing at it: "Valitse piilotettava elementti", "Piilota".               |
 | Diagnostic override | Diagnostinen ohitus   | A change to what sites see for one run, from `omaweb --diagnose`. A run is "ajokerta".          |
 
 Add a row when a batch has to translate a new Omaweb term.
