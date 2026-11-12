@@ -3140,7 +3140,7 @@ ApplicationWindow {
         function onPreferenceChanged(name) {
             if (name === "glance" || name === "start-page-scene" || name === "start-page-glass" || name
                     === "sidebar-side" || name === "space-colours" || name === "telemetry-text"
-                    || name === "telemetry-hidden")
+                    || name === "telemetry-hidden" || name === "new-tab-start-page")
                 window.restoreChromeAppearance();
             else if (name === "app-icon")
                 window.restoreAppIcon();

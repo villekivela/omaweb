@@ -18988,6 +18988,32 @@ TestCase {
         window.settingsOpen = false;
     }
 
+    // A value Sync brings, or an edit to settings.json, reaches the window
+    // while it runs, as the other settings do: the next new tab follows it.
+    function test_howANewTabOpensFollowsTheSettingChangedElsewhere() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const input = findChild(window.contentItem, "omnibarInput");
+        openPage("https://setting-elsewhere.example");
+        settleMotion();
+        activateWindow();
+        verify(!window.newTabShowsStartPage);
+
+        browser.setPreference("new-tab-start-page", "true");
+        verify(window.newTabShowsStartPage);
+        window.commands.run("new-tab", -1);
+        tryVerify(function () {
+            return startPage.open && input.activeFocus;
+        });
+        verify(!window.omnibarOpen);
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !startPage.open;
+        });
+
+        browser.setPreference("new-tab-start-page", "false");
+        verify(!window.newTabShowsStartPage);
+    }
+
     // With the Start page asked for, choosing an open tab from it switches to
     // that tab and opens no tab of its own.
     function test_choosingAnOpenTabFromTheStartPageSwitchesToIt() {
