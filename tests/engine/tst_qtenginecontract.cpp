@@ -3199,6 +3199,17 @@ bool isWhite(const QColor &colour)
     return colour.red() > 230 && colour.green() > 230 && colour.blue() > 230;
 }
 
+// A white ground as the engine darkens it: a neutral grey from #121212 to #1b1b1b. Chromium inverts
+// white to #1b1b1b and moves a grey that dark to #121212 only when its channels are equal to within
+// a float's epsilon. The aarch64 engine is built with GCC, which fuses multiplies and adds, and its
+// channels land further apart than that, so there white stays #1b1b1b (#936,
+// villekivela/omaweb-qtwebengine-patches#34).
+bool isDarkenedWhite(const QColor &colour)
+{
+    return colour.red() == colour.green() && colour.red() == colour.blue() && colour.red() >= 0x12
+        && colour.red() <= 0x1b;
+}
+
 } // namespace
 
 // Chromium's forced dark mode draws a page that brings no dark theme of its own
@@ -3235,7 +3246,8 @@ void QtEngineContractTest::qtDarkensAPageWithNoDarkThemeAndLeavesADarkOneAlone()
     QCOMPARE(show("/declared"), QColor(0x33, 0x44, 0x55));
 
     shown.adapter->setProperty("darkenPage", true);
-    QCOMPARE(show("/bare"), QColor(0x12, 0x12, 0x12));
+    const QColor bare = show("/bare");
+    QVERIFY2(isDarkenedWhite(bare), qPrintable(bare.name()));
     QVERIFY(isDark(show("/light")));
     QCOMPARE(show("/declared"), QColor(0x33, 0x44, 0x55));
     // Under a light scheme, a page that allows both schemes has not declared a
@@ -3415,7 +3427,8 @@ void QtEngineContractTest::qtLeavesAClassBasedDarkThemeAsWritten()
         // The class goes, and the page is darkened again.
         runInPage(shown, QStringLiteral("document.documentElement.classList.remove('dark')"));
         QTRY_VERIFY_WITH_TIMEOUT(isDark(blockColour(shown.window)), 5000);
-        QTRY_COMPARE_WITH_TIMEOUT(pageAreaColour(shown.window), QColor(0x12, 0x12, 0x12), 5000);
+        QTRY_VERIFY2_WITH_TIMEOUT(isDarkenedWhite(pageAreaColour(shown.window)),
+            qPrintable(pageAreaColour(shown.window).name()), 5000);
         // And back.
         runInPage(shown, QStringLiteral("document.documentElement.classList.add('dark')"));
         QTRY_COMPARE_WITH_TIMEOUT(blockColour(shown.window), zinc300, 5000);
@@ -3579,8 +3592,8 @@ void QtEngineContractTest::qtKeepsAWhitePageDarkenedUnderAModalBackdrop()
     QVERIFY2(isDark(pageAreaColour(page.shown.window, QPoint(320, 240))),
         qPrintable(pageAreaColour(page.shown.window, QPoint(320, 240)).name()));
     runInPage(page.shown, QStringLiteral("m.style.display = 'none'"));
-    QTRY_COMPARE_WITH_TIMEOUT(
-        pageAreaColour(page.shown.window, QPoint(320, 240)), QColor(0x12, 0x12, 0x12), 5000);
+    QTRY_VERIFY2_WITH_TIMEOUT(isDarkenedWhite(pageAreaColour(page.shown.window, QPoint(320, 240))),
+        qPrintable(pageAreaColour(page.shown.window, QPoint(320, 240)).name()), 5000);
     QTest::qWait(500);
     runInPage(page.shown, QStringLiteral("m.style.display = 'block'"));
     QTest::qWait(1000);
@@ -3781,7 +3794,8 @@ void QtEngineContractTest::qtStartsEachDocumentDarkenedAfterAPageLeftAlone()
     });
     sampler.start(15);
     shown.adapter->setProperty("currentUrl", server.url("/white"));
-    QTRY_COMPARE_WITH_TIMEOUT(pageAreaColour(shown.window), QColor(0x12, 0x12, 0x12), 5000);
+    QTRY_VERIFY2_WITH_TIMEOUT(isDarkenedWhite(pageAreaColour(shown.window)),
+        qPrintable(pageAreaColour(shown.window).name()), 5000);
     QTest::qWait(500);
     sampler.stop();
     QVERIFY2(samples > 20, qPrintable(QString::number(samples)));

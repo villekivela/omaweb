@@ -609,10 +609,18 @@ reports the gap and remains experimental rather than imitating behavior it canno
   it is `"darken-pages"` in `settings.json`, so an edit of the file applies at once and Sync carries
   it with the group's other settings. It reaches every Space and Private window. The engine darkens:
   Chromium's forced dark mode inverts the lightness of a background whose brightness is above 205 of
-  255, so white becomes `#121212`, `#f5f5f5` becomes `#222222` and `#d0d0d0` becomes `#3f3f3f`, and
-  it inverts the foregrounds, so `#222` text becomes `#f6f6f6` and a `#d4d4d8` element becomes
-  `#3b3b3e`, on any ground. A background at or below 205, such as `#cccccc`, `#6b7280` or `#18181b`,
-  is left as it is.
+  255, so white becomes `#121212` on x86_64, `#f5f5f5` becomes `#222222` and `#d0d0d0` becomes
+  `#3f3f3f`, and it inverts the foregrounds, so `#222` text becomes `#f6f6f6` and a `#d4d4d8`
+  element becomes `#3b3b3e`, on any ground. A background at or below 205, such as `#cccccc`,
+  `#6b7280` or `#18181b`, is left as it is.
+
+  On aarch64 white becomes `#1b1b1b`, and `#fcfcfc` becomes `#1e1e1e` rather than `#121212` (#936).
+  Chromium moves an inverted grey that dark to `#121212` only when its channels are equal to within
+  a float's epsilon. The aarch64 engine is built with GCC, which fuses multiplies and adds because
+  Chromium's `-ffp-contract=off` is not applied to QtWebEngine, and the channels land further apart
+  than that. The difference stays: the cover is already approximate, `#121212` over a `#fafafa` page
+  that x86_64 draws `#1f1f1f`. The engine fix is tracked in
+  villekivela/omaweb-qtwebengine-patches#34.
 
   A page whose own ground is already dark is left as written. The shell's wish stays the reader's:
   `darkenPage` is true while the switch is on and the site is not turned off, and the adapter
@@ -886,11 +894,11 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - A page is painted on the canvas every browser gives it: white, or the dark canvas the engine draws
   under a page that declares `color-scheme: dark`. A page that sets no background of its own is
   white under a dark theme, as its author saw it, unless Page darkening is on and the engine can
-  darken: then it is drawn on the dark canvas, `#121212`, for every site the reader has not turned
-  it off for, and the cover that stands in for it is dark too. The theme's colour is shown only
-  where no page has painted yet, from the moment a document is created until its first paint, so a
-  navigation under a dark theme never flashes a bright rectangle through the chrome, and the page on
-  show keeps its canvas while the next document is fetched.
+  darken: then it is drawn on the dark canvas, `#121212` (`#1b1b1b` on aarch64), for every site the
+  reader has not turned it off for, and the cover that stands in for it is dark too. The theme's
+  colour is shown only where no page has painted yet, from the moment a document is created until
+  its first paint, so a navigation under a dark theme never flashes a bright rectangle through the
+  chrome, and the page on show keeps its canvas while the next document is fetched.
 
 ## Daily browser operations
 
