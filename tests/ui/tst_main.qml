@@ -14891,11 +14891,8 @@ TestCase {
         tryVerify(function () {
             return rows.count > 2;
         });
-        tryVerify(function () {
-            return rows.itemAtIndex(1) !== null;
-        });
-        compare(rows.itemAtIndex(0).Accessible.name, "Search Bing");
-        compare(rows.itemAtIndex(1).Accessible.name, "Search Brave Search");
+        compare(omnibarRowItem(rows, 0).Accessible.name, "Search Bing");
+        compare(omnibarRowItem(rows, 1).Accessible.name, "Search Brave Search");
         panel.step(1);
         panel.step(1);
         compare(panel.selected, 1);
@@ -15446,13 +15443,10 @@ TestCase {
         compare(spaces.length, 1);
         compare(spaces[0].argument, zephyrSpaceId);
         compare(panel.selected, -1);
-        const spaceRow = panel.rows.indexOf(spaces[0]);
-        tryVerify(function () {
-            return rows.itemAtIndex(spaceRow) !== null;
-        });
-        compare(rows.itemAtIndex(spaceRow).Accessible.name, "Switch to Space Zephyr reading");
-        compare(rows.itemAtIndex(spaceRow).action, "Switch to Space");
-        compare(findChild(rows.itemAtIndex(spaceRow), "omnibarRowSpaceColor").visible, true);
+        const spaceRow = omnibarRowItem(rows, panel.rows.indexOf(spaces[0]));
+        compare(spaceRow.Accessible.name, "Switch to Space Zephyr reading");
+        compare(spaceRow.action, "Switch to Space");
+        compare(findChild(spaceRow, "omnibarRowSpaceColor").visible, true);
 
         input.text = "zoom in";
         const commands = omnibarRowsOf(panel, "command");
@@ -15678,11 +15672,95 @@ TestCase {
         }
     }
 
+    // The row drawn at `index` once the list has laid out the rows the text
+    // lists. Until its next layout the list answers with the rows it drew
+    // before, which name their new place, or -1 for a row dropped.
     function omnibarRowItem(rows, index) {
         tryVerify(function () {
-            return rows.itemAtIndex(index) !== null;
+            const item = rows.itemAtIndex(index);
+            return item !== null && item.index === index;
         });
         return rows.itemAtIndex(index);
+    }
+
+    // A keystroke that narrows the rows draws only what changed: a row still
+    // listed keeps the row drawn for it. Drawing every row again at each
+    // edit held a frame of the Omnibar's opening past the budget on CI's
+    // slower machines (#938).
+    function test_omnibarNarrowingKeystrokeKeepsTheRowsThatStay() {
+        const homeSpaceId = browser.activeSpaceId;
+        const spaceId = browser.createSpace("Narrowing");
+        verify(browser.switchSpace(spaceId));
+        for (let tab = 0; tab < 4; ++tab)
+            browser.openInputInBackground("https://keep-" + tab + ".example/");
+        browser.openInputInBackground("https://kept-off.example/");
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const rows = findChild(window.contentItem, "omnibarRowList");
+        window.openOmnibar(false);
+        input.text = "ke";
+        const wide = omnibarRowsOf(panel, "tab");
+        compare(wide.length, 5);
+        const drawn = wide.map(function (row) {
+            return omnibarRowItem(rows, panel.rows.indexOf(row));
+        });
+
+        input.text = "kee";
+        const narrow = omnibarRowsOf(panel, "tab");
+        compare(narrow.length, 4);
+        narrow.forEach(function (row) {
+            verify(omnibarRowItem(rows, panel.rows.indexOf(row)) === drawn[wide.indexOf(row)],
+                   row.url + " was drawn again");
+        });
+
+        window.closeOmnibar();
+        verify(browser.switchSpace(homeSpaceId));
+        verify(browser.deleteSpace(spaceId, "Narrowing"));
+    }
+
+    // The list keeps the row Return would take as its current one, the row it
+    // scrolls into view, however the rows before it come and go.
+    function test_omnibarKeepsTheSelectedRowCurrentAsTheRowsChange() {
+        const homeSpaceId = browser.activeSpaceId;
+        const spaceId = browser.createSpace("Current row");
+        verify(browser.switchSpace(spaceId));
+        ["https://ab-one.example/", "https://ac-two.example/", "https://b-three.example/",
+        "https://ab-four.example/"].forEach(function (address) {
+            browser.openInputInBackground(address);
+        });
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const rows = findChild(window.contentItem, "omnibarRowList");
+        window.openOmnibar(false);
+        ["a", "ac", "a", "ab", "b"].forEach(function (text) {
+            input.text = text;
+            omnibarRowItem(rows, panel.rows.length - 1);
+            compare(rows.currentIndex, panel.selected, "the current row after \"" + text + "\"");
+        });
+
+        window.closeOmnibar();
+        verify(browser.switchSpace(homeSpaceId));
+        verify(browser.deleteSpace(spaceId, "Current row"));
+    }
+
+    // A row listed again beside itself is drawn in both places. In command
+    // scope, so no History answer lists the rows again meanwhile.
+    function test_omnibarDrawsARowListedTwiceTwice() {
+        const panel = findChild(window.contentItem, "omnibar");
+        const rows = findChild(window.contentItem, "omnibarRowList");
+        window.openCommandScope();
+        tryCompare(panel, "visible", true);
+        const row = {
+            "kind": "history",
+            "title": "Twice",
+            "url": "https://twice.example/"
+        };
+        panel.rows = [row];
+        compare(omnibarRowItem(rows, 0).modelData, row);
+        panel.rows = [row, row];
+        compare(omnibarRowItem(rows, 0).modelData, row);
+        compare(omnibarRowItem(rows, 1).modelData, row);
+        window.closeOmnibar();
     }
 
     // A site the Space loaded keeps its favicon after its tab closes, and a

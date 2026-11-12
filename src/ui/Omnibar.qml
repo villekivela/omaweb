@@ -103,6 +103,18 @@ Item {
     // command scope that is the commands alone.
     property var rows: []
     property int selected: 0
+    // The rows as the list draws them, each by a key that stands for one row
+    // object for as long as it is listed. A new list moves, adds and drops
+    // keys rather than handing the list a new array, which would draw every
+    // row again: a hundred tabs narrowed by a keystroke kept a frame waiting
+    // past the budget on slower machines (#938).
+    ListModel {
+        id: drawnRows
+    }
+    property var keyOfRow: new Map()
+    property var rowOfKey: new Map()
+    property int nextRowKey: 0
+    onRowsChanged: drawRows()
     // A row's text stands in the field in place of what the reader typed,
     // which `typedText` and `typedCaret` keep for putting back.
     property bool filled: false
@@ -490,13 +502,81 @@ Item {
                 continue;
             next.push(all[index].row);
         }
-        // Each new list builds the rows on show again, so an answer that
-        // lists the very rows already listed, as an empty one does, leaves
-        // them standing.
+        // An answer that lists the very rows already listed, as an empty one
+        // does, leaves them standing.
         const shown = next.concat(proposedRows());
         if (!sameRows(shown, rows))
             rows = shown;
         selected = named === null ? -1 : next.indexOf(named);
+    }
+
+    // Brings the drawn rows to `rows`. Rows added or dropped side by side go
+    // in or out as one change rather than one each, since the list handles
+    // every change it is told of; a row moved goes alone. The list takes the
+    // changes in at its next layout, before the frame is drawn, so a row read
+    // straight after an edit can still be one it drew before (#938); laying
+    // it out at once cost an opening most of what this saves.
+    function drawRows() {
+        const wanted = [];
+        const listed = new Set();
+        for (let index = 0; index < rows.length; ++index) {
+            const row = rows[index];
+            if (!keyOfRow.has(row))
+                keyOfRow.set(row, nextRowKey++);
+            let key = keyOfRow.get(row);
+            // A row listed twice is drawn twice, each under a key of its
+            // own, so no key stands for two places.
+            if (listed.has(key))
+                key = nextRowKey++;
+            rowOfKey.set(key, row);
+            wanted.push(key);
+            listed.add(key);
+        }
+        const drawn = [];
+        let end = drawnRows.count;
+        for (let index = drawnRows.count - 1; index >= -1; --index) {
+            const key = index >= 0 ? drawnRows.get(index).key : -1;
+            if (index >= 0 && !listed.has(key))
+                continue;
+            if (end > index + 1)
+                drawnRows.remove(index + 1, end - index - 1);
+            end = index;
+            if (index >= 0)
+                drawn.unshift(key);
+        }
+        let index = 0;
+        while (index < wanted.length) {
+            if (drawn[index] === wanted[index]) {
+                ++index;
+                continue;
+            }
+            const from = drawn.indexOf(wanted[index], index + 1);
+            if (from >= 0) {
+                drawnRows.move(from, index, 1);
+                drawn.splice(from, 1);
+                drawn.splice(index, 0, wanted[index]);
+                ++index;
+                continue;
+            }
+            let runEnd = index;
+            while (runEnd < wanted.length && !drawn.includes(wanted[runEnd]))
+                ++runEnd;
+            const added = wanted.slice(index, runEnd);
+            drawnRows.insert(index, added.map(function (key) {
+                return {
+                    "key": key
+                };
+            }));
+            drawn.splice(index, 0, ...added);
+            index += added.length;
+        }
+        rowOfKey.forEach(function (row, key) {
+            if (listed.has(key))
+                return;
+            rowOfKey.delete(key);
+            if (keyOfRow.get(row) === key)
+                keyOfRow.delete(row);
+        });
     }
 
     function sameRows(next, shown) {
@@ -1234,15 +1314,27 @@ Item {
                 anchors.topMargin: 4
                 visible: root.rows.length > 0
                 clip: true
-                model: root.rows
+                model: drawnRows
+                // The list moves its current row with the rows added or
+                // dropped before it when it next lays out, which `selected`
+                // has already allowed for, so the selected row is put back.
                 currentIndex: root.selected
+                onCurrentIndexChanged: {
+                    if (currentIndex !== root.selected)
+                        currentIndex = Qt.binding(function () {
+                            return root.selected;
+                        });
+                }
                 highlightMoveDuration: 0
                 boundsBehavior: Flickable.StopAtBounds
 
                 delegate: Item {
                     id: row
                     required property int index
-                    required property var modelData
+                    required property int key
+                    // A key's row never changes while it is listed, so this
+                    // is read once, when the row is drawn.
+                    readonly property var modelData: root.rowOfKey.get(key)
 
                     readonly property bool isSelected: index === root.selected
                     readonly property string title: modelData.kind === "keyword"
