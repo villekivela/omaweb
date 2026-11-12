@@ -104,11 +104,13 @@ so a jump back returns to it. Each half of a split is its own entry. Each Space 
 survives a switch to another Space and back. _Avoid_: Tab history, recent tabs, tab stack, last tab
 
 **Start page**: What Omaweb shows where a webpage would be when there is none to show: a Space at
-rest, `about:blank`, and a new-tab request that has no destination yet. It is the Omnibar at rest
-above the road's horizon, centred in the page area, focused, over the CRT road, a Scene that fills
-the page area, drawn as the website draws it in a viewport of that size, and never runs under the
-sidebar. It costs no engine. A new-tab request shows it over the page on show, and `Escape` gives
-that page back. _Avoid_: Home page, new tab page, about:blank, speed dial
+rest, `about:blank`, and, with "New tab shows the Start page" on, a new-tab request that has no
+destination yet. It is the Omnibar at rest above the road's horizon, centred in the page area,
+focused, over the CRT road, a Scene that fills the page area, drawn as the website draws it in a
+viewport of that size, and never runs under the sidebar. It costs no engine. With the switch off, a
+new-tab request over a page opens the Omnibar over that page instead. With it on, the Start page
+stands over the page on show until `Escape` gives that page back. _Avoid_: Home page, new tab page,
+about:blank, speed dial
 
 **Scene**: The drawing behind the Start page, and nothing else: the host sizes it, keeps its clock
 and shows it, through the CRT glass when it declares one. A Scene may also name the light it casts,

@@ -210,8 +210,11 @@ ApplicationWindow {
     // The Omnibar over a page. The Start page's Omnibar is the same one at
     // rest, and is open whenever the Start page is on show.
     property bool omnibarOpen: false
-    // A new-tab request shows the Start page over the page on show, which
-    // stays where it is until a destination is committed.
+    // A new-tab request over a page opens the Omnibar over it, heading to a
+    // new tab, unless the reader asked for the Start page instead.
+    property bool newTabShowsStartPage: false
+    // With that setting on, a new-tab request shows the Start page over the
+    // page on show, which stays where it is until a destination is committed.
     property bool startPageSummoned: false
     // A destination was committed from the Start page and the tab it went to
     // has not painted yet. The road is the loading state until it has, for up
@@ -2966,6 +2969,8 @@ ApplicationWindow {
 
     function restoreChromeAppearance() {
         window.glanceEnabled = window.windowBrowser.preference("glance", "true") === "true";
+        window.newTabShowsStartPage = window.windowBrowser.preference("new-tab-start-page",
+                                                                      "false") === "true";
         const scene = window.windowBrowser.preference("start-page-scene", "crt-road");
         window.startPageScene = window.startPageScenes.indexOf(scene) >= 0 ? scene : "crt-road";
         window.startPageGlass = window.windowBrowser.preference("start-page-glass", "true")
@@ -3081,6 +3086,11 @@ ApplicationWindow {
         window.windowBrowser.setPreference("glance", enabled ? "true" : "false");
     }
 
+    function setNewTabShowsStartPage(enabled) {
+        window.newTabShowsStartPage = enabled;
+        window.windowBrowser.setPreference("new-tab-start-page", enabled ? "true" : "false");
+    }
+
     function setUseFavicons(enabled) {
         window.useFavicons = enabled;
         window.windowBrowser.setPreference("use-favicons", enabled ? "true" : "false");
@@ -3130,7 +3140,7 @@ ApplicationWindow {
         function onPreferenceChanged(name) {
             if (name === "glance" || name === "start-page-scene" || name === "start-page-glass" || name
                     === "sidebar-side" || name === "space-colours" || name === "telemetry-text"
-                    || name === "telemetry-hidden")
+                    || name === "telemetry-hidden" || name === "new-tab-start-page")
                 window.restoreChromeAppearance();
             else if (name === "app-icon")
                 window.restoreAppIcon();
@@ -3669,21 +3679,23 @@ ApplicationWindow {
                 omnibar.focusField();
             return;
         }
-        // A new tab is asked of the Start page, over the page on show.
-        if (forNewTab) {
+        // A new tab is asked of the Start page, over the page on show, where
+        // the reader chose it. Otherwise the Omnibar opens over the page with
+        // an empty field, heading to a new tab.
+        if (forNewTab && window.newTabShowsStartPage) {
             window.shortcutsOpen = false;
             window.closeGlance();
             window.startPageSummoned = true;
             return;
         }
-        const preset = window.windowBrowser.activeUrl.toString();
+        const preset = forNewTab ? "" : window.windowBrowser.activeUrl.toString();
         // Suggestions arrive from the search thread, so the panel opens on the
         // typing it was opened for rather than on a scan of the Space's
         // history finishing first.
         window.forgetOmnibarSuggestions();
         if (!window.privateWindow)
             window.windowBrowser.requestHistorySuggestions(preset);
-        omnibar.beginAddress(preset, false);
+        omnibar.beginAddress(preset, forNewTab);
         omnibarOpen = true;
     }
 
@@ -5529,6 +5541,7 @@ ApplicationWindow {
                             appIcon: window.appIcon
                             sidebarSide: window.sidebarSide
                             glanceEnabled: window.glanceEnabled
+                            newTabShowsStartPage: window.newTabShowsStartPage
                             spaceColours: window.spaceColours
                             startPageScene: window.sceneSettingsWindow.startPageScene
                             startPageGlass: window.sceneSettingsWindow.startPageGlass
@@ -5590,6 +5603,9 @@ ApplicationWindow {
                             }
                             onGlanceToggled: function (enabled) {
                                 window.setGlanceEnabled(enabled);
+                            }
+                            onNewTabShowsStartPageToggled: function (enabled) {
+                                window.setNewTabShowsStartPage(enabled);
                             }
                             onSpaceColoursToggled: function (enabled) {
                                 window.setSpaceColours(enabled);
@@ -6669,7 +6685,7 @@ ApplicationWindow {
                 window.commitFromStartPage(text);
                 return;
             }
-            window.windowBrowser.openInput(text, false);
+            window.windowBrowser.openInput(text, omnibar.newTabIntent);
             window.closeOmnibar();
         }
     }

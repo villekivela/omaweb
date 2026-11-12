@@ -812,14 +812,23 @@ reports the gap and remains experimental rather than imitating behavior it canno
   theme, over the darkest and the lightest the road can put behind it. Over the road the glass blurs
   it heavily under a nearly opaque tint of the overlay, so the rows read cleanly, and over a page it
   blurs the page. The sun's light on the field's edge is drawn at half the website's strength.
-- `Primary+T` and `t` show the Start page in place of the page on show. Omaweb creates the tab only
-  after the user commits a destination. Choosing an open tab from it switches to that tab and
-  creates none. `Escape` brings back the page that was on show; in a Space at rest it releases the
-  field instead: the caret goes, the field is drawn unfocused and the keyboard is the browser's, so
-  every bare key of the key map works as over a page, and `o`, `Primary+L` or a click on the field
-  give the field back. In a split the Start page covers both panes, where the committed tab lands,
-  and `Escape` brings the split back. While the Start page is on show, `Primary+L` and `o` focus its
-  Omnibar.
+- `Primary+T` and `t` over a page open the Omnibar over it, as `Primary+L` does, with an empty field
+  and "New Tab" at its right end. The page stays under the Omnibar's glass. Omaweb creates the tab
+  only after the user commits a destination, and `Return` opens it in that new tab. Choosing an open
+  tab switches to that tab and creates none. `Escape` closes the Omnibar and leaves the page where
+  it was. In a split the Omnibar opens over both panes.
+- "New tab shows the Start page", a switch in Settings' interface section beside "Scene on the Start
+  page", is off by default, for a reader upgrading too. It is `"new-tab-start-page"` in
+  `settings.json`, and Sync carries it. With it on, `Primary+T` and `t` show the Start page in place
+  of the page on show instead, and the tab is created on commit in the same way.
+- Where there is no page to show, such as a Space at rest or after the last tab closes, the Start
+  page shows whatever the setting says, and `Primary+T` and `t` focus its Omnibar. `Escape` on a
+  Start page shown for a new tab brings back the page that was on show; in a Space at rest it
+  releases the field instead: the caret goes, the field is drawn unfocused and the keyboard is the
+  browser's, so every bare key of the key map works as over a page, and `o`, `Primary+L` or a click
+  on the field give the field back. In a split the Start page covers both panes, where the committed
+  tab lands, and `Escape` brings the split back. While the Start page is on show, `Primary+L` and
+  `o` focus its Omnibar.
 - While there are results, a hint row under the Omnibar's field, over a rule, names the keys that
   work the list, as the website's dash does, with `?` and "shortcuts" at its right end: `↑↓` as key
   caps and "select", `↵` and "go", in 11 px dim text over a rule. Command scope says "run" for `↵`

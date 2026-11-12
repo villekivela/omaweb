@@ -389,6 +389,8 @@ TestCase {
             window.setStartPageGlass(true);
         if (!window.spaceColours)
             window.setSpaceColours(true);
+        if (window.newTabShowsStartPage)
+            window.setNewTabShowsStartPage(false);
         if (fontSettings.interfaceFontSizeOverridden)
             fontSettings.resetInterfaceFontSize();
         if (pageScale.overridden)
@@ -2817,10 +2819,12 @@ TestCase {
                   {
                       "name": "the Start page over a page",
                       "open": function () {
+                          window.setNewTabShowsStartPage(true);
                           window.openOmnibar(true);
                       },
                       "close": function () {
                           window.closeOmnibar();
+                          window.setNewTabShowsStartPage(false);
                       }
                   },
                   {
@@ -3456,7 +3460,9 @@ TestCase {
         verify(newTabButton === null);
     }
 
+    // With the Start page asked for, a new tab still waits for a destination.
     function test_newTabRequestWaitsForCommittedDestination() {
+        window.setNewTabShowsStartPage(true);
         const previousTabId = browser.activeTabId;
         window.openOmnibar(true);
         tryCompare(window, "omnibarShown", true);
@@ -5116,6 +5122,9 @@ TestCase {
         const takenOver = agentPage.siteStyles;
         verify(browser.switchSpace(readersSpaceId));
         verify(browser.deleteSpace(spaceId, "Styled agent"));
+        // The next test starts from a sidebar at rest, not one still sliding
+        // in from the Agent Space.
+        tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
 
         verify(readers !== null && readers === siteStyles);
         verify(popup === siteStyles);
@@ -10340,7 +10349,9 @@ TestCase {
         verify(engineLoader !== null);
         const personalSpaceId = browser.activeSpaceId;
 
-        openPage("https://kept.example/room");
+        // A tab of its own, whose engine this Space made: the tab a test left
+        // on show may hold one made while another Space was on show.
+        openPageInNewTab("https://kept.example/room");
         const keptTabId = browser.activeTabId;
         browser.toggleActivePinned();
         verify(browser.setTabKeepActive(keptTabId, true));
@@ -18388,10 +18399,9 @@ TestCase {
             return panel.newTabIntent;
         });
         compare(mode.text, "New Tab");
-        window.dismissStartPage();
-        tryVerify(function () {
-            return !window.startPageSummoned;
-        });
+        verify(window.omnibarOpen);
+        window.closeOmnibar();
+        tryCompare(panel, "visible", false);
     }
 
     // A command row's symbol is drawn in the accent: full on the selected row,
@@ -18728,9 +18738,11 @@ TestCase {
         leaveSpace(homeSpaceId, firstSpaceId, "Resting first");
     }
 
-    // A new tab is the Start page over the page on show, and the tab exists
-    // only once a destination is committed. Escape gives the page back.
+    // With the Start page asked for, a new tab is the Start page over the page
+    // on show, and the tab exists only once a destination is committed.
+    // Escape gives the page back.
     function test_aNewTabShowsTheStartPageAndCreatesItsTabOnCommit() {
+        window.setNewTabShowsStartPage(true);
         const engineLoader = findChild(window.contentItem, "engineLoader");
         const startPage = findChild(window.contentItem, "startPage");
         const panel = findChild(window.contentItem, "omnibar");
@@ -18784,9 +18796,228 @@ TestCase {
         browser.activateTab(pageTabId);
     }
 
-    // Choosing an open tab from the Start page switches to it and opens no
-    // tab of its own.
+    // A new tab asked for over a page opens the Omnibar over that page, as
+    // Primary+L does, heading to a new tab. The page stays under the glass,
+    // no tab exists until a destination is committed, and Escape leaves the
+    // page where it was.
+    function test_aNewTabOpensTheOmnibarOverThePageAndCreatesItsTabOnCommit() {
+        const engineLoader = findChild(window.contentItem, "engineLoader");
+        const startPage = findChild(window.contentItem, "startPage");
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const engine = openPage("https://before-new-tab-omnibar.example");
+        settleMotion();
+        activateWindow();
+        const pageTabId = browser.activeTabId;
+        const tabCount = browser.tabs.rowCount();
+        const startPageWatch = watchChanges(startPage, "open");
+
+        keyClick(Qt.Key_T, Qt.ControlModifier);
+        tryVerify(function () {
+            return window.omnibarOpen && input.activeFocus;
+        });
+        verify(!panel.resting);
+        verify(panel.newTabIntent);
+        compare(input.text, "");
+        compare(engineLoader.item, engine);
+        verify(engine.visible);
+        compare(browser.tabs.rowCount(), tabCount);
+        compare(browser.activeTabId, pageTabId);
+
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !window.omnibarOpen;
+        });
+        compare(browser.activeTabId, pageTabId);
+        compare(engineLoader.item, engine);
+        compare(browser.tabs.rowCount(), tabCount);
+
+        // The key map's `t` runs the same command.
+        window.commands.run("new-tab", -1);
+        tryVerify(function () {
+            return window.omnibarOpen && input.activeFocus;
+        });
+        verify(panel.newTabIntent);
+        input.text = "https://after-new-tab-omnibar.example";
+        keyClick(Qt.Key_Return);
+        tryVerify(function () {
+            return browser.tabs.rowCount() === tabCount + 1;
+        });
+        verify(browser.activeTabId !== pageTabId);
+        compare(browser.activeUrl.toString(), "https://after-new-tab-omnibar.example");
+        verify(!window.omnibarOpen);
+        verify(!startPageWatch.seen.some(function (open) {
+            return open;
+        }), "the Start page showed on the way");
+        stopWatching(startPageWatch);
+
+        browser.closeActiveTab();
+        browser.activateTab(pageTabId);
+        compare(browser.activeUrl.toString(), "https://before-new-tab-omnibar.example");
+    }
+
+    // Over a split the new tab's Omnibar stands over both panes, centred in
+    // the page area they share, and Escape leaves the split as it was.
+    function test_aNewTabOmnibarOverASplitStandsOverBothPanes() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const viewport = findChild(window.contentItem, "engineViewport");
+        const panel = findChild(window.contentItem, "omnibar");
+        const frame = findChild(window.contentItem, "omnibarFrame");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const firstTabId = browser.activeTabId;
+        openPageInNewTab("https://omnibar-split-left.example");
+        const leftTabId = browser.activeTabId;
+        openPageInNewTab("https://omnibar-split-right.example");
+        const rightTabId = browser.activeTabId;
+        verify(browser.addSplit(leftTabId));
+        tryCompare(browser, "splitOnShow", true);
+        settleMotion();
+        activateWindow();
+        const tabCount = browser.tabs.rowCount();
+
+        window.commands.run("new-tab", -1);
+        tryVerify(function () {
+            return window.omnibarOpen && input.activeFocus;
+        });
+        tryCompare(panel, "arrival", 1);
+        verify(!startPage.open);
+        verify(panel.newTabIntent);
+        const area = viewport.mapToItem(window.contentItem, 0, 0, viewport.width, viewport.height);
+        const field = frame.mapToItem(window.contentItem, 0, 0, frame.width, frame.height);
+        compare(field.width, Math.min(720, area.width - 32));
+        verify(Math.abs(field.x + field.width / 2 - (area.x + area.width / 2)) <= 1, "the field "
+               + field + " is not centred in the page area " + area);
+        // Its top edge 50 px above where the Start page's horizon would be.
+        const horizon = startPage.mapToItem(window.contentItem, 0, startPage.horizonY).y;
+        verify(Math.abs(field.y - (horizon - 50)) <= 1, "the field's top " + field.y
+               + " is not 50 px above the horizon at " + horizon);
+
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !window.omnibarOpen;
+        });
+        verify(browser.splitOnShow);
+        compare(browser.tabs.rowCount(), tabCount);
+
+        browser.closeTab(rightTabId);
+        browser.closeTab(leftTabId);
+        browser.activateTab(firstTabId);
+    }
+
+    // Where there is no page to show, a new tab is still the Start page's:
+    // the Omnibar at rest keeps the field and opens nothing over it.
+    function test_aNewTabInASpaceAtRestStaysOnTheStartPage() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        const restingSpaceId = enterRestingSpace("Resting new tab");
+        verify(!window.newTabShowsStartPage);
+
+        window.commands.run("new-tab", -1);
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+        verify(startPage.open);
+        verify(panel.resting);
+        verify(!window.omnibarOpen);
+
+        leaveSpace(homeSpaceId, restingSpaceId, "Resting new tab");
+    }
+
+    // Closing the last tab leaves no page to show, so a new tab there is the
+    // Start page's too.
+    function test_aNewTabAfterTheLastTabClosesStaysOnTheStartPage() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        const spaceId = browser.createSpace("Last tab closed");
+        verify(browser.switchSpace(spaceId));
+        openPage("https://last-tab.example/");
+        browser.closeActiveTab();
+        tryVerify(function () {
+            return browser.atRest && window.pagelessViewport;
+        });
+        activateWindow();
+
+        window.commands.run("new-tab", -1);
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+        verify(startPage.open);
+        verify(panel.resting);
+        verify(!window.omnibarOpen);
+
+        leaveSpace(homeSpaceId, spaceId, "Last tab closed");
+    }
+
+    // The Start page for a new tab is the reader's to ask for back, from
+    // Settings, beside the Scene it stands on, and the choice is kept as the
+    // other settings are.
+    function test_settingsBringBackTheStartPageForANewTab() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const input = findChild(window.contentItem, "omnibarInput");
+        openPage("https://setting-new-tab.example");
+        settleMotion();
+        window.requestSettings();
+        const toggle = findChild(window.contentItem, "newTabShowsStartPage");
+        verify(toggle !== null);
+        verify(!toggle.checked);
+        toggle.clicked();
+        verify(window.newTabShowsStartPage);
+        verify(toggle.checked);
+        compare(browser.preference("new-tab-start-page", "false"), "true");
+        window.settingsOpen = false;
+        activateWindow();
+
+        window.commands.run("new-tab", -1);
+        tryVerify(function () {
+            return startPage.open && input.activeFocus;
+        });
+        verify(!window.omnibarOpen);
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !startPage.open;
+        });
+
+        window.requestSettings();
+        toggle.clicked();
+        verify(!window.newTabShowsStartPage);
+        compare(browser.preference("new-tab-start-page", "true"), "false");
+        window.settingsOpen = false;
+    }
+
+    // A value Sync brings, or an edit to settings.json, reaches the window
+    // while it runs, as the other settings do: the next new tab follows it.
+    function test_howANewTabOpensFollowsTheSettingChangedElsewhere() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const input = findChild(window.contentItem, "omnibarInput");
+        openPage("https://setting-elsewhere.example");
+        settleMotion();
+        activateWindow();
+        verify(!window.newTabShowsStartPage);
+
+        browser.setPreference("new-tab-start-page", "true");
+        verify(window.newTabShowsStartPage);
+        window.commands.run("new-tab", -1);
+        tryVerify(function () {
+            return startPage.open && input.activeFocus;
+        });
+        verify(!window.omnibarOpen);
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !startPage.open;
+        });
+
+        browser.setPreference("new-tab-start-page", "false");
+        verify(!window.newTabShowsStartPage);
+    }
+
+    // With the Start page asked for, choosing an open tab from it switches to
+    // that tab and opens no tab of its own.
     function test_choosingAnOpenTabFromTheStartPageSwitchesToIt() {
+        window.setNewTabShowsStartPage(true);
         const startPage = findChild(window.contentItem, "startPage");
         const panel = findChild(window.contentItem, "omnibar");
         const input = findChild(window.contentItem, "omnibarInput");
@@ -18819,9 +19050,11 @@ TestCase {
         browser.activateTab(firstTabId);
     }
 
-    // Over a split the Start page covers both panes, which is where the tab it
-    // opens will land, and Escape brings the split back as it was.
+    // With the Start page asked for, over a split it covers both panes, which
+    // is where the tab it opens will land, and Escape brings the split back as
+    // it was.
     function test_aNewTabOverASplitCoversBothPanes() {
+        window.setNewTabShowsStartPage(true);
         const startPage = findChild(window.contentItem, "startPage");
         const input = findChild(window.contentItem, "omnibarInput");
         const firstTabId = browser.activeTabId;
@@ -19129,8 +19362,10 @@ TestCase {
     }
 
     // After a commit the road drives until the page first paints, for two
-    // seconds at most, and a failure ends it at once.
+    // seconds at most, and a failure ends it at once. The new tabs it asks for
+    // show the Start page, which is where the road is.
     function test_theRoadDrivesUntilFirstPaintAndStopsOnAnError() {
+        window.setNewTabShowsStartPage(true);
         const panel = findChild(window.contentItem, "omnibar");
         const engineLoader = findChild(window.contentItem, "engineLoader");
         const startPage = findChild(window.contentItem, "startPage");
@@ -19240,8 +19475,9 @@ TestCase {
 
     // A page the road drove to takes the keyboard when it first paints, and
     // when it is given up on at the limit, so the reader can scroll it with no
-    // click first.
+    // click first. The new tab it asks for shows the Start page.
     function test_thePageTakesTheKeyboardWhenTheRoadArrives() {
+        window.setNewTabShowsStartPage(true);
         const engineLoader = findChild(window.contentItem, "engineLoader");
         const input = findChild(window.contentItem, "omnibarInput");
         const homeSpaceId = browser.activeSpaceId;
@@ -19317,10 +19553,11 @@ TestCase {
         leaveSpace(homeSpaceId, restingSpaceId, "Resting dialog");
     }
 
-    // Asking for a new tab while the road still drives to the last one is
-    // being done with waiting: that page takes over and a new Start page
-    // stands over it.
+    // With the Start page asked for, asking for a new tab while the road still
+    // drives to the last one is being done with waiting: that page takes over
+    // and a new Start page stands over it.
     function test_aNewTabWhileTheRoadDrivesLetsThePageTakeOver() {
+        window.setNewTabShowsStartPage(true);
         const engineLoader = findChild(window.contentItem, "engineLoader");
         const startPage = findChild(window.contentItem, "startPage");
         const input = findChild(window.contentItem, "omnibarInput");
