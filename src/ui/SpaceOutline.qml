@@ -1972,6 +1972,17 @@ Rectangle {
             }
         }
 
+        // PROTOTYPE #947: the overflow mockup shows the list scrolled to its
+        // last tab, with the row still at the foot.
+        Timer {
+            interval: 600
+            running: root.newTabRowShown && prototype947 === "overflow"
+            onTriggered: {
+                const view = tabScroll.contentItem;
+                view.contentY = Math.max(0, view.contentHeight - view.height);
+            }
+        }
+
         // PROTOTYPE #947: at the list's foot while the tabs overflow above it.
         NewTabRow {
             id: dockedNewTab

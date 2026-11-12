@@ -1190,15 +1190,19 @@ int main(int argc, char *argv[])
         // in a Folder.
         const auto prototype = qEnvironmentVariable("OMAWEB_PROTOTYPE_947");
         auto *unpinned = browser.unpinnedTabs();
-        // The lab's blank first tab would read as a second "New tab".
+        // The lab's blank first tab would read as a second "New tab", so it
+        // holds a page of its own.
         if (!prototype.isEmpty()) {
-            browser.closeTab(blankTabId);
+            const QUrl page(QStringLiteral("https://hypr.land/"));
+            qsizetype icon = 3;
+            browser.reportTabPageState(blankTabId, page, QStringLiteral("Hyprland"),
+                sampleFavicon(page, siteIcons, mockFavicons, icon), false, false);
         }
         if (prototype == QLatin1String("overflow")) {
             const auto shown = browser.activeTabId();
             static const QList<SampleTab> more = {
                 {"https://wiki.archlinux.org/title/Wayland", "Wayland - ArchWiki", false},
-                {"https://hypr.land/", "Hyprland", false},
+                {"https://hyprland.org/news/", "Hyprland news", false},
                 {"https://doc.qt.io/qt-6/qml-qtquick-flow.html", "Flow QML Type", false},
                 {"https://news.ycombinator.com/", "Hacker News", false},
                 {"https://github.com/basecamp/omarchy", "basecamp/omarchy", false},
