@@ -41,6 +41,18 @@ Rectangle {
     // being held for them.
     property var keyMap: null
     property bool keyLabelsShown: false
+    // PROTOTYPE #947: the "+ New tab" row after the tabs, while
+    // OMAWEB_PROTOTYPE_947 names a mockup. It is marked while a new tab waits.
+    property bool newTabWaiting: false
+    readonly property bool newTabRowShown: typeof prototype947 !== "undefined" && prototype947
+                                           !== ""
+    readonly property int newTabRowHeight: root.blockGap + 1 + Style.space(36)
+    // The tabs, without the row, overflow the list: the row stays at its foot.
+    readonly property bool newTabRowDocked: newTabRowShown && ordinarySection.height - (
+                                                inlineNewTab.visible ? inlineNewTab.height
+                                                                       + ordinarySection.spacing :
+                                                                       0) + newTabRowHeight
+                                            > listLayer.height - tabScroll.y - 12
     // What this window's Space is hosting, as `{ key, name, id, popupUrl }`.
     property var hostedExtensions: []
     property bool extensionAttention: false
@@ -1549,6 +1561,93 @@ Rectangle {
     // buttons: a disabled button is drawn at 35%, and a label that
     // inherited that would let the address show through it. Each hangs
     // 4px into the row below, centred on its button.
+    // PROTOTYPE #947: a thin rule, then "+ New tab" centred in the sidebar's
+    // muted text, with no favicon slot, so it is not taken for a tab.
+    component NewTabRow: Item {
+        id: newTabRow
+        property real reachLeft: 0
+        property real reachRight: 0
+        readonly property bool marked: root.newTabWaiting
+        // With no tab above it, the row is the list's only row and needs no rule.
+        property bool ruleShown: true
+        height: root.newTabRowHeight
+
+        Rectangle {
+            visible: newTabRow.ruleShown
+            y: DevicePixels.snap(root.blockGap / 2, root.pixelRatio)
+            width: parent.width
+            height: 1
+            color: root.colors.separator
+        }
+
+        Item {
+            id: newTabBody
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: Style.space(36)
+
+            Rectangle {
+                anchors.fill: parent
+                anchors.leftMargin: -newTabRow.reachLeft
+                anchors.rightMargin: -newTabRow.reachRight
+                visible: newTabRow.marked || newTabHover.containsMouse
+                color: Qt.alpha(root.colors.accent, newTabRow.marked ? 0.14 : 0.07)
+            }
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.leftMargin: -newTabRow.reachLeft
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: 2
+                visible: newTabRow.marked
+                color: root.colors.accent
+            }
+
+            Row {
+                anchors.centerIn: parent
+                spacing: Style.space(4)
+
+                Text {
+                    id: newTabPlus
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "add"
+                    color: newTabRow.marked ? root.colors.text : root.colors.mutedText
+                    font.family: root.iconFontFamily
+                    font.pixelSize: Style.font.iconLarge
+                }
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("New tab")
+                    color: newTabRow.marked ? root.colors.text : root.colors.mutedText
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.body
+                }
+            }
+
+            KeyLabel {
+                iconFontFamily: root.iconFontFamily
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.horizontalCenterOffset: newTabPlus.x + newTabPlus.width / 2
+                                                - newTabPlus.parent.width / 2
+                anchors.verticalCenter: parent.verticalCenter
+                keys: root.keyLabelsShown ? root.labelFor("new-tab") : ""
+                shown: root.keyLabelsShown
+                colors: root.colors
+            }
+
+            MouseArea {
+                id: newTabHover
+                anchors.fill: parent
+                anchors.leftMargin: -newTabRow.reachLeft
+                anchors.rightMargin: -newTabRow.reachRight
+                hoverEnabled: true
+            }
+        }
+    }
+
     component NavigationKeyLabel: KeyLabel {
         required property Item button
         required property Item row
@@ -1625,6 +1724,7 @@ Rectangle {
                     tintFavicons: root.tintFavicons
                     keyLabel: root.tabLabel(tabId)
                     keyLabelShown: root.keyLabelsShown
+                    markGiven: root.newTabRowShown && root.newTabWaiting
                     agent: root.agentOf(tabId)
                     held: root.heldTabId === tabId
                     onAgentStopRequested: function (id) {
@@ -1663,9 +1763,9 @@ Rectangle {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: pinnedSection.bottom
-            anchors.bottom: parent.bottom
+            anchors.bottom: root.newTabRowDocked ? dockedNewTab.top : parent.bottom
             anchors.topMargin: root.blockGap
-            anchors.bottomMargin: 12
+            anchors.bottomMargin: root.newTabRowDocked ? 0 : 12
             // The view spans the sidebar, and the list's margins are inside
             // it: a row's wash, and the pointer it answers, reach past them to
             // the sidebar's edges, as the Omnibar's rows reach its panel's. A
@@ -1804,6 +1904,7 @@ Rectangle {
                                 tintFavicons: root.tintFavicons
                                 keyLabel: root.tabLabel(tabId)
                                 keyLabelShown: root.keyLabelsShown
+                                markGiven: root.newTabRowShown && root.newTabWaiting
                                 agent: root.agentOf(tabId)
                                 held: root.heldTabId === tabId
                                 onAgentStopRequested: function (id) {
@@ -1858,7 +1959,31 @@ Rectangle {
                         }
                     }
                 }
+
+                // PROTOTYPE #947: after the last row while the tabs fit.
+                NewTabRow {
+                    id: inlineNewTab
+                    width: ordinarySection.rowWidth
+                    reachLeft: ordinarySection.leftPadding
+                    reachRight: ordinarySection.rightPadding
+                    ruleShown: ordinaryRows.count > 0 || root.pinnedCount > 0
+                    visible: root.newTabRowShown && !root.newTabRowDocked
+                }
             }
+        }
+
+        // PROTOTYPE #947: at the list's foot while the tabs overflow above it.
+        NewTabRow {
+            id: dockedNewTab
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.leftMargin: root.listMargin
+            anchors.rightMargin: 16
+            anchors.bottomMargin: 12
+            reachLeft: root.listMargin
+            reachRight: 16
+            visible: root.newTabRowDocked
         }
     }
 

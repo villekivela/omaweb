@@ -119,7 +119,9 @@ Item {
     // split is one row on show, so it has one bar, on its left half whichever
     // half is active: a bar on each half would draw a second line down the
     // middle of the sidebar.
-    readonly property bool showsBar: !pinned && !trailingHalf && (active || tabBeside)
+    readonly property bool showsBar: !pinned && !trailingHalf && (active || tabBeside) && !markGiven
+    // PROTOTYPE #947: the "+ New tab" row holds the mark while a new tab waits.
+    property bool markGiven: false
 
     // Moves the keyboard to this row as the Sidebar cursor.
     function steer() {
@@ -306,7 +308,7 @@ Item {
         anchors.fill: parent
         anchors.leftMargin: -root.reachLeft
         anchors.rightMargin: -root.reachRight
-        visible: root.active || (root.tabBeside && !root.pinned)
+        visible: (root.active || (root.tabBeside && !root.pinned)) && !root.markGiven
         radius: root.pinned ? Style.cornerRadius : 0
         color: root.siteColored ? Qt.alpha(root.siteColor, 0.18) : Qt.alpha(root.colors.accent,
                                                                             root.active ? 0.14 :
@@ -443,7 +445,8 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         anchors.verticalCenterOffset: root.showsAgent && !root.showsGlance ? -Style.space(7) : 0
         text: root.tabTitle.length > 0 ? root.tabTitle : tile.host
-        color: root.active || root.tabBeside ? root.colors.text : root.colors.mutedText
+        color: (root.active || root.tabBeside) && !root.markGiven ? root.colors.text :
+                                                                    root.colors.mutedText
         elide: Text.ElideRight
         font.family: Style.font.family
         font.pixelSize: Style.font.body

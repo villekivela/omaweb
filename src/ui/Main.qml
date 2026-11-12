@@ -4241,7 +4241,11 @@ ApplicationWindow {
                 onRight: chromeRow.sidebarOnRight
                 browser: window.windowBrowser
                 keyMap: keymap
-                keyLabelsShown: PrimaryHold.held && !window.settingsOpen
+                keyLabelsShown: (PrimaryHold.held || (typeof prototype947 !== "undefined"
+                                                      && prototype947 === "keys")) &&
+                                !window.settingsOpen
+                // PROTOTYPE #947: a new tab waits while the Start page is open.
+                newTabWaiting: window.startPageShown
                 agentActivity: window.agentTabActivity
                 glance: window.glanceRow
                 onGlanceKeepRequested: window.openGlanceAsTab()

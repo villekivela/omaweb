@@ -715,6 +715,9 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(
         QStringLiteral("engineHeldDownloads"), QVariant::fromValue<QObject *>(nullptr));
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
+    // PROTOTYPE #947: which mockup of the sidebar's "+ New tab" row to stand.
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("prototype947"), qEnvironmentVariable("OMAWEB_PROTOTYPE_947"));
     engine.rootContext()->setContextProperty(QStringLiteral("fontSettings"), &fontSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("sidebarOpacity"), &sidebarOpacity);
     engine.rootContext()->setContextProperty(QStringLiteral("pageScale"), &pageScale);
@@ -1180,8 +1183,57 @@ int main(int argc, char *argv[])
     // section nor the tab list, so the sidebar that distinguishes this browser
     // is the one thing a capture of it cannot show. `--tabs` seeds a day.
     if (arguments.contains(QStringLiteral("--tabs"))) {
+        const auto blankTabId = tabIdAt(browser.unpinnedTabs(), 0);
         seedSampleTabs(
             browser, mockFavicons, siteIcons, browse ? QString::fromUtf8(browsedTab) : QString());
+        // PROTOTYPE #947: more tabs than the list holds, or a list that ends
+        // in a Folder.
+        const auto prototype = qEnvironmentVariable("OMAWEB_PROTOTYPE_947");
+        auto *unpinned = browser.unpinnedTabs();
+        // The lab's blank first tab would read as a second "New tab".
+        if (!prototype.isEmpty()) {
+            browser.closeTab(blankTabId);
+        }
+        if (prototype == QLatin1String("overflow")) {
+            const auto shown = browser.activeTabId();
+            static const QList<SampleTab> more = {
+                {"https://wiki.archlinux.org/title/Wayland", "Wayland - ArchWiki", false},
+                {"https://hypr.land/", "Hyprland", false},
+                {"https://doc.qt.io/qt-6/qml-qtquick-flow.html", "Flow QML Type", false},
+                {"https://news.ycombinator.com/", "Hacker News", false},
+                {"https://github.com/basecamp/omarchy", "basecamp/omarchy", false},
+                {"https://developer.mozilla.org/en-US/docs/Web/CSS", "CSS: Cascading Style Sheets",
+                    false},
+                {"https://lwn.net/", "LWN.net", false},
+                {"https://www.youtube.com/watch?v=lab", "Night drive, 4K", false},
+                {"https://wayland.freedesktop.org/docs/html/", "Wayland documentation", false},
+                {"https://mail.proton.me/u/0/sent", "Sent", false},
+                {"https://github.com/villekivela/omaweb/issues/947", "New tab row in the sidebar",
+                    false},
+                {"https://doc.qt.io/qt-6/qml-qtquick-controls-scrollview.html",
+                    "ScrollView QML Type", false},
+            };
+            qsizetype icon = 0;
+            for (const auto &sample : more) {
+                const QUrl url(QString::fromUtf8(sample.url));
+                browser.openInputInBackground(url);
+                const auto tabId = lastTabId(unpinned);
+                browser.reportTabPageState(tabId, url, QString::fromUtf8(sample.title),
+                    sampleFavicon(url, siteIcons, mockFavicons, icon), false, false);
+            }
+            browser.activateTab(shown);
+        } else if (prototype == QLatin1String("folder")) {
+            QStringList ids;
+            for (auto row = 0; row < unpinned->rowCount(); ++row) {
+                ids.append(tabIdAt(unpinned, row));
+            }
+            ids.removeAll(QString());
+            const auto first = ids.mid(0, 2);
+            const auto rest = ids.mid(2);
+            const auto work = browser.createFolder(QStringLiteral("Omaweb"), first);
+            browser.setFolderCollapsed(work, true);
+            browser.createFolder(QStringLiteral("Reading"), rest);
+        }
     }
     // `--put-away` has the sample day's ordinary tabs last shown one by one
     // over the past few days, then lets the check put away those past twelve

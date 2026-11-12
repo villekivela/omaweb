@@ -1363,6 +1363,19 @@ Rectangle {
                         }
                     }
 
+                    // PROTOTYPE #947: the setting that hides the "+ New tab" row.
+                    SettingToggle {
+                        objectName: "sidebarNewTab"
+                        enabled: root.settingsWritable
+                        width: pane.width
+                        colors: root.colors
+                        title: qsTr("New tab button in the sidebar")
+                        note: qsTr(
+                                  "A row after the sidebar's tabs that opens a new tab, as Primary+T does.")
+                        accessibleName: qsTr("New tab button in the sidebar")
+                        checked: true
+                    }
+
                     SettingToggle {
                         objectName: "glanceEnabled"
                         enabled: root.settingsWritable
