@@ -100,13 +100,17 @@ of tabs, some of them pinned: the lab otherwise comes up on a Space at rest, whi
 Pinned section nor the tab list, so the sidebar is the one part of the chrome a capture cannot
 reach. The blank tab stays the one on show, so the viewport still draws the Start page, unless
 `--browse` is passed too: then a documentation tab is on show and the lab's stand-in view draws a
-sample page in the page palette where it would otherwise say no engine is running. `--spaces` seeds
-a Work Space with pages of its own beside Personal, before the interface loads, so a Space switch
-has somewhere to go. `--sample-lists` writes EasyList and EasyPrivacy into the lab's
-content-blocking settings as current, so Content Blocking shows the lists a first run has without
-fetching them. `--keyring <state>` has the lab's keyring in memory stand where Payment cards is to
-be reviewed, with `--show settings:payment-cards`: `unavailable`, `unreachable`, `locked`, `failed`,
-or `reading`, which answers after 20 seconds and holds the lab open that long when it closes.
+sample page in the page palette where it would otherwise say no engine is running. With `--tabs`,
+`--blank-tab-page` gives that blank tab a page, so the list holds pages only, `--many-tabs` adds
+more tabs than the list holds, so it scrolls under the "+ New tab" row, and `--folders` puts the
+ordinary tabs in two Folders, the first collapsed, so the list ends in a Folder. `--key-labels`
+shows the sidebar's key labels as holding Primary does. `--spaces` seeds a Work Space with pages of
+its own beside Personal, before the interface loads, so a Space switch has somewhere to go.
+`--sample-lists` writes EasyList and EasyPrivacy into the lab's content-blocking settings as
+current, so Content Blocking shows the lists a first run has without fetching them.
+`--keyring <state>` has the lab's keyring in memory stand where Payment cards is to be reviewed,
+with `--show settings:payment-cards`: `unavailable`, `unreachable`, `locked`, `failed`, or
+`reading`, which answers after 20 seconds and holds the lab open that long when it closes.
 `--agents` has an Agent at work under the real Agent rules: an Agent Space it made is on show with
 the tab it is driving, which it has just clicked in, and a second Agent Space sits unused.
 `--agents-away` keeps the reader's Space on show instead, and `--agents-window` has the Agent's page

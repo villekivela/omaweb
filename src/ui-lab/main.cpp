@@ -350,6 +350,57 @@ void seedSampleTabs(omaweb::BrowserController &browser, const QVariantList &favi
     browser.activateTab(shownTabId);
 }
 
+// The ordinary tabs `--many-tabs` adds to the sample day: more than the
+// sidebar's list holds, so it scrolls under the "+ New tab" row at its foot.
+void seedManyTabs(
+    omaweb::BrowserController &browser, const QVariantList &favicons, const QVariantMap &siteIcons)
+{
+    static const QList<SampleTab> more = {
+        {"https://wiki.archlinux.org/title/Wayland", "Wayland - ArchWiki", false},
+        {"https://hyprland.org/news/", "Hyprland news", false},
+        {"https://doc.qt.io/qt-6/qml-qtquick-flow.html", "Flow QML Type", false},
+        {"https://news.ycombinator.com/", "Hacker News", false},
+        {"https://github.com/basecamp/omarchy", "basecamp/omarchy", false},
+        {"https://developer.mozilla.org/en-US/docs/Web/CSS", "CSS: Cascading Style Sheets", false},
+        {"https://lwn.net/", "LWN.net", false},
+        {"https://wayland.freedesktop.org/docs/html/", "Wayland documentation", false},
+        {"https://mail.proton.me/u/0/sent", "Sent", false},
+        {"https://doc.qt.io/qt-6/qml-qtquick-controls-scrollview.html", "ScrollView QML Type",
+            false},
+        {"https://archlinux.org/news/", "Arch Linux - News", false},
+        {"https://doc.qt.io/qt-6/qtquick-index.html", "Qt Quick", false},
+    };
+    const auto shown = browser.activeTabId();
+    auto *unpinned = browser.unpinnedTabs();
+    qsizetype icon = 0;
+    for (const auto &sample : more) {
+        const QUrl url(QString::fromUtf8(sample.url));
+        browser.openInputInBackground(url);
+        const auto tabId = lastTabId(unpinned);
+        if (tabId.isEmpty()) {
+            continue;
+        }
+        browser.reportTabPageState(tabId, url, QString::fromUtf8(sample.title),
+            sampleFavicon(url, siteIcons, favicons, icon), false, false);
+    }
+    browser.activateTab(shown);
+}
+
+// `--folders` puts the sample day's ordinary tabs in two Folders, the first
+// collapsed, so the list ends in a Folder.
+void seedFolders(omaweb::BrowserController &browser)
+{
+    auto *unpinned = browser.unpinnedTabs();
+    QStringList ids;
+    for (auto row = 0; row < unpinned->rowCount(); ++row) {
+        ids.append(tabIdAt(unpinned, row));
+    }
+    ids.removeAll(QString());
+    const auto first = browser.createFolder(QStringLiteral("Omaweb"), ids.mid(0, 2));
+    browser.setFolderCollapsed(first, true);
+    browser.createFolder(QStringLiteral("Reading"), ids.mid(2));
+}
+
 // Two more Spaces, each with a page or two of its own, so that switching
 // Space has somewhere to go. The first Space is put back on show at the
 // end. This runs before the QML loads: a switch with the interface up tears
@@ -1180,8 +1231,24 @@ int main(int argc, char *argv[])
     // section nor the tab list, so the sidebar that distinguishes this browser
     // is the one thing a capture of it cannot show. `--tabs` seeds a day.
     if (arguments.contains(QStringLiteral("--tabs"))) {
+        const auto blankTabId = tabIdAt(browser.unpinnedTabs(), 0);
         seedSampleTabs(
             browser, mockFavicons, siteIcons, browse ? QString::fromUtf8(browsedTab) : QString());
+        // `--blank-tab-page` gives the blank tab the lab starts on a page of
+        // its own, so the list holds pages only, as a reader's does once the
+        // Omnibar opens a new tab's page itself.
+        if (arguments.contains(QStringLiteral("--blank-tab-page"))) {
+            const QUrl page(QStringLiteral("https://hypr.land/"));
+            qsizetype icon = 3;
+            browser.reportTabPageState(blankTabId, page, QStringLiteral("Hyprland"),
+                sampleFavicon(page, siteIcons, mockFavicons, icon), false, false);
+        }
+        if (arguments.contains(QStringLiteral("--many-tabs"))) {
+            seedManyTabs(browser, mockFavicons, siteIcons);
+        }
+        if (arguments.contains(QStringLiteral("--folders"))) {
+            seedFolders(browser);
+        }
     }
     // `--put-away` has the sample day's ordinary tabs last shown one by one
     // over the past few days, then lets the check put away those past twelve
@@ -1219,6 +1286,15 @@ int main(int argc, char *argv[])
     if (arguments.contains(QStringLiteral("--narrow")) && !engine.rootObjects().isEmpty()) {
         auto *window = engine.rootObjects().constFirst();
         window->setProperty("sidebarWidth", window->property("sidebarMinimumWidth"));
+    }
+    // `--key-labels` shows the sidebar's key labels as holding Primary does,
+    // which a capture has no key to hold for.
+    if (arguments.contains(QStringLiteral("--key-labels")) && !engine.rootObjects().isEmpty()) {
+        auto *sidebar
+            = engine.rootObjects().constFirst()->findChild<QObject *>(QStringLiteral("sidebar"));
+        if (sidebar != nullptr) {
+            sidebar->setProperty("keyLabelsShown", true);
+        }
     }
     // The Status island's marks, for review (#838). `--no-release` leaves the
     // lab's release unannounced, `--release <version>` announces that version,

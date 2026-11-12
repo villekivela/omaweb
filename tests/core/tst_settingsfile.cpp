@@ -25,6 +25,7 @@ private slots:
     void writesOnlyWhatDiffersFromTheDefault();
     void keepsSpaceColourOnUnlessTheReaderTurnsItOff();
     void keepsTheNewTabStartPageOffUnlessTheReaderTurnsItOn();
+    void keepsTheSidebarsNewTabRowOnUnlessTheReaderTurnsItOff();
     void keepsTheLastGoodValuesWhileTheFileCannotBeRead();
     void startsOnTheDefaultsFromAFileOfAnotherVersion();
     void readsABadValueAsItsDefaultAndNamesIt();
@@ -176,6 +177,24 @@ void SettingsFileTest::keepsTheNewTabStartPageOffUnlessTheReaderTurnsItOn()
     QVERIFY(!settings.set(QStringLiteral("new-tab-start-page"), QStringLiteral("on")));
     QVERIFY(settings.set(QStringLiteral("new-tab-start-page"), false));
     QVERIFY(!settings.isSet(QStringLiteral("new-tab-start-page")));
+}
+
+// The sidebar's "+ New tab" row stands until the reader hides it, and the
+// file says so only once they have.
+void SettingsFileTest::keepsTheSidebarsNewTabRowOnUnlessTheReaderTurnsItOff()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto path = root.filePath(QStringLiteral("settings.json"));
+    SettingsFile settings(root.path());
+
+    QVERIFY(SettingsFile::keys().contains(QStringLiteral("sidebar-new-tab")));
+    QCOMPARE(settings.value(QStringLiteral("sidebar-new-tab")), QJsonValue(true));
+    QVERIFY(settings.set(QStringLiteral("sidebar-new-tab"), false));
+    QCOMPARE(readFile(path), QByteArray("{\n  \"version\": 1,\n  \"sidebar-new-tab\": false\n}\n"));
+    QVERIFY(!settings.set(QStringLiteral("sidebar-new-tab"), QStringLiteral("off")));
+    QVERIFY(settings.set(QStringLiteral("sidebar-new-tab"), true));
+    QVERIFY(!settings.isSet(QStringLiteral("sidebar-new-tab")));
 }
 
 // A file the reader is halfway through editing is not a file of defaults:

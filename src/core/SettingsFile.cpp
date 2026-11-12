@@ -78,6 +78,8 @@ namespace {
             {QLatin1StringView("browser-theme"), Kind::Text, QString()},
             {QLatin1StringView("sidebar-side"), Kind::Text, QStringLiteral("left"),
                 {QStringLiteral("left"), QStringLiteral("right")}},
+            // The sidebar's "+ New tab" row after the tabs.
+            {QLatin1StringView("sidebar-new-tab"), Kind::Switch, true},
             {QLatin1StringView("glance"), Kind::Switch, true},
             {QLatin1StringView("new-tab-start-page"), Kind::Switch, false},
             {QLatin1StringView("start-page-scene"), Kind::Text, QStringLiteral("crt-road")},

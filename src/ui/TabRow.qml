@@ -114,12 +114,17 @@ Item {
     readonly property bool cursorShown: activeFocus && !reachedByPointer
     // Whether the reader has marked the row to act on with others (#917).
     property bool marked: false
+    // While a new tab waits, the sidebar's "+ New tab" row is drawn as the
+    // tab on show, and this row is drawn as any other (#947).
+    property bool onShowGiven: false
+    readonly property bool drawnActive: active && !onShowGiven
+    readonly property bool drawnBeside: tabBeside && !onShowGiven
 
     // The Omnibar's bar, on the sidebar's left edge of the row on show. A
     // split is one row on show, so it has one bar, on its left half whichever
     // half is active: a bar on each half would draw a second line down the
     // middle of the sidebar.
-    readonly property bool showsBar: !pinned && !trailingHalf && (active || tabBeside)
+    readonly property bool showsBar: !pinned && !trailingHalf && (drawnActive || drawnBeside)
 
     // Moves the keyboard to this row as the Sidebar cursor.
     function steer() {
@@ -306,11 +311,11 @@ Item {
         anchors.fill: parent
         anchors.leftMargin: -root.reachLeft
         anchors.rightMargin: -root.reachRight
-        visible: root.active || (root.tabBeside && !root.pinned)
+        visible: root.drawnActive || (root.drawnBeside && !root.pinned)
         radius: root.pinned ? Style.cornerRadius : 0
         color: root.siteColored ? Qt.alpha(root.siteColor, 0.18) : Qt.alpha(root.colors.accent,
-                                                                            root.active ? 0.14 :
-                                                                                          0.07)
+                                                                            root.drawnActive ? 0.14 :
+                                                                                               0.07)
     }
 
     // A marked row, softer than the row on show and with no bar, so the row on
@@ -400,7 +405,7 @@ Item {
         colors: root.colors
         siteUrl: root.tabUrl
         iconUrl: root.tabIconUrl
-        highlighted: root.active
+        highlighted: root.drawnActive
         useArtwork: root.useFavicons
         tintArtwork: root.tintFavicons
         siteColoredMark: root.siteColored
@@ -421,7 +426,7 @@ Item {
         anchors.bottom: root.pinned ? parent.bottom : undefined
         anchors.bottomMargin: 4
         text: "web_asset"
-        color: root.active || root.tabBeside ? root.colors.text : root.colors.mutedText
+        color: root.drawnActive || root.drawnBeside ? root.colors.text : root.colors.mutedText
         font.family: root.iconFontFamily
         font.pixelSize: root.pinned ? Style.font.iconSmall : Style.font.iconLarge
         Accessible.role: Accessible.StaticText
@@ -443,7 +448,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         anchors.verticalCenterOffset: root.showsAgent && !root.showsGlance ? -Style.space(7) : 0
         text: root.tabTitle.length > 0 ? root.tabTitle : tile.host
-        color: root.active || root.tabBeside ? root.colors.text : root.colors.mutedText
+        color: root.drawnActive || root.drawnBeside ? root.colors.text : root.colors.mutedText
         elide: Text.ElideRight
         font.family: Style.font.family
         font.pixelSize: Style.font.body
@@ -662,11 +667,11 @@ Item {
             }
             readonly property bool hot: hoverArea.containsMouse && covers(hoverArea.mouseX,
                                                                           hoverArea.mouseY)
-            readonly property color foreground: root.siteColored && root.active ? root.siteColor : (
-                                                                                      root.silenced
-                                                                                      || !root.active
-                                                                                      ? root.colors.mutedText :
-                                                                                        root.colors.text)
+            readonly property color foreground: root.siteColored && root.drawnActive
+                                                ? root.siteColor : (root.silenced ||
+                                                                    !root.drawnActive
+                                                                    ? root.colors.mutedText :
+                                                                      root.colors.text)
             anchors.left: root.pinned ? undefined : parent.left
             anchors.leftMargin: root.reachLeft + root.chipInset
             anchors.verticalCenter: root.pinned ? undefined : parent.verticalCenter

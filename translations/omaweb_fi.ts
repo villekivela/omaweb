@@ -4035,6 +4035,14 @@ Päivitykset osoitteesta %3</translation>
         <translation>1 piilotettu</translation>
     </message>
     <message>
+        <source>New tab button in the sidebar</source>
+        <translation>Uusi välilehti -painike sivupalkissa</translation>
+    </message>
+    <message>
+        <source>A row after the sidebar&apos;s tabs that opens a new tab with a click.</source>
+        <translation>Rivi sivupalkin välilehtien jälkeen, joka avaa uuden välilehden napsautuksella.</translation>
+    </message>
+    <message>
         <source>Edit</source>
         <comment>verb: edit a site style</comment>
         <translation>Muokkaa</translation>
@@ -4975,6 +4983,10 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>search or enter address</source>
         <translation>hae tai kirjoita osoite</translation>
+    </message>
+    <message>
+        <source>New tab</source>
+        <translation>Uusi välilehti</translation>
     </message>
     <message>
         <source>Private</source>
