@@ -82,10 +82,14 @@ ApplicationWindow {
     // their styles apply, so not in an Agent Space, and comes back with the
     // reader's Space. It stays open across navigation and tab switches.
     property bool siteStylePanelOpen: false
-    readonly property bool siteStyleAvailable: window.readerSiteStyles !== null &&
-                                               !window.agentSpaceOnShow
-    readonly property bool siteStylePanelShown: window.siteStylePanelOpen
-                                                && window.siteStyleAvailable
+    readonly property bool siteStylesHere: window.readerSiteStyles !== null &&
+                                           !window.agentSpaceOnShow
+    // The command and the page menu offer the panel only for a page with a site
+    // a style can be written for, which a Start page or an IPv6 address has not.
+    readonly property bool siteStyleAvailable: window.siteStylesHere
+                                               && window.readerSiteStyles.siteFor(
+                                                   window.windowBrowser.activeUrl).length > 0
+    readonly property bool siteStylePanelShown: window.siteStylePanelOpen && window.siteStylesHere
     readonly property int siteStylePanelWidth: 400
     readonly property real developerToolsDefaultWidth: 480
     property real developerToolsWidth: developerToolsDefaultWidth
@@ -2883,7 +2887,7 @@ ApplicationWindow {
             if (under(tabs.data(index, Qt.UserRole + 3)))
                 tabId = String(tabs.data(index, Qt.UserRole + 1));
         }
-        if (tabId.length === 0 || !window.siteStyleAvailable) {
+        if (tabId.length === 0 || !window.siteStylesHere) {
             window.readerSiteStyles.openInEditor(host);
             return;
         }

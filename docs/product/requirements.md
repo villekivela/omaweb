@@ -721,7 +721,8 @@ reports the gap and remains experimental rather than imitating behavior it canno
   right, and the page narrows beside it. It stays open across navigation and tab switches and
   follows the page on show, takes the keyboard when it opens, and is a region `Alt+H` and `Alt+L`
   move to. It opens in the reader's Spaces and Private windows, whose edits write the same files,
-  and is not offered in an Agent Space.
+  and is not offered in an Agent Space, or for a page with no site a style can be written for: a
+  Start page, or an IPv6 address, which cannot name a file. A panel already open says so there.
 - The panel's host picker lists the page's host and each host above it that is still the site, and
   says which already have a file. It writes the registrable site, `github.com` for
   `gist.github.com`, unless the reader picks a narrower host, which stays picked on the site's pages
@@ -732,20 +733,26 @@ reports the gap and remains experimental rather than imitating behavior it canno
   pauses, or when the browser quits, so the reader's own editor, the live reload and Sync see one
   save. A note beside Open in editor says whether the typing is saved yet. Open in editor writes the
   file if it has none and opens it with `omarchy-launch-editor`, or the desktop's handler without
-  Omarchy. An edit made to the file elsewhere shows in the panel.
+  Omarchy. An edit made to the file elsewhere shows in the panel. A save from outside, by the
+  reader's editor or by Sync, while the typing waits for its pause is kept and replaces the typing
+  in the panel rather than being written over.
 - Pick an element to hide starts the picker on the page on show. Hover highlights an element, and a
-  click picks it without the page hearing the click. While picking, `Up` and `Down` move to the
-  parent and back to the child, `Left` and `Right` to the siblings, `[` and `]` narrow and widen,
-  `Enter` hides and `Escape` stops. The panel shows the selector, editable, how many elements it
-  matches on the page, and a slider from this element to all related ones that takes `Left`,
-  `Right`, `[` and `]` too. A selector prefers a stable id, then classes and attributes that a build
-  tool did not generate, and uses `:nth-child` only where nothing else tells the element from its
-  siblings. The picker stops with the panel, the tab and the document.
+  click picks it, and neither the click nor the picker's keys reach the page's elements. The page
+  cannot reach the picker's code, but it can see the highlight in its document, and a listener the
+  page put on the window to capture events first hears them before the picker does. While picking,
+  `Up` and `Down` move to the parent and back to the child, `Left` and `Right` to the siblings, `[`
+  and `]` narrow and widen, `Enter` hides and `Escape` stops. The panel shows the selector,
+  editable, how many elements it matches on the page, and a slider from this element to all related
+  ones that takes `Left`, `Right`, `[` and `]` too. A selector prefers a stable id, then classes and
+  attributes that a build tool did not generate, and uses `:nth-child` only where nothing else tells
+  the element from its siblings. The picker stops with the panel, the tab and the document.
 - A hidden element is an ordinary rule in the site's file, on a line of its own at the end:
   `/* Hidden by Omaweb */ <selector> { display: none !important; }`. The panel reads those lines
   back and lists each with how many elements it hides on the page, a preview that draws the page
   without it and outlines what it hides, and an undo that takes out that line alone. No line the
-  reader wrote is rewritten.
+  reader wrote is rewritten. A selector that would close the rule, start another, open a comment or
+  a string, or run onto another line is refused, typed or picked, and a tag name a page made up is
+  escaped. Hiding what is hidden already adds no second line.
 - A Site style can be switched off in the panel or in Settings. Off is kept in `settings.json` as
   `"site-styles": {"<host>": false}`, so it syncs and the file stays as it is.
 - Settings has a Site styles section after Content blocking that lists every style by host, with how

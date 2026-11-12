@@ -96,9 +96,16 @@ Rectangle {
         return counts[selector] !== undefined ? counts[selector] : -1;
     }
 
+    // Whether what is picked can be written as a hide.
+    readonly property bool pickHideable: root.pick.valid !== false && (root.pick.count || 0) > 0
+                                         && root.styles !== null && root.styles.hides(
+                                             root.pick.selector || "")
+
     function matchesText(count, valid) {
         if (!valid)
             return qsTr("This selector does not parse");
+        if (root.styles && !root.styles.hides(root.pick.selector || ""))
+            return qsTr("This selector cannot be hidden");
         if (count === 0)
             return qsTr("Matches nothing on this page");
         if (count === 1)
@@ -273,7 +280,7 @@ Rectangle {
             color: root.colors.mutedText
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
-            text: root.host.length === 0 ? qsTr("Open a page to style its site.") :
+            text: root.host.length === 0 ? qsTr("No style can be written for this page.") :
                                            !root.styleApplies ? qsTr(
                                                                     "Off. styles/%1.css is kept, and applies again when switched on.").arg(
                                                                     root.host) : qsTr(
@@ -516,7 +523,10 @@ Rectangle {
                         restoreMode: Binding.RestoreNone
                     }
                     onTextEdited: root.engine.setPickSelector(selectorField.text)
-                    onAccepted: root.engine.hidePick()
+                    onAccepted: {
+                        if (root.pickHideable)
+                            root.engine.hidePick();
+                    }
                     Keys.onEscapePressed: root.stopPicking()
                     Accessible.name: qsTr("Selector to hide")
                 }
@@ -525,8 +535,7 @@ Rectangle {
                     objectName: "siteStyleMatches"
                     visible: root.pick.selector !== undefined && root.pick.selector.length > 0
                     text: root.matchesText(root.pick.count || 0, root.pick.valid !== false)
-                    color: root.pick.valid === false || root.pick.count === 0 ? root.colors.urgent :
-                                                                                root.colors.accent
+                    color: root.pickHideable ? root.colors.accent : root.colors.urgent
                     font.family: Style.font.family
                     font.pixelSize: Style.font.caption
                 }
@@ -604,7 +613,7 @@ Rectangle {
                         colors: root.colors
                         primary: true
                         label: qsTr("Hide")
-                        enabled: root.pick.valid !== false && (root.pick.count || 0) > 0
+                        enabled: root.pickHideable
                         onClicked: root.engine.hidePick()
                     }
                     ActionButton {

@@ -5422,6 +5422,16 @@ TestCase {
             keyClick(letter);
         verify(page.pickerCalls.indexOf("select:.banner") >= 0);
         compare(matches.text, "Matches 2 elements on this page");
+        // A selector that would reach past its line is not offered to hide.
+        for (const typed of " /*")
+            keyClick(typed);
+        compare(matches.text, "This selector cannot be hidden");
+        verify(!findChild(panel, "siteStyleHide").enabled);
+        keyClick(Qt.Key_Return);
+        verify(page.picking);
+        for (let erased = 0; erased < 3; ++erased)
+            keyClick(Qt.Key_Backspace);
+        verify(findChild(panel, "siteStyleHide").enabled);
         keyClick(Qt.Key_Return);
         verify(!page.picking);
         verify(!card.visible);
@@ -5541,6 +5551,33 @@ TestCase {
             return siteStyles.unsaved.length === 0;
         });
         verify(siteStyles.remove("private-styled.example"));
+    }
+
+    // A page at an IPv6 address has no file a style could be written to, so
+    // neither the command nor the page menu offers the panel there. A panel
+    // already open says so rather than offering an editor.
+    function test_siteStylePanelIsNotOfferedForAnIpv6Address() {
+        const panel = findChild(window.contentItem, "siteStylePanel");
+        openPage("http://[::1]:8000/");
+        verify(!window.commands.available("site-style"));
+        const row = window.pageMenuFor({}).filter(function (each) {
+            return each.command === "site-style";
+        });
+        compare(row.length, 1);
+        verify(!row[0].enabled);
+        window.commands.run("site-style", -1);
+        verify(!panel.visible);
+
+        openPage("https://styled.example/");
+        window.commands.run("site-style", -1);
+        tryVerify(function () {
+            return panel.visible;
+        });
+        openPage("http://[::1]:8000/");
+        compare(panel.host, "");
+        verify(!findChild(panel, "siteStyleEditor").enabled);
+        compare(findChild(panel, "siteStyleCaption").text,
+                "No style can be written for this page.");
     }
 
     // A Private window has no Agent Space, and its pages take the reader's

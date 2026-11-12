@@ -4818,10 +4818,6 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
         <translation>Sulje sivustotyylin paneeli</translation>
     </message>
     <message>
-        <source>Open a page to style its site.</source>
-        <translation>Avaa sivu muotoillaksesi sen sivustoa.</translation>
-    </message>
-    <message>
         <source>Off. styles/%1.css is kept, and applies again when switched on.</source>
         <translation>Pois päältä. styles/%1.css säilyy ja on taas käytössä, kun kytket sen päälle.</translation>
     </message>
@@ -4859,6 +4855,14 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
             <numerusform>Osuu %n elementtiin tällä sivulla</numerusform>
             <numerusform>Osuu %n elementtiin tällä sivulla</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>This selector cannot be hidden</source>
+        <translation>Tätä valitsinta ei voi piilottaa</translation>
+    </message>
+    <message>
+        <source>No style can be written for this page.</source>
+        <translation>Tälle sivulle ei voi kirjoittaa tyyliä.</translation>
     </message>
     <message numerus="yes">
         <source>%n here</source>

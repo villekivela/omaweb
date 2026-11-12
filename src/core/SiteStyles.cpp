@@ -40,6 +40,53 @@ namespace {
         return canonicalHost(fileName.chopped(suffix.size()));
     }
 
+    // The host a style can be written for, or none. Qt reads a path that
+    // starts with a colon as one of its resources, so an IPv6 address, the one
+    // host with colons, has no file.
+    QString styleableHost(const QString &host)
+    {
+        const auto key = canonicalHost(host);
+        return key.contains(u':') ? QString() : key;
+    }
+
+    // Whether a selector stays on its hide's line: no brace, semicolon or
+    // comment that would end the rule or start another, no line break, and no
+    // string or escape left open for the reader's next line to fall into.
+    bool staysOnItsLine(const QString &selector)
+    {
+        if (selector.contains(QLatin1String("/*")) || selector.contains(QLatin1String("*/"))) {
+            return false;
+        }
+        QChar quote;
+        for (qsizetype at = 0; at < selector.size(); ++at) {
+            const auto character = selector.at(at);
+            if (character == u'\n' || character == u'\r') {
+                return false;
+            }
+            if (character == u'\\') {
+                if (++at == selector.size()) {
+                    return false;
+                }
+                const auto escaped = selector.at(at);
+                if (escaped == u'\n' || escaped == u'\r') {
+                    return false;
+                }
+                continue;
+            }
+            if (character == u'{' || character == u'}' || character == u';') {
+                return false;
+            }
+            if (!quote.isNull()) {
+                if (character == quote) {
+                    quote = QChar();
+                }
+            } else if (character == u'"' || character == u'\'') {
+                quote = character;
+            }
+        }
+        return quote.isNull();
+    }
+
     // A hidden element's rule, whole on its line so it can be read back and
     // taken out without touching a line the reader wrote.
     constexpr QLatin1StringView hiddenMark("/* Hidden by Omaweb */ ");
@@ -151,7 +198,7 @@ QString SiteStyles::source(const QString &host) const
 
 void SiteStyles::edit(const QString &host, const QString &css)
 {
-    const auto key = canonicalHost(host);
+    const auto key = styleableHost(host);
     if (key.isEmpty() || m_sheets.value(key) == css) {
         return;
     }
@@ -245,6 +292,7 @@ bool SiteStyles::remove(const QString &host)
     }
     m_files.remove(key);
     m_sheets.remove(key);
+    m_written.remove(key);
     if (m_unsaved.remove(key)) {
         emit unsavedChanged();
     }
@@ -286,12 +334,21 @@ QString SiteStyles::styleSheetShowing(const QUrl &url, const QStringList &shown)
     return left.join(u'\n');
 }
 
+bool SiteStyles::hides(const QString &selector) const
+{
+    const auto trimmed = selector.trimmed();
+    return !trimmed.isEmpty() && staysOnItsLine(trimmed);
+}
+
 bool SiteStyles::hide(const QString &host, const QString &selector)
 {
-    const auto key = canonicalHost(host);
+    const auto key = styleableHost(host);
     const auto trimmed = selector.trimmed();
-    if (key.isEmpty() || trimmed.isEmpty()) {
+    if (key.isEmpty() || !hides(trimmed)) {
         return false;
+    }
+    if (hidden(key).contains(trimmed)) {
+        return true;
     }
     auto css = m_sheets.value(key);
     if (!css.isEmpty() && !css.endsWith(u'\n')) {
@@ -333,7 +390,7 @@ QStringList SiteStyles::hidden(const QString &host) const
 
 bool SiteStyles::write(const QString &host, const QString &css)
 {
-    if (m_configRoot.isEmpty()) {
+    if (m_configRoot.isEmpty() || host.contains(u':')) {
         return false;
     }
     const QDir styles(directory());
@@ -348,6 +405,7 @@ bool SiteStyles::write(const QString &host, const QString &css)
     }
     const auto wasUnsaved = m_unsaved.remove(host);
     const auto restyled = m_sheets.value(host) != css || !m_sheets.contains(host);
+    m_written.insert(host, css);
     m_files.insert(host, name);
     m_sheets.insert(host, css);
     watch();
@@ -390,7 +448,7 @@ QVariantList SiteStyles::hostsFor(const QUrl &url) const
 
 QString SiteStyles::siteFor(const QUrl &url) const
 {
-    const auto host = canonicalHost(url.host());
+    const auto host = styleableHost(url.host());
     if (host.isEmpty()) {
         return {};
     }
@@ -414,11 +472,26 @@ void SiteStyles::reload()
         files.insert(hostOf(name), name);
     }
     m_files = std::move(files);
-    // What was typed and not yet written stands over the file it will replace.
-    for (const auto &host : std::as_const(m_unsaved)) {
-        sheets.insert(host, m_sheets.value(host));
+    // What was typed and not yet written stands over the file it will
+    // replace, unless the file was saved from outside in the meantime, by the
+    // reader's editor or by Sync. That save is kept and takes the typing's
+    // place, since writing the typing over it would lose it unseen.
+    const auto onDisk = sheets;
+    auto dropped = false;
+    const auto typed = m_unsaved;
+    for (const auto &host : typed) {
+        if (onDisk.value(host) != m_written.value(host)) {
+            m_unsaved.remove(host);
+            dropped = true;
+        } else {
+            sheets.insert(host, m_sheets.value(host));
+        }
     }
+    m_written = onDisk;
     watch();
+    if (dropped) {
+        emit unsavedChanged();
+    }
     if (sheets != m_sheets) {
         m_sheets = std::move(sheets);
         emit changed();

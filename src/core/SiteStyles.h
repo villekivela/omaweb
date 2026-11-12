@@ -81,6 +81,9 @@ public:
     // its own at the end of the host's file, marked as Omaweb's. The file is
     // written at once, and made if the host has none.
     Q_INVOKABLE bool hide(const QString &host, const QString &selector);
+    // Whether a selector can be hidden: it stays on its line, closing no rule,
+    // opening no comment or string, and running onto no other line.
+    Q_INVOKABLE bool hides(const QString &selector) const;
     // Takes a hide's line out of a host's file, and leaves every other line
     // as it was. False when the file has no such line.
     Q_INVOKABLE bool unhide(const QString &host, const QString &selector);
@@ -115,6 +118,9 @@ private:
     QString m_configRoot;
     // The CSS of each file, by the host it names, written as the DNS does.
     QMap<QString, QString> m_sheets;
+    // Each host's file as it was last read or written here, so a save from
+    // outside is told from one of this object's own.
+    QMap<QString, QString> m_written;
     // The file each host's CSS is read from, by name.
     QMap<QString, QString> m_files;
     // The hosts whose CSS in `m_sheets` was typed and is not in their file yet.

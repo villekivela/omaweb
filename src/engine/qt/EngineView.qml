@@ -2085,9 +2085,9 @@ Item {
                                              + ";" + QtPageScripts.siteStylePicker),
                               WebEngineScript.ApplicationWorld);
     }
+    // Told to the page whatever `picking` says, so a picker the shell lost
+    // track of is never left taking the page's clicks.
     function stopPicking() {
-        if (!root.picking)
-            return;
         root.picking = false;
         root.pickerCall("stop(false)");
     }
@@ -5051,9 +5051,6 @@ Item {
                 if (/^(https?|file):/i.test(String(loadRequest.url)))
                     root.externalProtocolReports = ({});
                 root.problemEvent("navigated", loadRequest.url, "");
-                // The picker and a preview are the document's, and go with it.
-                root.picking = false;
-                root.previewedHidden = [];
                 // A glide the reader's fingers gave the last document would scroll this one.
                 QtPageGlide.stopIn(webView);
                 root.pageGeneration += 1;
@@ -5377,6 +5374,11 @@ Item {
                     console.warn("Could not read whether media is playing: " + error);
                 }
             } else if (report.channel === "document_created") {
+                // The picker and a preview are the document's, and go with
+                // it. A load that leaves the document, as a download, another
+                // app's address or an answer with nothing do, leaves them.
+                root.picking = false;
+                root.previewedHidden = [];
                 root.forgetMediaFrames();
                 root.forgetFormFrames();
                 root.documentReported = true;

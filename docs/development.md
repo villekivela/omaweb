@@ -80,68 +80,69 @@ and a dialog over it: `--show settings:<section>` opens one of `tabs`, `keyboard
 is how a layout change is reviewed at a font size the page was not written at: point
 `OMAWEB_THEME_FILE` at a theme whose `font.size` is larger and capture each section in turn.
 `--tabs --show site-style` opens the Site style panel over the documentation page,
-`site-style:hosts` with its host picker open, and `site-style:pick` or `site-style:pick-wide` with
-the picker on the page's diagram, alone or widened; `--site-style-sample` writes a few Site styles
-first, which `--show settings:site-styles` lists too. `--show site` opens Site information, as a
-click on the address trigger's button does, and `--show site:certificate`, `site:blocked`,
-`site:cookies` or `site:third-parties` opens it at that detail. `--site-page http`, `cert` or
-`start` picks the page it is about, and `--site-sample` names what the lab has no engine for:
-refused requests, decided permissions, third parties and the site's cookies. With `--spaces`,
-`--site-links site` has the page's whole-site Link rule send its links to Work, and
-`--site-links narrow` has a narrower rule, `www.example.org/articles/*`, take the page instead.
-`--tabs --show permission` has the last seeded tab's page ask for notifications, so the question bar
-stands over it; add `--private` to read the Private window's wording. `--show prompt` has the same
-page ask a JavaScript confirm, so the prompt bar stands over it. `--tabs --show ask` stands the
-question `:ask` asks while Allow agents is off over that page. `--agent-activity` seeds the activity
-log with two Agents' last hour in two Spaces, and `--show agent-activity` opens the Agent activity
-page on it, as its command does; `--agent-filter <name>` shows one Agent's lines. Pass `--tabs` to
-seed the Space with a day's worth of tabs, some of them pinned: the lab otherwise comes up on a
-Space at rest, which draws neither the Pinned section nor the tab list, so the sidebar is the one
-part of the chrome a capture cannot reach. The blank tab stays the one on show, so the viewport
-still draws the Start page, unless `--browse` is passed too: then a documentation tab is on show and
-the lab's stand-in view draws a sample page in the page palette where it would otherwise say no
-engine is running. `--spaces` seeds a Work Space with pages of its own beside Personal, before the
-interface loads, so a Space switch has somewhere to go. `--sample-lists` writes EasyList and
-EasyPrivacy into the lab's content-blocking settings as current, so Content Blocking shows the lists
-a first run has without fetching them. `--keyring <state>` has the lab's keyring in memory stand
-where Payment cards is to be reviewed, with `--show settings:payment-cards`: `unavailable`,
-`unreachable`, `locked`, `failed`, or `reading`, which answers after 20 seconds and holds the lab
-open that long when it closes. `--agents` has an Agent at work under the real Agent rules: an Agent
-Space it made is on show with the tab it is driving, which it has just clicked in, and a second
-Agent Space sits unused. `--agents-away` keeps the reader's Space on show instead, and
-`--agents-window` has the Agent's page open an Auxiliary window and captures that window.
-`--agents-grant` has the Agent ask for the reader's page on show, so the grant prompt stands over
-it. `--agents-setup off`, `linked` or `mcp` stands `--show settings:agents` with Allow agents off,
-just turned on, or after Add MCP server, against a home and stand-in `claude` and `codex` in the
-lab's data root. `--many-spaces` seeds two more of the reader's Spaces, and with `--agents` six more
-Agent Spaces, so the footer counts the ones it has no room for; `--narrow` puts the sidebar at its
-minimum width, `--sidebar-right` stands it against the window's right edge, and `--space-overflow`
-opens the menu of the Spaces left out. `--tint-favicons` turns site colour on. With `--tabs`,
-`--sidebar-cursor <rows>` hands the sidebar the keyboard and steps the Sidebar cursor that many rows
-from the tab on show, `--active-pin` puts the first pin on show, and `--show split` pairs the last
-two tabs, with `--split-partner` putting the other half on show. `--agents-taken-over` has the
-reader take the Agent's Space over while the Agent is still attached, so a Space of the reader's
-wears the Agent mark in its own colour, and has the Agent at work in a second Agent Space of its
-own. `--tabs --browse --show glance` opens a Glance over the last seeded tab's page, and
-`--glance-keep-at <ms>` keeps it as a tab and holds the movement that many milliseconds in, so a
-series of captures shows the Glance growing into its tab a frame at a time. `--glance-keyboard` puts
-the keyboard in the Glance's controls, and `--glance-labels` shows their Key labels as holding
-Primary does. `--show page-menu:link`, `page-menu:link-spaces` and `page-menu:selection` open the
-page menu over the last seeded tab's page, on a link, on a link with the Spaces it can go to listed,
-and on a selection. `--text-scaling <factor>` stands in for the desktop's text scaling, 1.3636 for
-Omarchy's 16 px, so the Page scale and the interface size are reviewed under it. Pass
-`--capture <path>` to render one frame to a PNG and exit, `--capture-delay <ms>` after 700 ms by
-default, which works headlessly with `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for
-reviewing chrome changes without a desktop session. The chrome's movements are reviewed the same
-way: `--show space-step`, `tab-step`, `omnibar-step` and `settings-step` run the switch or the
-opening shortly before the capture, so the frame lands part way through it, and the `-settled`
-spelling of each runs it early enough to land at rest. With `--spaces --tabs`, `--show swipe` sends
-two fingers across the sidebar a second in, as Wayland sends a touchpad's, far enough for the swipe
-to commit, and `--show swipe-back` short and slow enough for it to spring back, so captures at
-rising delays are a frame sequence of each. The leaving list's picture and the Omnibar's growth need
-the hardware renderer, so those two captures go without `QT_QUICK_BACKEND=software`. Development
-presets load QML, themes, and the icon font directly from the source tree. Editing those files
-requires an application restart but no compile or relink.
+`site-style:hosts` with its host picker open, and `site-style:pick` or `site-style:pick-wide`, or
+`site-style:off` with the style switched off, with the picker on the page's diagram, alone or
+widened; `--site-style-sample` writes a few Site styles first, which `--show settings:site-styles`
+lists too. `--show site` opens Site information, as a click on the address trigger's button does,
+and `--show site:certificate`, `site:blocked`, `site:cookies` or `site:third-parties` opens it at
+that detail. `--site-page http`, `cert` or `start` picks the page it is about, and `--site-sample`
+names what the lab has no engine for: refused requests, decided permissions, third parties and the
+site's cookies. With `--spaces`, `--site-links site` has the page's whole-site Link rule send its
+links to Work, and `--site-links narrow` has a narrower rule, `www.example.org/articles/*`, take the
+page instead. `--tabs --show permission` has the last seeded tab's page ask for notifications, so
+the question bar stands over it; add `--private` to read the Private window's wording.
+`--show prompt` has the same page ask a JavaScript confirm, so the prompt bar stands over it.
+`--tabs --show ask` stands the question `:ask` asks while Allow agents is off over that page.
+`--agent-activity` seeds the activity log with two Agents' last hour in two Spaces, and
+`--show agent-activity` opens the Agent activity page on it, as its command does;
+`--agent-filter <name>` shows one Agent's lines. Pass `--tabs` to seed the Space with a day's worth
+of tabs, some of them pinned: the lab otherwise comes up on a Space at rest, which draws neither the
+Pinned section nor the tab list, so the sidebar is the one part of the chrome a capture cannot
+reach. The blank tab stays the one on show, so the viewport still draws the Start page, unless
+`--browse` is passed too: then a documentation tab is on show and the lab's stand-in view draws a
+sample page in the page palette where it would otherwise say no engine is running. `--spaces` seeds
+a Work Space with pages of its own beside Personal, before the interface loads, so a Space switch
+has somewhere to go. `--sample-lists` writes EasyList and EasyPrivacy into the lab's
+content-blocking settings as current, so Content Blocking shows the lists a first run has without
+fetching them. `--keyring <state>` has the lab's keyring in memory stand where Payment cards is to
+be reviewed, with `--show settings:payment-cards`: `unavailable`, `unreachable`, `locked`, `failed`,
+or `reading`, which answers after 20 seconds and holds the lab open that long when it closes.
+`--agents` has an Agent at work under the real Agent rules: an Agent Space it made is on show with
+the tab it is driving, which it has just clicked in, and a second Agent Space sits unused.
+`--agents-away` keeps the reader's Space on show instead, and `--agents-window` has the Agent's page
+open an Auxiliary window and captures that window. `--agents-grant` has the Agent ask for the
+reader's page on show, so the grant prompt stands over it. `--agents-setup off`, `linked` or `mcp`
+stands `--show settings:agents` with Allow agents off, just turned on, or after Add MCP server,
+against a home and stand-in `claude` and `codex` in the lab's data root. `--many-spaces` seeds two
+more of the reader's Spaces, and with `--agents` six more Agent Spaces, so the footer counts the
+ones it has no room for; `--narrow` puts the sidebar at its minimum width, `--sidebar-right` stands
+it against the window's right edge, and `--space-overflow` opens the menu of the Spaces left out.
+`--tint-favicons` turns site colour on. With `--tabs`, `--sidebar-cursor <rows>` hands the sidebar
+the keyboard and steps the Sidebar cursor that many rows from the tab on show, `--active-pin` puts
+the first pin on show, and `--show split` pairs the last two tabs, with `--split-partner` putting
+the other half on show. `--agents-taken-over` has the reader take the Agent's Space over while the
+Agent is still attached, so a Space of the reader's wears the Agent mark in its own colour, and has
+the Agent at work in a second Agent Space of its own. `--tabs --browse --show glance` opens a Glance
+over the last seeded tab's page, and `--glance-keep-at <ms>` keeps it as a tab and holds the
+movement that many milliseconds in, so a series of captures shows the Glance growing into its tab a
+frame at a time. `--glance-keyboard` puts the keyboard in the Glance's controls, and
+`--glance-labels` shows their Key labels as holding Primary does. `--show page-menu:link`,
+`page-menu:link-spaces` and `page-menu:selection` open the page menu over the last seeded tab's
+page, on a link, on a link with the Spaces it can go to listed, and on a selection.
+`--text-scaling <factor>` stands in for the desktop's text scaling, 1.3636 for Omarchy's 16 px, so
+the Page scale and the interface size are reviewed under it. Pass `--capture <path>` to render one
+frame to a PNG and exit, `--capture-delay <ms>` after 700 ms by default, which works headlessly with
+`QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software` for reviewing chrome changes without a desktop
+session. The chrome's movements are reviewed the same way: `--show space-step`, `tab-step`,
+`omnibar-step` and `settings-step` run the switch or the opening shortly before the capture, so the
+frame lands part way through it, and the `-settled` spelling of each runs it early enough to land at
+rest. With `--spaces --tabs`, `--show swipe` sends two fingers across the sidebar a second in, as
+Wayland sends a touchpad's, far enough for the swipe to commit, and `--show swipe-back` short and
+slow enough for it to spring back, so captures at rising delays are a frame sequence of each. The
+leaving list's picture and the Omnibar's growth need the hardware renderer, so those two captures go
+without `QT_QUICK_BACKEND=software`. Development presets load QML, themes, and the icon font
+directly from the source tree. Editing those files requires an application restart but no compile or
+relink.
 
 The `release` preset compiles the QML ahead of time instead: the shared UI, the vendored kit and the
 engine view each become a static library that `qt_add_qml_module` runs `qmlcachegen` over, so

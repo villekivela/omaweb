@@ -300,6 +300,8 @@ private slots:
     void qtStylesAPageWithTheReadersSiteStyle();
     void qtPicksAnElementToHide();
     void qtCountsAndPreviewsWhatAStyleHides();
+    void qtKeepsPickingThroughALoadThatLeavesTheDocument();
+    void qtNamesATagThatIsNoIdentifierByItself();
     void qtRejectsObsoleteCosmeticSurveys_data();
     void qtRejectsObsoleteCosmeticSurveys();
     void qtSurveysAgainForAChangeWhileThePageLoads_data();
@@ -2469,6 +2471,13 @@ public:
                     socket->disconnectFromHost();
                     return;
                 }
+                // A navigation that answers with nothing leaves the page as it was.
+                if (path == "/no-content") {
+                    socket->write("HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n"
+                                  "Connection: close\r\n\r\n");
+                    socket->disconnectFromHost();
+                    return;
+                }
                 // A service worker's script is refused unless it is served as script.
                 if (path == "/worker.js") {
                     socket->write("HTTP/1.1 200 OK\r\nContent-Type: text/javascript\r\n"
@@ -4490,7 +4499,7 @@ void QtEngineContractTest::qtStylesAPageWithTheReadersSiteStyle()
 }
 
 // The Site style panel's picker. A click picks the element under it and the
-// page never hears the click. The selector prefers an id, then classes that
+// page's elements never hear the click. The selector prefers an id, then classes that
 // are not generated, and widens from the element to all related ones. The
 // keys move the pick and hide it, and a selector the reader edits is counted.
 void QtEngineContractTest::qtPicksAnElementToHide()
@@ -4592,7 +4601,8 @@ void QtEngineContractTest::qtPicksAnElementToHide()
         adapter.get(), "movePick", Q_ARG(QVariant, QStringLiteral("child"))));
     QTRY_VERIFY_WITH_TIMEOUT(selector().contains(QStringLiteral("promo")), 5000);
 
-    // The keys are the picker's while it picks, and the page hears none.
+    // The keys are the picker's while it picks, and the page's elements hear
+    // none.
     QVERIFY(input.pressKey(webView, QStringLiteral("ArrowUp")));
     QTRY_VERIFY_WITH_TIMEOUT(!selector().contains(QStringLiteral("promo")), 5000);
     const auto article = selector();
@@ -4689,6 +4699,118 @@ void QtEngineContractTest::qtCountsAndPreviewsWhatAStyleHides()
     QTRY_COMPARE_WITH_TIMEOUT(
         adapter->property("pageTitle").toString(), QStringLiteral("none"), 5000);
     QCOMPARE(adapter->property("pageGeneration").toInt(), generation);
+}
+
+// A load that answers with nothing, a download or another app's address
+// starts without replacing the document, and the picker in it is still
+// picking: still reported, and stopped when asked, so the page hears its
+// clicks again. A load that does replace it takes the picker with it.
+void QtEngineContractTest::qtKeepsPickingThroughALoadThatLeavesTheDocument()
+{
+    PageServer server(R"HTML(<!doctype html><html><head><title>ready</title></head>
+        <body style="margin:0" onclick="document.title = 'clicked'">
+        <div id="box" style="width:200px;height:100px">box</div>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    const QUrl pageUrl(QStringLiteral("http://127.0.0.1:%1/").arg(server.serverPort()));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    window.resize(400, 300);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(400, 300));
+    window.show();
+    auto *webView = adapter->findChild<QQuickItem *>(QStringLiteral("qtWebView"));
+    QVERIFY(webView);
+    omaweb::QtAgentInput input;
+    const auto title = [&adapter] { return adapter->property("pageTitle").toString(); };
+    const auto pick = [&adapter] { return adapter->property("pick").toMap(); };
+
+    QVERIFY(adapter->setProperty("currentUrl", pageUrl));
+    QTRY_COMPARE_WITH_TIMEOUT(title(), QStringLiteral("ready"), 15000);
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "startPicking"));
+    QTRY_VERIFY_WITH_TIMEOUT(pick().contains(QStringLiteral("levels")), 5000);
+
+    QVERIFY(adapter->setProperty("currentUrl",
+        QUrl(QStringLiteral("http://127.0.0.1:%1/no-content").arg(server.serverPort()))));
+    QTRY_VERIFY_WITH_TIMEOUT(server.requested().contains(QStringLiteral("/no-content")), 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("loading").toBool(), 5000);
+    QVERIFY(adapter->property("picking").toBool());
+    QVERIFY(input.click(webView, QPointF(50, 50)));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        pick().value(QStringLiteral("selector")).toString(), QStringLiteral("#box"), 5000);
+    QCOMPARE(title(), QStringLiteral("ready"));
+
+    // The stop reaches the page as a script, beside the clicks rather than
+    // before them, so the page is clicked until it hears one.
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "stopPicking"));
+    QVERIFY(!adapter->property("picking").toBool());
+    QTRY_VERIFY_WITH_TIMEOUT(
+        input.click(webView, QPointF(50, 50)) && title() == QStringLiteral("clicked"), 5000);
+
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "startPicking"));
+    QTRY_VERIFY_WITH_TIMEOUT(
+        adapter->property("pick").toMap().contains(QStringLiteral("levels")), 5000);
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "reloadPage"));
+    QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("picking").toBool(), 15000);
+}
+
+// An HTML parser takes almost anything up to a space or `>` as a tag's name,
+// so a page can name one `x,body` or `p"q`. Written into a selector as it is,
+// the first would hide the whole body and the second would open a string the
+// rest of the file falls into. The picker escapes it.
+void QtEngineContractTest::qtNamesATagThatIsNoIdentifierByItself()
+{
+    PageServer server(R"HTML(<!doctype html><html><head><title>ready</title></head>
+        <body style="margin:0">
+        <x,body style="display:block;width:200px;height:50px">comma</x,body>
+        <p"q style="display:block;width:200px;height:50px;margin-top:100px">quote</p"q>
+    </body></html>)HTML");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    window.resize(400, 300);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(400, 300));
+    window.show();
+    auto *webView = adapter->findChild<QQuickItem *>(QStringLiteral("qtWebView"));
+    QVERIFY(webView);
+    omaweb::QtAgentInput input;
+    const auto pick = [&adapter] { return adapter->property("pick").toMap(); };
+    const auto selector = [&pick] { return pick().value(QStringLiteral("selector")).toString(); };
+
+    QVERIFY(adapter->setProperty(
+        "currentUrl", QUrl(QStringLiteral("http://127.0.0.1:%1/").arg(server.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("ready"), 15000);
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "startPicking"));
+    QTRY_VERIFY_WITH_TIMEOUT(pick().contains(QStringLiteral("levels")), 5000);
+
+    QVERIFY(input.click(webView, QPointF(50, 25)));
+    QTRY_COMPARE_WITH_TIMEOUT(selector(), QStringLiteral("x\\,body"), 5000);
+    QCOMPARE(pick().value(QStringLiteral("count")).toInt(), 1);
+    QVERIFY(input.click(webView, QPointF(50, 175)));
+    QTRY_COMPARE_WITH_TIMEOUT(selector(), QStringLiteral("p\\\"q"), 5000);
+    QCOMPARE(pick().value(QStringLiteral("count")).toInt(), 1);
 }
 
 // Every document a navigation creates runs the view's scripts and the

@@ -42,6 +42,11 @@ private slots:
     void leavesOutAHidePreviewed();
     void saysWhichPagesAHostStyles_data();
     void saysWhichPagesAHostStyles();
+    void refusesASelectorThatWouldReachPastItsLine_data();
+    void refusesASelectorThatWouldReachPastItsLine();
+    void hidesASelectorOnce();
+    void keepsAnEditMadeOutsideWhileTypingWaits();
+    void offersNoStyleForAnIpv6Address();
 };
 
 namespace {
@@ -579,6 +584,100 @@ void SiteStylesTest::readsAndUndoesAHideInAFileWithWindowsLineEnds()
     QCOMPARE(styles.hidden(QStringLiteral("github.com")), QStringList {QStringLiteral(".promo")});
     QVERIFY(styles.unhide(QStringLiteral("github.com"), QStringLiteral(".promo")));
     QCOMPARE(read(path), QByteArray("a { color: red; }\r\np { margin: 0; }\r\n"));
+}
+
+void SiteStylesTest::refusesASelectorThatWouldReachPastItsLine_data()
+{
+    QTest::addColumn<QString>("selector");
+    QTest::addColumn<bool>("hidden");
+    QTest::newRow("an id") << QStringLiteral("#cookie-banner") << true;
+    QTest::newRow("an escaped tag") << QStringLiteral("x\\,body") << true;
+    QTest::newRow("a quoted value") << QStringLiteral("a[title=\"ad\"]") << true;
+    QTest::newRow("an escaped quote") << QStringLiteral("p\\\"q") << true;
+    QTest::newRow("a rule of its own") << QStringLiteral("a { color: red } b") << false;
+    QTest::newRow("a closing brace") << QStringLiteral("a}") << false;
+    QTest::newRow("a declaration's end") << QStringLiteral("a;") << false;
+    QTest::newRow("a comment opened") << QStringLiteral("div /*") << false;
+    QTest::newRow("a comment closed") << QStringLiteral("div */") << false;
+    QTest::newRow("a second line") << QStringLiteral("a\nb") << false;
+    QTest::newRow("a carriage return") << QStringLiteral("a\rb") << false;
+    QTest::newRow("a string left open") << QStringLiteral("a[title=\"ad]") << false;
+    QTest::newRow("a single quote left open") << QStringLiteral("a[title='ad]") << false;
+}
+
+// A hide is one line of the file. A selector that closes the rule, starts
+// another, opens a comment or a string, or runs onto the next line would
+// take the reader's own CSS after it along, so it is refused, typed or picked.
+void SiteStylesTest::refusesASelectorThatWouldReachPastItsLine()
+{
+    QFETCH(QString, selector);
+    QFETCH(bool, hidden);
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto path = root.filePath(QStringLiteral("config/styles/github.com.css"));
+    write(path, "a { color: red; }\n");
+    SiteStyles styles(root.filePath(QStringLiteral("config")));
+    QCOMPARE(styles.hide(QStringLiteral("github.com"), selector), hidden);
+    QCOMPARE(styles.hidden(QStringLiteral("github.com")).size(), hidden ? 1 : 0);
+    if (!hidden) {
+        QCOMPARE(read(path), QByteArray("a { color: red; }\n"));
+    }
+}
+
+// Hiding what is hidden already writes nothing, so one undo shows it again.
+void SiteStylesTest::hidesASelectorOnce()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto path = root.filePath(QStringLiteral("config/styles/github.com.css"));
+    SiteStyles styles(root.filePath(QStringLiteral("config")));
+    QVERIFY(styles.hide(QStringLiteral("github.com"), QStringLiteral(".promo")));
+    const auto once = read(path);
+    QVERIFY(styles.hide(QStringLiteral("github.com"), QStringLiteral(" .promo ")));
+    QCOMPARE(read(path), once);
+    QVERIFY(styles.unhide(QStringLiteral("github.com"), QStringLiteral(".promo")));
+    QVERIFY(styles.hidden(QStringLiteral("github.com")).isEmpty());
+}
+
+// The reader's editor or Sync can save the file while what was typed in the
+// panel waits for its pause. The save outside is kept, and stands in the
+// panel in place of what was typed, rather than being written over.
+void SiteStylesTest::keepsAnEditMadeOutsideWhileTypingWaits()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto path = root.filePath(QStringLiteral("config/styles/github.com.css"));
+    write(path, "a { color: red; }");
+    SiteStyles styles(root.filePath(QStringLiteral("config")));
+    styles.edit(QStringLiteral("github.com"), QStringLiteral("a { color: blue; }"));
+    write(path, "a { color: green; }");
+    QTRY_COMPARE(
+        styles.source(QStringLiteral("github.com")), QStringLiteral("a { color: green; }"));
+    QVERIFY(styles.unsaved().isEmpty());
+    QTest::qWait(600);
+    QCOMPARE(read(path), QByteArray("a { color: green; }"));
+
+    // A read that finds the file as it was keeps what was typed.
+    styles.edit(QStringLiteral("github.com"), QStringLiteral("a { color: purple; }"));
+    styles.reload();
+    QCOMPARE(styles.source(QStringLiteral("github.com")), QStringLiteral("a { color: purple; }"));
+    QTRY_COMPARE(read(path), QByteArray("a { color: purple; }"));
+}
+
+// Qt reads a path starting with a colon as a resource, so an IPv6 address has
+// no file, and no style is offered for one.
+void SiteStylesTest::offersNoStyleForAnIpv6Address()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    SiteStyles styles(root.filePath(QStringLiteral("config")));
+    const QUrl local(QStringLiteral("http://[::1]:8080/"));
+    QVERIFY(styles.siteFor(local).isEmpty());
+    QVERIFY(styles.hostsFor(local).isEmpty());
+    QVERIFY(!styles.hide(QStringLiteral("::1"), QStringLiteral(".promo")));
+    styles.edit(QStringLiteral("::1"), QStringLiteral("a { color: red; }"));
+    QVERIFY(styles.unsaved().isEmpty());
+    QVERIFY(styles.styles().isEmpty());
 }
 
 QTEST_GUILESS_MAIN(SiteStylesTest)

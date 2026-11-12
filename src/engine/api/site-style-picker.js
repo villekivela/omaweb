@@ -1,5 +1,9 @@
 // The Site style panel's picker, run in a world of the engine's own beside the
-// page's, so the page can neither see it nor call it. Hovering highlights an
+// page's, so the page cannot reach its code. The page shares the document with
+// it, though: it can find the highlight's element there, and a listener the
+// page put on the window to capture events before the picker's hears each
+// click and key first. The picker stops those reaching the page's elements and
+// the page's later listeners. Hovering highlights an
 // element, a click picks it, and the keys move the pick: Up and Down to the
 // parent and back to the child, Left and Right to the siblings, [ and ] to
 // narrow and widen, Enter to hide and Escape to stop. What is picked is
@@ -44,7 +48,9 @@
   // One element as a compound selector: its tag and the classes that are
   // its own, or an attribute that names what it is where it has no class.
   const step = (element) => {
-    const tag = element.localName;
+    // A page can name a tag almost anything an HTML parser takes, a comma
+    // or a quote among it, so the name is escaped as a class's would be.
+    const tag = CSS.escape(element.localName);
     const classes = Array.from(element.classList).filter(stableClass).slice(0, 3);
     if (classes.length > 0) return tag + classes.map((name) => "." + CSS.escape(name)).join("");
     for (const name of attributes) {
@@ -116,11 +122,21 @@
 
   // ---- the highlight ----------------------------------------------------
   //
-  // Drawn in a closed shadow root over the page, taking no pointer, so the
-  // page's own styles cannot reach it and it never stands in the way of what
-  // it points at.
+  // Drawn in a closed shadow root over the page, taking no pointer, so it
+  // never stands in the way of what it points at. The page's styles do not
+  // reach into the shadow root, and the element that holds it states each of
+  // its own as important, so a page rule for every div cannot hide or move it.
   const host = document.createElement("div");
-  host.style.cssText = "all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647";
+  host.style.cssText = [
+    "all:initial",
+    "display:block",
+    "position:fixed",
+    "inset:0",
+    "pointer-events:none",
+    "z-index:2147483647",
+  ]
+    .map((declaration) => declaration + " !important")
+    .join(";");
   const shadow = host.attachShadow({ mode: "closed" });
   const accent = globalThis.__omawebSiteStyleAccent || "#7c6cff";
   shadow.innerHTML =

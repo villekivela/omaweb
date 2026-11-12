@@ -1513,6 +1513,8 @@ int main(int argc, char *argv[])
             {QStringLiteral("site-style:hosts"), {}},
             {QStringLiteral("site-style:pick"), {}},
             {QStringLiteral("site-style:pick-wide"), {}},
+            // The same panel with the site's style switched off.
+            {QStringLiteral("site-style:off"), {}},
         };
         const auto requested = arguments.at(showIndex + 1);
         auto *root = engine.rootObjects().constFirst();
@@ -1534,6 +1536,9 @@ int main(int argc, char *argv[])
                     == u"doc.qt.io") {
                     browser.activateTab(tabs->data(index, omaweb::TabListModel::IdRole).toString());
                 }
+            }
+            if (requested == u"site-style:off") {
+                siteStyles.setEnabled(QStringLiteral("qt.io"), false);
             }
             QTimer::singleShot(300, root, [root, requested] {
                 QMetaObject::invokeMethod(root, "toggleSiteStylePanel");
