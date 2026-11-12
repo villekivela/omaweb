@@ -396,6 +396,7 @@ private slots:
     void syncsTheAppIcon();
     void syncsTheBrowserTheme();
     void syncsTheLinkRules();
+    void syncsWhichSiteStylesAreOff();
     void syncsTheReadersSiteStyles();
     void keepsASiteStyleChangedWhereAnotherMachineRemovedIt();
     void keepsASiteStyleThisMachineHadBeforeItSynced();
@@ -1034,6 +1035,62 @@ void SyncModuleTest::syncsTheLinkRules()
     OMAWEB_VERIFY_SYNC(settle(second, secondStore));
 
     QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("link-rules")), QJsonValue(rules));
+}
+
+// A style switched off stays off on every machine, and on again, while its
+// file syncs as it is.
+void SyncModuleTest::syncsWhichSiteStylesAreOff()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir firstDataRoot;
+    QTemporaryDir firstConfigRoot;
+    QTemporaryDir secondDataRoot;
+    QTemporaryDir secondConfigRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key = QByteArray(32, 'o');
+    const QJsonObject off {{QStringLiteral("news.ycombinator.com"), false}};
+
+    SqliteSessionStore firstStore(firstDataRoot.path());
+    QVERIFY(firstStore.open(&error));
+    QVERIFY(firstStore.saveSpace(SpaceState {
+        QStringLiteral("space-1"), QStringLiteral("Personal"), QStringLiteral("green"), true}));
+    QVERIFY(writeSettings(firstConfigRoot.path(), {{QStringLiteral("site-styles"), off}}));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    SqliteSessionStore secondStore(secondDataRoot.path());
+    QVERIFY(secondStore.open(&error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b")});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+
+    QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("site-styles")), QJsonValue(off));
+
+    // Every style back on leaves the key out, and that reaches the other
+    // machine too, as following the desktop's theme again does.
+    QVERIFY(writeSettings(
+        firstConfigRoot.path(), {{QStringLiteral("site-styles"), QJsonValue(QJsonValue::Null)}}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+    QVERIFY(secondStore.saveSpace(SpaceState {
+        QStringLiteral("space-1"), QStringLiteral("Work"), QStringLiteral("green"), true}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+    QVERIFY(!omaweb::SettingsFile(firstConfigRoot.path()).isSet(QStringLiteral("site-styles")));
+    QVERIFY(!omaweb::SettingsFile(secondConfigRoot.path()).isSet(QStringLiteral("site-styles")));
 }
 
 // The reader's site styles are files, so each machine gets the same bytes, a

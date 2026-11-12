@@ -2551,14 +2551,14 @@ void AgentControlTest::decidesEveryCommandOfTheRegistry()
     // take their clipboard: an Agent reads the report with `report` instead.
     // Marking a row is done where the reader's Sidebar cursor is, which an
     // Agent has none of. Folders are the reader's shelf, and Agent verbs ignore
-    // them.
+    // them. A Site style is the reader's own file, and no Agent Space takes one.
     const QStringList keptIn {QStringLiteral("screenshot-page"), QStringLiteral("copy-screenshot"),
         QStringLiteral("screenshot-full-page"), QStringLiteral("copy-full-page-screenshot"),
         QStringLiteral("private-window"), QStringLiteral("take-over-space"),
         QStringLiteral("delete-space"), QStringLiteral("agent-activity"), QStringLiteral("ask"),
         QStringLiteral("toggle-tab-window-strip"), QStringLiteral("report-problem"),
         QStringLiteral("record-problem"), QStringLiteral("mark-tab"), QStringLiteral("mark-range"),
-        QStringLiteral("new-folder")};
+        QStringLiteral("new-folder"), QStringLiteral("site-style")};
     QStringList decided = AgentControl::publicCommands() + keptIn;
     decided.sort();
     registry.sort();

@@ -491,6 +491,15 @@ configuration directory that styles the host and every host under it. It applies
 Content blocking is on for the site, everywhere but an Agent Space, and an edit restyles open pages
 at once. _Avoid_: User style, user stylesheet, custom CSS
 
+**Site style panel**: The panel docked opposite the sidebar, beside the page, where the reader
+writes the Site style of the page's site and hides parts of it. "Style this site" in the page menu
+or the Omnibar, or `Primary+Shift+S`, opens and closes it. It follows the page on show and is not
+offered in an Agent Space. _Avoid_: Boost, style editor, sidebar
+
+**Picker**: The Site style panel's way of hiding an element by pointing at it: hover highlights, a
+click picks, the keys move the pick, and Hide writes a rule for it into the site's file, on a line
+marked `/* Hidden by Omaweb */`. _Avoid_: Zapper, element zapper, inspector
+
 **Zoom**: A tab's own enlargement of its page over the Page scale. It belongs to the tab and never
 to a site. _Avoid_: Site zoom, page scale
 

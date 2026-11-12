@@ -33,6 +33,11 @@ namespace linkrules {
     // `acme.com` as well, and a pattern that does not parse takes nothing.
     bool matches(const QString &pattern, const QUrl &url);
 
+    // A web address's registrable domain: the public suffix and one label
+    // before it, so `app.acme.com` gives `acme.com`. None where `sitePattern`
+    // gives none.
+    std::optional<QString> registrableDomain(const QUrl &url);
+
     // The whole-site pattern for a web address: its registrable domain, the
     // public suffix and one label before it, after `*.`, so `app.acme.com`
     // gives `*.acme.com`. None for an address that is not `http` or `https`,

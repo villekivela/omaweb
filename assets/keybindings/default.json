@@ -44,6 +44,7 @@
     "Primary+.": "stop-loading",
     "Primary+Shift+F": "fullscreen",
     "Primary+Alt+C": "inspect-element",
+    "Primary+Shift+S": "site-style",
     "Shift+F10": "open-page-context-menu",
     "Primary+/": "shortcuts",
     "Primary+Y": "history",

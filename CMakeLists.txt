@@ -611,6 +611,8 @@ if(OMAWEB_BUILD_SYNC)
 endif()
 
 add_library(omaweb-ui STATIC
+    src/ui/CssHighlighter.cpp
+    src/ui/CssHighlighter.h
     src/ui/FaviconTint.cpp
     src/ui/FaviconTint.h
     src/ui/KitTheme.cpp
@@ -751,6 +753,8 @@ if(OMAWEB_BUILD_BROWSER)
         src/engine/qt/PageGlide.h
         src/engine/qt/QtAgentInput.cpp
         src/engine/qt/QtAgentInput.h
+        src/engine/qt/QtPageScripts.cpp
+        src/engine/qt/QtPageScripts.h
         src/engine/qt/QtCertificates.cpp
         src/engine/qt/QtCertificates.h
         src/engine/qt/QtContentBlocker.cpp
@@ -801,7 +805,7 @@ if(OMAWEB_BUILD_BROWSER)
     qt_add_resources(omaweb-engine-qt "omaweb_agent_page_script"
         PREFIX "/omaweb/engine-qt"
         BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/engine/api"
-        FILES src/engine/api/agent-page.js
+        FILES src/engine/api/agent-page.js src/engine/api/site-style-picker.js
     )
 endif()
 
@@ -937,6 +941,7 @@ set(omaweb_ui_files
     src/ui/ChromeScrollBar.qml
     src/ui/Omnibar.qml
     src/ui/DeveloperToolsDock.qml
+    src/ui/SiteStylePanel.qml
     src/ui/AddressTrigger.mjs
     src/ui/DevicePixels.mjs
     src/ui/PageDarkening.mjs
@@ -2297,6 +2302,14 @@ if(BUILD_TESTING)
     )
     omaweb_strict_target(omaweb-app-icon-tests)
     add_test(NAME omaweb-app-icon COMMAND omaweb-app-icon-tests)
+
+    qt_add_executable(omaweb-css-highlighter-tests tests/ui/tst_csshighlighter.cpp)
+    target_link_libraries(omaweb-css-highlighter-tests PRIVATE omaweb-ui Qt6::Gui Qt6::Test)
+    omaweb_strict_target(omaweb-css-highlighter-tests)
+    add_test(NAME omaweb-css-highlighter COMMAND omaweb-css-highlighter-tests)
+    set_tests_properties(omaweb-css-highlighter PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
 
     qt_add_executable(omaweb-favicon-tint-tests tests/ui/tst_favicontint.cpp)
     target_link_libraries(omaweb-favicon-tint-tests PRIVATE omaweb-ui Qt6::Gui Qt6::Test)

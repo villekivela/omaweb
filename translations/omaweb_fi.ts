@@ -347,6 +347,10 @@
         <translation>Koko näyttö</translation>
     </message>
     <message>
+        <source>Style this site</source>
+        <translation>Muotoile sivustoa</translation>
+    </message>
+    <message>
         <source>Developer tools</source>
         <translation>Kehittäjän työkalut</translation>
     </message>
@@ -1529,6 +1533,10 @@
     <message>
         <source>Copy address</source>
         <translation>Kopioi osoite</translation>
+    </message>
+    <message>
+        <source>Style this site</source>
+        <translation>Muotoile sivustoa</translation>
     </message>
     <message>
         <source>Inspect element</source>
@@ -3368,6 +3376,35 @@ Päivitykset osoitteesta %3</translation>
         <source>Remove</source>
         <translation>Poista</translation>
     </message>
+    <message numerus="yes">
+        <source>%n lines</source>
+        <translation>
+            <numerusform>%n rivi</numerusform>
+            <numerusform>%n riviä</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n hidden</source>
+        <translation>
+            <numerusform>%n piilotettu</numerusform>
+            <numerusform>%n piilotettua</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>%1 · off</source>
+        <comment>a site style: its length · off</comment>
+        <translation>%1 · pois päältä</translation>
+    </message>
+    <message>
+        <source>%1 · %2</source>
+        <comment>a site style: its length · how many it hides</comment>
+        <translation>%1 · %2</translation>
+    </message>
+    <message>
+        <source>%1 · %2 · off</source>
+        <comment>a site style: its length · how many it hides · off</comment>
+        <translation>%1 · %2 · pois päältä</translation>
+    </message>
     <message>
         <source>Remove this download from the history</source>
         <translation>Poista tämä lataus historiasta</translation>
@@ -3739,6 +3776,10 @@ Päivitykset osoitteesta %3</translation>
         <translation>Työpöytä ei tarjoa salaisuusvarastoa, joten Omaweb ei säilytä maksukortteja.</translation>
     </message>
     <message>
+        <source>site styles</source>
+        <translation>sivustotyylit</translation>
+    </message>
+    <message>
         <source>Orange</source>
         <translation>Oranssi</translation>
     </message>
@@ -3968,6 +4009,51 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>No text on a page is drawn smaller than this, whatever size the page asks for. The page scale and a tab&apos;s zoom multiply it. A page already open takes it when it next lays out; reload to see it now.</source>
         <translation>Mitään sivun tekstiä ei piirretä tätä pienemmäksi, vaikka sivu pyytäisi pienempää. Sivujen skaalaus ja välilehden zoomaus kertovat sen. Jo avoin sivu ottaa sen käyttöön seuraavan asettelun yhteydessä; lataa uudelleen nähdäksesi sen heti.</translation>
+    </message>
+    <message>
+        <source>Site styles</source>
+        <translation>Sivustotyylit</translation>
+    </message>
+    <message>
+        <source>Your own CSS for a site, one file for each host in styles/ in the configuration folder. A file styles its host and every host under it. Switching one off keeps the file, and Sync carries both. Write one from a page with Style this site.</source>
+        <translation>Oma CSS sivustolle, yksi tiedosto kullekin palvelimelle asetuskansion styles/-kansiossa. Tiedosto muotoilee palvelimensa ja kaikki sen alla olevat. Tyylin kytkeminen pois päältä säilyttää tiedoston, ja synkronointi siirtää molemmat. Kirjoita tyyli sivulta valinnalla Muotoile sivustoa.</translation>
+    </message>
+    <message>
+        <source>1 line</source>
+        <translation>1 rivi</translation>
+    </message>
+    <message>
+        <source>1 hidden</source>
+        <translation>1 piilotettu</translation>
+    </message>
+    <message>
+        <source>Edit</source>
+        <comment>verb: edit a site style</comment>
+        <translation>Muokkaa</translation>
+    </message>
+    <message>
+        <source>Edit the style for %1</source>
+        <translation>Muokkaa sivuston %1 tyyliä</translation>
+    </message>
+    <message>
+        <source>Remove the style for %1</source>
+        <translation>Poista sivuston %1 tyyli</translation>
+    </message>
+    <message>
+        <source>Apply the style for %1</source>
+        <translation>Käytä sivuston %1 tyyliä</translation>
+    </message>
+    <message>
+        <source>No site styles yet</source>
+        <translation>Ei vielä sivustotyylejä</translation>
+    </message>
+    <message>
+        <source>Style this site, from the page menu or the Omnibar, writes the first one.</source>
+        <translation>Muotoile sivustoa, sivun valikosta tai Omnibarista, kirjoittaa ensimmäisen.</translation>
+    </message>
+    <message>
+        <source>Open the styles folder</source>
+        <translation>Avaa tyylikansio</translation>
     </message>
     <message>
         <source>Add card</source>
@@ -4699,6 +4785,153 @@ Laajennuksen kytkeminen päälle lataa sen Chrome Web Storesta, mikä kertoo Goo
     <message>
         <source>Allow or stop allowing…</source>
         <translation>Salli tai lopeta salliminen…</translation>
+    </message>
+</context>
+<context>
+    <name>SiteStylePanel</name>
+    <message>
+        <source>This selector does not parse</source>
+        <translation>Valitsinta ei voi jäsentää</translation>
+    </message>
+    <message>
+        <source>Matches nothing on this page</source>
+        <translation>Ei osu mihinkään tällä sivulla</translation>
+    </message>
+    <message>
+        <source>Matches 1 element on this page</source>
+        <translation>Osuu 1 elementtiin tällä sivulla</translation>
+    </message>
+    <message>
+        <source>No site</source>
+        <translation>Ei sivustoa</translation>
+    </message>
+    <message>
+        <source>Style the pages of %1</source>
+        <translation>Muotoile sivuston %1 sivuja</translation>
+    </message>
+    <message>
+        <source>Apply the style for %1</source>
+        <translation>Käytä sivuston %1 tyyliä</translation>
+    </message>
+    <message>
+        <source>Close the Site style panel</source>
+        <translation>Sulje sivustotyylin paneeli</translation>
+    </message>
+    <message>
+        <source>Off. styles/%1.css is kept, and applies again when switched on.</source>
+        <translation>Pois päältä. styles/%1.css säilyy ja on taas käytössä, kun kytket sen päälle.</translation>
+    </message>
+    <message>
+        <source>styles/%1.css · styles %1 and every host under it</source>
+        <translation>styles/%1.css · muotoilee sivuston %1 ja kaikki sen alla olevat palvelimet</translation>
+    </message>
+    <message>
+        <source>CSS for %1</source>
+        <translation>Sivuston %1 CSS</translation>
+    </message>
+    <message>
+        <source>Open in editor</source>
+        <translation>Avaa editorissa</translation>
+    </message>
+    <message>
+        <source>Not saved yet</source>
+        <translation>Ei vielä tallennettu</translation>
+    </message>
+    <message>
+        <source>Saved</source>
+        <translation>Tallennettu</translation>
+    </message>
+    <message>
+        <source>Hidden on this site</source>
+        <translation>Piilotettu tällä sivustolla</translation>
+    </message>
+    <message>
+        <source>none here</source>
+        <translation>ei täällä</translation>
+    </message>
+    <message numerus="yes">
+        <source>Matches %n elements on this page</source>
+        <translation>
+            <numerusform>Osuu %n elementtiin tällä sivulla</numerusform>
+            <numerusform>Osuu %n elementtiin tällä sivulla</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This selector cannot be hidden</source>
+        <translation>Tätä valitsinta ei voi piilottaa</translation>
+    </message>
+    <message>
+        <source>No style can be written for this page.</source>
+        <translation>Tälle sivulle ei voi kirjoittaa tyyliä.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n here</source>
+        <translation>
+            <numerusform>%n täällä</numerusform>
+            <numerusform>%n täällä</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show %1 on the page</source>
+        <translation>Näytä %1 sivulla</translation>
+    </message>
+    <message>
+        <source>Stop hiding %1</source>
+        <translation>Lopeta kohteen %1 piilottaminen</translation>
+    </message>
+    <message>
+        <source>Pick an element to hide</source>
+        <translation>Valitse piilotettava elementti</translation>
+    </message>
+    <message>
+        <source>Picking</source>
+        <translation>Valitaan</translation>
+    </message>
+    <message>
+        <source>Point at an element on the page</source>
+        <translation>Osoita elementtiä sivulla</translation>
+    </message>
+    <message>
+        <source>Selector to hide</source>
+        <translation>Piilotettava valitsin</translation>
+    </message>
+    <message>
+        <source>Widen from this element to all related ones</source>
+        <translation>Laajenna tästä elementistä kaikkiin samankaltaisiin</translation>
+    </message>
+    <message>
+        <source>This element</source>
+        <translation>Tämä elementti</translation>
+    </message>
+    <message>
+        <source>All related</source>
+        <translation>Kaikki samankaltaiset</translation>
+    </message>
+    <message>
+        <source>Hide</source>
+        <translation>Piilota</translation>
+    </message>
+    <message>
+        <source>Stop picking</source>
+        <translation>Lopeta valinta</translation>
+    </message>
+    <message>
+        <source>↑ ↓ parent and child · ← → siblings
+[ ] narrow and widen · Enter hides · Esc stops</source>
+        <translation>↑ ↓ ylempi ja alempi · ← → viereiset
+[ ] kavenna ja laajenna · Enter piilottaa · Esc lopettaa</translation>
+    </message>
+    <message>
+        <source>applies</source>
+        <translation>käytössä</translation>
+    </message>
+    <message>
+        <source>off</source>
+        <translation>pois päältä</translation>
+    </message>
+    <message>
+        <source>no file yet</source>
+        <translation>ei vielä tiedostoa</translation>
     </message>
 </context>
 <context>

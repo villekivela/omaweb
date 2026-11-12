@@ -6,6 +6,7 @@
 #include "EngineBuild.h"
 #include "EngineCapabilities.h"
 #include "PageImages.h"
+#include "CssHighlighter.h"
 #include "FaviconTint.h"
 #include "StoredFaviconProvider.h"
 #include "ExternalProtocolHandler.h"
@@ -755,6 +756,7 @@ public slots:
         engine->addImageProvider(QStringLiteral("omawebtesticon"), new ColourIcons);
         omaweb::registerBrowserController();
         omaweb::registerDownloads();
+        omaweb::registerCssHighlighter();
         omaweb::registerFaviconTint();
         omaweb::registerFontSettings();
         omaweb::registerEngineCapabilities();

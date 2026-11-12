@@ -120,6 +120,7 @@ but does not install the Qt plugin.
 | `Primary+O` and `Primary+I`   | Jump back to the previous tab and forward |
 | `Primary+F` or `/`            | Find in the page                          |
 | `Primary+Shift+I`             | Toggle Developer tools                    |
+| `Primary+Shift+S`             | Toggle the Site style panel               |
 | `Primary+B`                   | Hide or show the sidebar                  |
 | `f` or `Shift+F`              | Follow a link here or in a background tab |
 | `j`, `k`, `d`, `u`, `gg`, `G` | Scroll the page                           |
@@ -304,7 +305,11 @@ unset:
 - `keybindings.json` controls bindings and per-site key passthrough.
 - `styles/` holds your Site styles, your own CSS for sites, one file per host: `github.com.css`
   styles github.com and every host under it. Saving a file restyles the site's open pages at once.
-  Agent Spaces are left unstyled.
+  Agent Spaces are left unstyled. "Style this site" in the page menu or the Omnibar, or
+  `Primary+Shift+S`, opens a panel beside the page where typing restyles the site as you type and
+  the file is written once you pause. Pick an element to hide points at a part of the page and
+  writes a rule for it into the same file, and the panel lists each one with a preview and an undo.
+  A style switched off there or in Settings keeps its file.
 - `theme.json` controls the browser palette.
 - `search-engines.json` controls local search engines. DuckDuckGo is the default, and remote
   suggestions are off.
@@ -394,7 +399,7 @@ Omaweb has no telemetry, advertising identifier, browser account, hosted Omaweb 
 [network request ledger](docs/network-requests.md) lists every automatic request the browser makes.
 
 Sync is optional, off until you connect it, and unavailable in a Private window. It copies Spaces,
-tabs, keybindings, Site styles, filter subscription addresses, and four approved Settings keys
+tabs, keybindings, Site styles, filter subscription addresses, and six approved Settings keys
 between your own machines through a private git repository you own. Spaces and tabs are encrypted
 before upload; keybindings, Site styles, subscription addresses, and those settings are readable in
 that repository. Passwords, payment cards, cookies, browsing history, form history, saved addresses,

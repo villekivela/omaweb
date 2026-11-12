@@ -117,6 +117,7 @@ namespace {
         QStringLiteral("fullscreen"),
         QStringLiteral("developer-tools"),
         QStringLiteral("inspect-element"),
+        QStringLiteral("site-style"),
         QStringLiteral("open-page-context-menu"),
         QStringLiteral("shortcuts"),
         QStringLiteral("history"),
