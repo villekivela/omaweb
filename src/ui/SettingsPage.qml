@@ -175,6 +175,7 @@ Rectangle {
     property string sidebarSide: "left"
     property bool glanceEnabled: true
     property bool newTabShowsStartPage: false
+    property bool sidebarNewTab: true
     property bool spaceColours: true
     // The Start page's Scene, by its id, or "none".
     property string startPageScene: "crt-road"
@@ -482,6 +483,7 @@ Rectangle {
     signal sidebarSideChosen(string side)
     signal glanceToggled(bool enabled)
     signal newTabShowsStartPageToggled(bool enabled)
+    signal sidebarNewTabToggled(bool enabled)
     signal spaceColoursToggled(bool enabled)
     signal startPageSceneChosen(string scene)
     signal startPageGlassToggled(bool enabled)
@@ -1337,6 +1339,7 @@ Rectangle {
                     }
 
                     SettingRow {
+                        objectName: "sidebarSideRow"
                         width: pane.width
                         colors: root.colors
                         title: qsTr("Sidebar side")
@@ -1363,6 +1366,19 @@ Rectangle {
                                 root.sidebarSideChosen(side);
                             }
                         }
+                    }
+
+                    SettingToggle {
+                        objectName: "sidebarNewTab"
+                        enabled: root.settingsWritable
+                        width: pane.width
+                        colors: root.colors
+                        title: qsTr("New tab button in the sidebar")
+                        note: qsTr(
+                                  "A row after the sidebar's tabs that opens a new tab with a click.")
+                        accessibleName: qsTr("New tab button in the sidebar")
+                        checked: root.sidebarNewTab
+                        onClicked: root.sidebarNewTabToggled(!checked)
                     }
 
                     SettingToggle {

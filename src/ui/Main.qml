@@ -213,9 +213,19 @@ ApplicationWindow {
     // A new-tab request over a page opens the Omnibar over it, heading to a
     // new tab, unless the reader asked for the Start page instead.
     property bool newTabShowsStartPage: false
+    // Whether the sidebar ends its tab list in a "+ New tab" row.
+    property bool sidebarNewTab: true
     // With that setting on, a new-tab request shows the Start page over the
     // page on show, which stays where it is until a destination is committed.
     property bool startPageSummoned: false
+    // A new tab's Omnibar or Start page is open and nothing is committed yet.
+    // The Start page that carries a committed destination while its page
+    // loads is past that, so this is narrower than `startPageShown`.
+    readonly property bool newTabStartPageWaits: (window.pagelessViewport
+                                                  || window.startPageSummoned) &&
+                                                 !window.settingsOpen && !window.historyOpen
+    readonly property bool newTabAwaited: (window.omnibarOpen && omnibar.newTabIntent)
+                                          || window.newTabStartPageWaits
     // A destination was committed from the Start page and the tab it went to
     // has not painted yet. The road is the loading state until it has, for up
     // to `startPageDriveLimit` milliseconds.
@@ -2971,6 +2981,8 @@ ApplicationWindow {
         window.glanceEnabled = window.windowBrowser.preference("glance", "true") === "true";
         window.newTabShowsStartPage = window.windowBrowser.preference("new-tab-start-page",
                                                                       "false") === "true";
+        window.sidebarNewTab = window.windowBrowser.preference("sidebar-new-tab", "true")
+                === "true";
         const scene = window.windowBrowser.preference("start-page-scene", "crt-road");
         window.startPageScene = window.startPageScenes.indexOf(scene) >= 0 ? scene : "crt-road";
         window.startPageGlass = window.windowBrowser.preference("start-page-glass", "true")
@@ -3086,6 +3098,11 @@ ApplicationWindow {
         window.windowBrowser.setPreference("glance", enabled ? "true" : "false");
     }
 
+    function setSidebarNewTab(enabled) {
+        window.sidebarNewTab = enabled;
+        window.windowBrowser.setPreference("sidebar-new-tab", enabled ? "true" : "false");
+    }
+
     function setNewTabShowsStartPage(enabled) {
         window.newTabShowsStartPage = enabled;
         window.windowBrowser.setPreference("new-tab-start-page", enabled ? "true" : "false");
@@ -3140,7 +3157,8 @@ ApplicationWindow {
         function onPreferenceChanged(name) {
             if (name === "glance" || name === "start-page-scene" || name === "start-page-glass" || name
                     === "sidebar-side" || name === "space-colours" || name === "telemetry-text"
-                    || name === "telemetry-hidden" || name === "new-tab-start-page")
+                    || name === "telemetry-hidden" || name === "new-tab-start-page" || name
+                    === "sidebar-new-tab")
                 window.restoreChromeAppearance();
             else if (name === "app-icon")
                 window.restoreAppIcon();
@@ -4353,6 +4371,9 @@ ApplicationWindow {
                 problemRecording: window.recording
                 onProblemReportRequested: window.reportProblem()
                 onSettingsRequested: window.requestSettings()
+                onNewTabRequested: window.commands.run("new-tab", -1)
+                newTabWaiting: window.newTabAwaited
+                newTabRowEnabled: window.sidebarNewTab
                 onSyncRequested: window.requestSync()
                 onBackRequested: engineLoader.goBack()
                 onForwardRequested: engineLoader.goForward()
@@ -5542,6 +5563,7 @@ ApplicationWindow {
                             sidebarSide: window.sidebarSide
                             glanceEnabled: window.glanceEnabled
                             newTabShowsStartPage: window.newTabShowsStartPage
+                            sidebarNewTab: window.sidebarNewTab
                             spaceColours: window.spaceColours
                             startPageScene: window.sceneSettingsWindow.startPageScene
                             startPageGlass: window.sceneSettingsWindow.startPageGlass
@@ -5603,6 +5625,9 @@ ApplicationWindow {
                             }
                             onGlanceToggled: function (enabled) {
                                 window.setGlanceEnabled(enabled);
+                            }
+                            onSidebarNewTabToggled: function (enabled) {
+                                window.setSidebarNewTab(enabled);
                             }
                             onNewTabShowsStartPageToggled: function (enabled) {
                                 window.setNewTabShowsStartPage(enabled);

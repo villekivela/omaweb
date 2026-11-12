@@ -829,6 +829,24 @@ reports the gap and remains experimental rather than imitating behavior it canno
   on the field give the field back. In a split the Start page covers both panes, where the committed
   tab lands, and `Escape` brings the split back. While the Start page is on show, `Primary+L` and
   `o` focus its Omnibar.
+- The sidebar's tab list ends in a "+ New tab" row, so a new tab opens from the pointer as well as
+  from `Primary+T`, `t` and the command list. The row sits after the last tab, after the whole list
+  when it ends in a Folder, and never inside one. While the tabs fit it follows the last of them;
+  when they overflow it stays at the list's bottom edge and the tabs scroll above it. A thin rule
+  sits above it, left out when no tab stands above, and `+ New tab` is centred in it with no favicon
+  slot, in the sidebar's muted text, so it can't be taken for a tab. With the sidebar's key labels
+  showing, `Primary+T`'s stands over its plus. A click does what `Primary+T` does. A middle or right
+  click and a link dropped on it do nothing.
+- While a new tab's Omnibar or Start page is open and nothing is committed, the "+ New tab" row is
+  drawn as the tab on show is, with its wash and bar, and that tab is drawn as any other. `Escape`
+  or a commit gives the tab its look back. The row stands in the reader's Spaces and in a Private
+  window. In a Space at rest it is the list's only row, drawn on show while the Start page waits. An
+  Agent Space has none, and its tab keeps its look. A Tab window has no sidebar, so no row; the main
+  window's list keeps the row after the tabs Tab windows show.
+- "New tab button in the sidebar", a switch in Settings' interface section under "Sidebar side", is
+  on by default. It is `"sidebar-new-tab"` in `settings.json`, and Sync carries it. A change from
+  Sync or the file applies without a restart. Off, the row is gone, and the tab on show keeps its
+  mark while a new tab waits.
 - While there are results, a hint row under the Omnibar's field, over a rule, names the keys that
   work the list, as the website's dash does, with `?` and "shortcuts" at its right end: `↑↓` as key
   caps and "select", `↵` and "go", in 11 px dim text over a rule. Command scope says "run" for `↵`

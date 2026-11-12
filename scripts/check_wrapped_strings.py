@@ -62,6 +62,7 @@ TOKENS = {
     ("AgentStopButton.qml", "stop"),
     ("SpaceOutline.qml", "warning"),
     ("SpaceOutline.qml", "tune"),
+    ("SpaceOutline.qml", "add"),
     ("NightRoad.qml", "white"),
     ("NightSky.qml", "white"),
     ("GameOfLife.qml", "white"),

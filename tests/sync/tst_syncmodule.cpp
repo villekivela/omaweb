@@ -395,6 +395,7 @@ private slots:
     void syncsOnlyTheApprovedConfiguration();
     void syncsTheAppIcon();
     void syncsHowANewTabOpens();
+    void syncsWhetherTheSidebarHasANewTabRow();
     void syncsTheBrowserTheme();
     void syncsTheLinkRules();
     void syncsWhichSiteStylesAreOff();
@@ -988,6 +989,47 @@ void SyncModuleTest::syncsHowANewTabOpens()
 
     QCOMPARE(
         setting(secondConfigRoot.path(), QStringLiteral("new-tab-start-page")), QJsonValue(true));
+}
+
+// A reader who hid the sidebar's "+ New tab" row has it hidden on their other
+// machines too.
+void SyncModuleTest::syncsWhetherTheSidebarHasANewTabRow()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir firstDataRoot;
+    QTemporaryDir firstConfigRoot;
+    QTemporaryDir secondDataRoot;
+    QTemporaryDir secondConfigRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key = QByteArray(32, 'j');
+
+    SqliteSessionStore firstStore(firstDataRoot.path());
+    QVERIFY(firstStore.open(&error));
+    QVERIFY(writeSettings(firstConfigRoot.path(), {{QStringLiteral("sidebar-new-tab"), false}}));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    SqliteSessionStore secondStore(secondDataRoot.path());
+    QVERIFY(secondStore.open(&error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b")});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+
+    QCOMPARE(
+        setting(secondConfigRoot.path(), QStringLiteral("sidebar-new-tab")), QJsonValue(false));
 }
 
 // A browser theme the reader picked reaches their other machines, which draw

@@ -41,6 +41,15 @@ Rectangle {
     // being held for them.
     property var keyMap: null
     property bool keyLabelsShown: false
+    // The "+ New tab" row after the tabs (#947) is the reader's to hide, and an
+    // Agent's Space has none: its tabs are the Agent's to open.
+    property bool newTabRowEnabled: true
+    readonly property bool newTabRowShown: newTabRowEnabled && !!browser && !browser.agentSpace(
+                                               browser.activeSpaceId)
+    // A new tab's Omnibar or Start page is open and nothing is committed yet.
+    // Meanwhile the row is drawn as the tab on show, and that tab as any other.
+    property bool newTabWaiting: false
+    readonly property bool newTabOnShow: newTabRowShown && newTabWaiting
     // What this window's Space is hosting, as `{ key, name, id, popupUrl }`.
     property var hostedExtensions: []
     property bool extensionAttention: false
@@ -480,6 +489,7 @@ Rectangle {
     // attached }`, and where the count stands.
     signal hiddenSpacesRequested(var spaces, rect origin)
     signal settingsRequested
+    signal newTabRequested
     signal syncRequested
     signal backRequested
     signal forwardRequested
@@ -1625,6 +1635,7 @@ Rectangle {
                     tintFavicons: root.tintFavicons
                     keyLabel: root.tabLabel(tabId)
                     keyLabelShown: root.keyLabelsShown
+                    onShowGiven: root.newTabOnShow
                     agent: root.agentOf(tabId)
                     held: root.heldTabId === tabId
                     onAgentStopRequested: function (id) {
@@ -1665,7 +1676,9 @@ Rectangle {
             anchors.top: pinnedSection.bottom
             anchors.bottom: parent.bottom
             anchors.topMargin: root.blockGap
-            anchors.bottomMargin: 12
+            // An overflowing list ends where the "+ New tab" row stands.
+            anchors.bottomMargin: newTabRow.docked ? newTabRow.height + newTabRow.footGap :
+                                                     newTabRow.footGap
             // The view spans the sidebar, and the list's margins are inside
             // it: a row's wash, and the pointer it answers, reach past them to
             // the sidebar's edges, as the Omnibar's rows reach its panel's. A
@@ -1804,6 +1817,7 @@ Rectangle {
                                 tintFavicons: root.tintFavicons
                                 keyLabel: root.tabLabel(tabId)
                                 keyLabelShown: root.keyLabelsShown
+                                onShowGiven: root.newTabOnShow
                                 agent: root.agentOf(tabId)
                                 held: root.heldTabId === tabId
                                 onAgentStopRequested: function (id) {
@@ -1857,6 +1871,128 @@ Rectangle {
                             }
                         }
                     }
+                }
+            }
+        }
+
+        // "+ New tab", after the last row of the list and never inside a
+        // Folder (#947). It stands outside the list, so nothing that walks the
+        // list's rows (the Sidebar cursor, a drag, the Marks) takes it for a
+        // tab. While the tabs fit it follows the last of them; once they
+        // overflow it stays at the list's foot and they scroll above it.
+        Item {
+            id: newTabRow
+            objectName: "newTabRow"
+            // The row reaches the sidebar's edges as a tab's does, past the
+            // list's margins, and keeps the list's own gap at the foot.
+            readonly property real reachLeft: root.listMargin
+            readonly property real reachRight: 16
+            readonly property real footGap: 12
+            readonly property real followY: tabScroll.y + ordinarySection.height
+            readonly property bool docked: followY + height + footGap > listLayer.height
+            x: reachLeft
+            y: docked ? listLayer.height - height - footGap : followY
+            width: listLayer.width - reachLeft - reachRight
+            height: root.blockGap + 1 + Style.space(36)
+            visible: root.newTabRowShown
+            opacity: root.arrivalOpacity
+            transform: Translate {
+                x: root.arrivalOffset * listLayer.width + root.swipeOffset
+            }
+            Accessible.role: Accessible.Button
+            Accessible.name: qsTr("New tab")
+            Accessible.onPressAction: root.newTabRequested()
+
+            // The rule that tells the row from a tab. With no tab above it, the
+            // row is the list's only row and has nothing to stand apart from.
+            Rectangle {
+                objectName: "newTabRule"
+                y: DevicePixels.snap(root.blockGap / 2, root.pixelRatio)
+                width: parent.width
+                height: 1
+                visible: ordinarySection.height > 0 || pinnedSection.visible
+                color: root.colors.separator
+            }
+
+            Item {
+                id: newTabBody
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: Style.space(36)
+
+                // Drawn as the tab on show is, edge to edge with the bar,
+                // while a new tab waits; washed as a tab is under the pointer.
+                Rectangle {
+                    objectName: "newTabWash"
+                    anchors.fill: parent
+                    anchors.leftMargin: -newTabRow.reachLeft
+                    anchors.rightMargin: -newTabRow.reachRight
+                    visible: root.newTabOnShow || newTabPointer.containsMouse
+                    color: Qt.alpha(root.colors.accent, root.newTabOnShow ? 0.14 : 0.07)
+                }
+
+                Rectangle {
+                    objectName: "newTabBar"
+                    anchors.left: parent.left
+                    anchors.leftMargin: -newTabRow.reachLeft
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    width: 2
+                    visible: root.newTabOnShow
+                    color: root.colors.accent
+                }
+
+                Row {
+                    id: newTabLabel
+                    x: DevicePixels.snap((parent.width - width) / 2, root.pixelRatio)
+                    y: DevicePixels.snap((parent.height - height) / 2, root.pixelRatio)
+                    spacing: Style.space(4)
+
+                    Text {
+                        id: newTabPlus
+                        objectName: "newTabPlus"
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "add"
+                        color: root.newTabOnShow ? root.colors.text : root.colors.mutedText
+                        font.family: root.iconFontFamily
+                        font.pixelSize: Style.font.iconLarge
+                        Accessible.ignored: true
+                    }
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("New tab")
+                        color: root.newTabOnShow ? root.colors.text : root.colors.mutedText
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
+                        Accessible.ignored: true
+                    }
+                }
+
+                // Primary+T's key, over the plus as a tab's is over its favicon.
+                KeyLabel {
+                    objectName: "keyLabel-newTab"
+                    iconFontFamily: root.iconFontFamily
+                    x: DevicePixels.snap(newTabLabel.x + newTabPlus.x + (newTabPlus.width - width) / 2,
+                                         root.pixelRatio)
+                    y: DevicePixels.snap((parent.height - height) / 2, root.pixelRatio)
+                    keys: root.keyLabelsShown ? root.labelFor("new-tab") : ""
+                    shown: root.keyLabelsShown
+                    colors: root.colors
+                }
+
+                // A click opens a new tab as Primary+T does. The other buttons
+                // pass through: the row has no menu and no second action.
+                MouseArea {
+                    id: newTabPointer
+                    objectName: "newTabPointer"
+                    anchors.fill: parent
+                    anchors.leftMargin: -newTabRow.reachLeft
+                    anchors.rightMargin: -newTabRow.reachRight
+                    hoverEnabled: true
+                    acceptedButtons: Qt.LeftButton
+                    onClicked: root.newTabRequested()
                 }
             }
         }

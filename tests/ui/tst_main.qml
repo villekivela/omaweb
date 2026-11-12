@@ -73,6 +73,21 @@ TestCase {
         Omaweb.Main {}
     }
 
+    // A link carried by a drag, as a page or another program drops one.
+    Component {
+        id: linkDragComponent
+
+        Item {
+            width: 4
+            height: 4
+            Drag.dragType: Drag.Internal
+            Drag.mimeData: {
+                "text/uri-list": "https://dropped-on-the-row.example/",
+                "text/plain": "https://dropped-on-the-row.example/"
+            }
+        }
+    }
+
     // Content blocking as the chrome reads it, having refused one request on
     // the page on show.
     Component {
@@ -391,6 +406,8 @@ TestCase {
             window.setSpaceColours(true);
         if (window.newTabShowsStartPage)
             window.setNewTabShowsStartPage(false);
+        if (!window.sidebarNewTab)
+            window.setSidebarNewTab(true);
         if (fontSettings.interfaceFontSizeOverridden)
             fontSettings.resetInterfaceFontSize();
         if (pageScale.overridden)
@@ -3453,11 +3470,6 @@ TestCase {
         tryVerify(function () {
             return window.active;
         });
-    }
-
-    function test_sidebarHasNoNewTabButton() {
-        const newTabButton = findChild(window.contentItem, "newTabButton");
-        verify(newTabButton === null);
     }
 
     // With the Start page asked for, a new tab still waits for a destination.
@@ -19012,6 +19024,467 @@ TestCase {
 
         browser.setPreference("new-tab-start-page", "false");
         verify(!window.newTabShowsStartPage);
+    }
+
+    // The sidebar's "+ New tab" row, in window coordinates.
+    function newTabRowRect() {
+        const row = findChild(window.contentItem, "newTabRow");
+        verify(row !== null);
+        return row.mapToItem(null, 0, 0, row.width, row.height);
+    }
+
+    // The bottom of the last row the sidebar's tab list draws.
+    function lastDrawnRowBottom() {
+        const list = findChild(window.contentItem, "ordinaryList");
+        let bottom = -1;
+        for (let index = 0; index < list.children.length; ++index) {
+            const child = list.children[index];
+            if (child.visible && child.height > 0 && child.placeInSection !== undefined)
+                bottom = Math.max(bottom, child.mapToItem(null, 0, child.height).y);
+        }
+        return bottom;
+    }
+
+    // While the tabs fit, the "+ New tab" row follows the last of them, a
+    // gap and a rule below it, as wide as the list.
+    function test_theNewTabRowFollowsTheLastTab() {
+        openPageInNewTab("https://new-tab-row-follows.example");
+        settleMotion();
+        const row = findChild(window.contentItem, "newTabRow");
+        verify(row !== null);
+        tryVerify(function () {
+            return row.visible;
+        });
+        const rect = newTabRowRect();
+        const last = lastDrawnRowBottom();
+        verify(last > 0);
+        verify(rect.y >= last && rect.y <= last + 16, "the row's top " + rect.y
+               + " is not just under the last tab's bottom " + last);
+        const list = findChild(window.contentItem, "ordinaryList");
+        const listRect = list.mapToItem(null, list.leftPadding, 0, list.width - list.leftPadding
+                                        - list.rightPadding, list.height);
+        compare(rect.x, listRect.x);
+        compare(rect.width, listRect.width);
+        browser.closeActiveTab();
+    }
+
+    // Once the tabs overflow, the row stays at the list's bottom edge and the
+    // tabs scroll above it, ending where it starts.
+    function test_theNewTabRowStaysAtTheFootOfAnOverflowingList() {
+        const tabScroll = findChild(window.contentItem, "tabScroll");
+        const listLayer = findChild(window.contentItem, "listLayer");
+        const tabList = tabScroll.contentItem;
+        const opened = [];
+        for (let index = 0; index < 40; ++index) {
+            browser.openInput("https://new-tab-row-overflow.example/" + index, true);
+            opened.push(browser.activeTabId);
+        }
+        tryVerify(function () {
+            return tabList.contentHeight > tabList.height;
+        });
+        settleMotion();
+        const rect = newTabRowRect();
+        const layer = listLayer.mapToItem(null, 0, 0, listLayer.width, listLayer.height);
+        compare(rect.y + rect.height, layer.y + layer.height - 12);
+        const scrolled = tabScroll.mapToItem(null, 0, 0, tabScroll.width, tabScroll.height);
+        compare(scrolled.y + scrolled.height, rect.y);
+
+        // Scrolled to its end, the list's last tab still ends above the row.
+        tabList.contentY = tabList.contentHeight - tabList.height;
+        wait(0);
+        compare(newTabRowRect().y, rect.y);
+        verify(lastDrawnRowBottom() <= rect.y, "the last tab ends under the row");
+
+        for (const tabId of opened)
+            browser.closeTab(tabId);
+        tryVerify(function () {
+            return tabList.contentHeight <= tabList.height;
+        });
+    }
+
+    // A list that ends in a Folder has the row after the whole Folder, its
+    // last member included, and never inside it: open or collapsed, the row
+    // stands as wide as the list rather than indented as a member.
+    function test_theNewTabRowFollowsAFolderThatEndsTheList() {
+        const homeSpaceId = browser.activeSpaceId;
+        const spaceId = browser.createSpace("Folder at the end");
+        verify(browser.switchSpace(spaceId));
+        openPage("https://new-tab-row-folder.example/first");
+        const firstId = browser.activeTabId;
+        openPageInNewTab("https://new-tab-row-folder.example/second");
+        const secondId = browser.activeTabId;
+        const folder = browser.createFolder("Reading", [firstId, secondId]);
+        settleMotion();
+        const list = findChild(window.contentItem, "ordinaryList");
+        const listX = list.mapToItem(null, list.leftPadding, 0).x;
+
+        const lastMember = findChild(window.contentItem, "tab-" + secondId);
+        const memberBottom = lastMember.mapToItem(null, 0, lastMember.height).y;
+        let rect = newTabRowRect();
+        verify(rect.y >= memberBottom && rect.y <= memberBottom + 16, "the row's top " + rect.y
+               + " is not just under the Folder's last member " + memberBottom);
+        compare(rect.x, listX);
+
+        // Collapsed, the Folder keeps only its tab on show, and the row
+        // follows what is left of it.
+        const firstMember = findChild(window.contentItem, "tab-" + firstId);
+        verify(browser.setFolderCollapsed(folder, true));
+        tryVerify(function () {
+            return !firstMember.visible;
+        });
+        tryVerify(function () {
+            return lastDrawnRowBottom() < memberBottom;
+        }, 2000, "the Folder did not collapse to its tab on show");
+        settleMotion();
+        const drawnBottom = lastDrawnRowBottom();
+        tryVerify(function () {
+            rect = newTabRowRect();
+            return rect.y >= drawnBottom && rect.y <= drawnBottom + 16;
+        }, 2000, "the row did not follow the collapsed Folder");
+        compare(rect.x, listX);
+
+        leaveSpace(homeSpaceId, spaceId, "Folder at the end");
+    }
+
+    // A click on the row does what Primary+T does: the Omnibar over the page,
+    // heading to a new tab, or the Start page where the reader asked for it.
+    // A middle or right click does nothing, and no tab exists until a commit.
+    function test_aClickOnTheNewTabRowOpensANewTabAsPrimaryTDoes() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        openPage("https://new-tab-row-click.example");
+        settleMotion();
+        activateWindow();
+        const pageTabId = browser.activeTabId;
+        const tabCount = browser.tabs.rowCount();
+        const pointer = findChild(window.contentItem, "newTabPointer");
+        verify(pointer !== null);
+        settleActions(pointer);
+
+        mouseClick(pointer, pointer.width / 2, pointer.height / 2, Qt.MiddleButton);
+        mouseClick(pointer, pointer.width / 2, pointer.height / 2, Qt.RightButton);
+        wait(50);
+        verify(!window.omnibarOpen);
+        verify(!startPage.open);
+        verify(!window.tabMenuOpen);
+        compare(browser.tabs.rowCount(), tabCount);
+
+        mouseClick(pointer, pointer.width / 2, pointer.height / 2);
+        tryVerify(function () {
+            return window.omnibarOpen && input.activeFocus;
+        });
+        verify(panel.newTabIntent);
+        verify(!startPage.open);
+        compare(browser.tabs.rowCount(), tabCount);
+        compare(browser.activeTabId, pageTabId);
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !window.omnibarOpen;
+        });
+
+        window.setNewTabShowsStartPage(true);
+        mouseClick(pointer, pointer.width / 2, pointer.height / 2);
+        tryVerify(function () {
+            return startPage.open && input.activeFocus;
+        });
+        verify(!window.omnibarOpen);
+        compare(browser.tabs.rowCount(), tabCount);
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !startPage.open;
+        });
+        compare(browser.activeTabId, pageTabId);
+    }
+
+    // A link dropped on the row finds nothing to take it: the drop is
+    // refused and no tab opens.
+    function test_aLinkDroppedOnTheNewTabRowDoesNothing() {
+        openPage("https://new-tab-row-drop.example");
+        settleMotion();
+        const tabCount = browser.tabs.rowCount();
+        const pageTabId = browser.activeTabId;
+        const rect = newTabRowRect();
+        const link = linkDragComponent.createObject(window.contentItem, {
+                                                        "x": rect.x + rect.width / 2,
+                                                        "y": rect.y + rect.height - 18
+                                                    });
+        verify(link !== null);
+        link.Drag.active = true;
+        link.x += 1;
+        link.y += 1;
+        wait(0);
+        compare(link.Drag.target, null);
+        compare(link.Drag.drop(), Qt.IgnoreAction);
+        link.destroy();
+        wait(50);
+        compare(browser.tabs.rowCount(), tabCount);
+        compare(browser.activeTabId, pageTabId);
+        verify(!window.omnibarOpen);
+    }
+
+    // Whether the tab's row is drawn as the tab on show: the wash, the
+    // bar, the lit favicon and the title in the text colour.
+    function tabDrawnOnShow(tabId) {
+        const row = findChild(window.contentItem, "tab-" + tabId);
+        const drawn = [findChild(row, "tabWash-" + tabId).visible, findChild(row, "tabBar-"
+                                                                             + tabId).visible,
+                       findChild(row, "siteTile-" + tabId).highlighted, String(findChild(row,
+                                                                                         "tabTitle-"
+                                                                                         + tabId).color)
+                       === String(window.colors.text)];
+        if (drawn.every(Boolean))
+            return true;
+        verify(!drawn.some(Boolean), "the tab is half drawn on show: " + drawn);
+        return false;
+    }
+
+    function newTabRowOnShow() {
+        const wash = findChild(window.contentItem, "newTabWash");
+        const bar = findChild(window.contentItem, "newTabBar");
+        compare(wash.visible && wash.color.a > 0.1, bar.visible);
+        return bar.visible;
+    }
+
+    // While a new tab's Omnibar or Start page is open and nothing is
+    // committed, the row is drawn as the tab on show is and that tab drops
+    // that look. Escape or a commit gives it back.
+    function test_theNewTabRowIsDrawnOnShowWhileANewTabWaits() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const input = findChild(window.contentItem, "omnibarInput");
+        openPage("https://new-tab-row-mark.example");
+        settleMotion();
+        activateWindow();
+        const pageTabId = browser.activeTabId;
+        verify(tabDrawnOnShow(pageTabId));
+        verify(!newTabRowOnShow());
+
+        keyClick(Qt.Key_T, Qt.ControlModifier);
+        tryVerify(function () {
+            return window.omnibarOpen && input.activeFocus;
+        });
+        verify(newTabRowOnShow());
+        verify(!tabDrawnOnShow(pageTabId));
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !window.omnibarOpen;
+        });
+        verify(!newTabRowOnShow());
+        verify(tabDrawnOnShow(pageTabId));
+
+        // The Omnibar over the page for the address is not a new tab.
+        keyClick(Qt.Key_L, Qt.ControlModifier);
+        tryVerify(function () {
+            return window.omnibarOpen && input.activeFocus;
+        });
+        verify(!newTabRowOnShow());
+        verify(tabDrawnOnShow(pageTabId));
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !window.omnibarOpen;
+        });
+
+        keyClick(Qt.Key_T, Qt.ControlModifier);
+        tryVerify(function () {
+            return window.omnibarOpen && input.activeFocus;
+        });
+        input.text = "https://new-tab-row-mark.example/committed";
+        keyClick(Qt.Key_Return);
+        tryVerify(function () {
+            return browser.activeTabId !== pageTabId;
+        });
+        const committedId = browser.activeTabId;
+        verify(!newTabRowOnShow());
+        tryVerify(function () {
+            return tabDrawnOnShow(committedId);
+        });
+        verify(!tabDrawnOnShow(pageTabId));
+        browser.closeActiveTab();
+        browser.activateTab(pageTabId);
+
+        // The Start page for a new tab marks the row the same way, and a
+        // commit from it gives the look back while the page is still on its
+        // way.
+        window.setNewTabShowsStartPage(true);
+        keyClick(Qt.Key_T, Qt.ControlModifier);
+        tryVerify(function () {
+            return startPage.open && input.activeFocus;
+        });
+        verify(newTabRowOnShow());
+        verify(!tabDrawnOnShow(pageTabId));
+        input.text = "https://new-tab-row-mark.example/from-start-page";
+        keyClick(Qt.Key_Return);
+        tryVerify(function () {
+            return browser.activeTabId !== pageTabId;
+        });
+        verify(!newTabRowOnShow());
+        window.endStartPageDrive();
+        browser.closeActiveTab();
+        browser.activateTab(pageTabId);
+        tryVerify(function () {
+            return tabDrawnOnShow(pageTabId);
+        });
+    }
+
+    // With the sidebar's key labels showing, the row shows Primary+T's, over
+    // its plus as a tab's is over its favicon.
+    function test_theNewTabRowShowsPrimaryTsKeyLabel() {
+        openPage("https://new-tab-row-label.example");
+        settleMotion();
+        activateWindow();
+        const label = findChild(window.contentItem, "keyLabel-newTab");
+        verify(label !== null);
+        verify(!label.visible);
+
+        keyPress(Qt.Key_Control);
+        tryVerify(function () {
+            return label.visible;
+        });
+        const binding = bindingFor("new-tab");
+        verify(binding.indexOf("Primary+") === 0, binding);
+        verify(label.chord);
+        compare(label.text, binding.slice("Primary+".length));
+        const plus = findChild(window.contentItem, "newTabPlus");
+        const plusCentre = plus.mapToItem(null, plus.width / 2, plus.height / 2);
+        const labelCentre = label.mapToItem(null, label.width / 2, label.height / 2);
+        verify(Math.abs(plusCentre.x - labelCentre.x) <= 1 && Math.abs(plusCentre.y - labelCentre.y)
+               <= 1, "the label at " + labelCentre + " is not over the plus at " + plusCentre);
+        keyRelease(Qt.Key_Control);
+        verify(!label.visible);
+    }
+
+    // The row stands wherever the sidebar lists the reader's tabs. In a Space
+    // at rest it is the list's only row, with no rule, and drawn on show, since
+    // the Start page waits as a new tab. An Agent's Space has no row, and its
+    // tab keeps its own look. A Private window has the row too.
+    function test_theNewTabRowStandsWhereTheReadersTabsAreListed() {
+        const homeSpaceId = browser.activeSpaceId;
+        openPageInNewTab("https://new-tab-row-listed.example");
+        const listedTabId = browser.activeTabId;
+        settleMotion();
+        const row = findChild(window.contentItem, "newTabRow");
+        const rule = findChild(window.contentItem, "newTabRule");
+        verify(row.visible);
+        verify(rule.visible);
+
+        const emptyId = enterRestingSpace("No tabs yet");
+        verify(row.visible);
+        verify(!rule.visible);
+        compare(lastDrawnRowBottom(), -1);
+        const tabScroll = findChild(window.contentItem, "tabScroll");
+        compare(newTabRowRect().y, tabScroll.mapToItem(null, 0, 0).y);
+        verify(newTabRowOnShow());
+        leaveSpace(homeSpaceId, emptyId, "No tabs yet");
+        settleMotion();
+
+        const agentId = agentSpaceProbe.create("Row agent", "claude-code", false);
+        verify(browser.switchSpace(agentId));
+        tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
+        openPage("https://new-tab-row-agent.example");
+        const agentTabId = browser.activeTabId;
+        verify(!row.visible);
+        verify(tabDrawnOnShow(agentTabId));
+        window.openOmnibar(true);
+        tryVerify(function () {
+            return window.omnibarOpen;
+        });
+        verify(tabDrawnOnShow(agentTabId));
+        window.closeOmnibar();
+        verify(browser.switchSpace(homeSpaceId));
+        verify(browser.deleteSpace(agentId, "Row agent"));
+        tryCompare(findChild(window.contentItem, "sidebar"), "arriving", false);
+        verify(row.visible);
+
+        windowManager.openPrivateWindow();
+        tryCompare(windowManager, "privateWindowCount", 1);
+        const privateWindow = window.privateWindows[0];
+        const privateRow = findChild(privateWindow.contentItem, "newTabRow");
+        verify(privateRow !== null);
+        tryVerify(function () {
+            return privateRow.visible;
+        });
+        privateWindow.windowBrowser.closeActiveTab();
+        tryCompare(windowManager, "privateWindowCount", 0);
+        tryVerify(function () {
+            return window.privateWindows.length === 0;
+        });
+        browser.closeTab(listedTabId);
+    }
+
+    // The row is the reader's to hide, from Interface, under the sidebar's
+    // side. The choice is kept as the other settings are, and a hidden row
+    // leaves the tab on show its look while a new tab waits.
+    function test_interfaceHidesTheSidebarsNewTabRow() {
+        const input = findChild(window.contentItem, "omnibarInput");
+        openPage("https://new-tab-row-setting.example");
+        settleMotion();
+        const pageTabId = browser.activeTabId;
+        const row = findChild(window.contentItem, "newTabRow");
+        verify(row.visible);
+        window.requestSettings();
+        const settings = findChild(window.contentItem, "settingsSurface");
+        settings.section = settings.sections.indexOf("interface");
+        const toggle = findChild(settings, "sidebarNewTab");
+        verify(toggle !== null);
+        verify(toggle.visible);
+        verify(toggle.checked);
+        compare(toggle.title, "New tab button in the sidebar");
+        // Next after the side, in the same column.
+        const side = findChild(settings, "sidebarSideRow");
+        verify(side !== null);
+        const sideRect = side.mapToItem(null, 0, 0, side.width, side.height);
+        const toggleRect = toggle.mapToItem(null, 0, 0, toggle.width, toggle.height);
+        verify(toggleRect.y >= sideRect.y + sideRect.height && toggleRect.y <= sideRect.y
+               + sideRect.height + 24, "the switch at " + toggleRect.y
+               + " is not next after the side's row, which ends at " + (sideRect.y
+                                                                        + sideRect.height));
+
+        toggle.clicked();
+        verify(!window.sidebarNewTab);
+        verify(!toggle.checked);
+        compare(browser.preference("sidebar-new-tab", "true"), "false");
+        window.settingsOpen = false;
+        tryVerify(function () {
+            return !row.visible;
+        });
+
+        // What the next start reads.
+        window.sidebarNewTab = true;
+        window.restoreChromeAppearance();
+        verify(!window.sidebarNewTab);
+
+        activateWindow();
+        keyClick(Qt.Key_T, Qt.ControlModifier);
+        tryVerify(function () {
+            return window.omnibarOpen && input.activeFocus;
+        });
+        verify(tabDrawnOnShow(pageTabId));
+        keyClick(Qt.Key_Escape);
+        tryVerify(function () {
+            return !window.omnibarOpen;
+        });
+
+        window.requestSettings();
+        toggle.clicked();
+        verify(window.sidebarNewTab);
+        compare(browser.preference("sidebar-new-tab", "false"), "true");
+        window.settingsOpen = false;
+        tryVerify(function () {
+            return row.visible;
+        });
+    }
+
+    // A value Sync brings, or an edit to settings.json, shows or hides the row
+    // while the window runs.
+    function test_theNewTabRowFollowsTheSettingChangedElsewhere() {
+        const row = findChild(window.contentItem, "newTabRow");
+        verify(row.visible);
+        browser.setPreference("sidebar-new-tab", "false");
+        verify(!window.sidebarNewTab);
+        verify(!row.visible);
+        browser.setPreference("sidebar-new-tab", "true");
+        verify(window.sidebarNewTab);
+        verify(row.visible);
     }
 
     // With the Start page asked for, choosing an open tab from it switches to
