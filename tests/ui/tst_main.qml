@@ -18887,6 +18887,10 @@ TestCase {
         compare(field.width, Math.min(720, area.width - 32));
         verify(Math.abs(field.x + field.width / 2 - (area.x + area.width / 2)) <= 1, "the field "
                + field + " is not centred in the page area " + area);
+        // Its top edge 50 px above where the Start page's horizon would be.
+        const horizon = startPage.mapToItem(window.contentItem, 0, startPage.horizonY).y;
+        verify(Math.abs(field.y - (horizon - 50)) <= 1, "the field's top " + field.y
+               + " is not 50 px above the horizon at " + horizon);
 
         keyClick(Qt.Key_Escape);
         tryVerify(function () {
@@ -18919,6 +18923,33 @@ TestCase {
         verify(!window.omnibarOpen);
 
         leaveSpace(homeSpaceId, restingSpaceId, "Resting new tab");
+    }
+
+    // Closing the last tab leaves no page to show, so a new tab there is the
+    // Start page's too.
+    function test_aNewTabAfterTheLastTabClosesStaysOnTheStartPage() {
+        const startPage = findChild(window.contentItem, "startPage");
+        const panel = findChild(window.contentItem, "omnibar");
+        const input = findChild(window.contentItem, "omnibarInput");
+        const homeSpaceId = browser.activeSpaceId;
+        const spaceId = browser.createSpace("Last tab closed");
+        verify(browser.switchSpace(spaceId));
+        openPage("https://last-tab.example/");
+        browser.closeActiveTab();
+        tryVerify(function () {
+            return browser.atRest && window.pagelessViewport;
+        });
+        activateWindow();
+
+        window.commands.run("new-tab", -1);
+        tryVerify(function () {
+            return input.activeFocus;
+        });
+        verify(startPage.open);
+        verify(panel.resting);
+        verify(!window.omnibarOpen);
+
+        leaveSpace(homeSpaceId, spaceId, "Last tab closed");
     }
 
     // The Start page for a new tab is the reader's to ask for back, from

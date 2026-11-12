@@ -24,7 +24,7 @@ private slots:
     void rewritesTheFileAsTheReaderLaidItOut();
     void writesOnlyWhatDiffersFromTheDefault();
     void keepsSpaceColourOnUnlessTheReaderTurnsItOff();
-    void opensANewTabOverThePageUnlessTheReaderAsksForTheStartPage();
+    void keepsTheNewTabStartPageOffUnlessTheReaderTurnsItOn();
     void keepsTheLastGoodValuesWhileTheFileCannotBeRead();
     void startsOnTheDefaultsFromAFileOfAnotherVersion();
     void readsABadValueAsItsDefaultAndNamesIt();
@@ -161,7 +161,7 @@ void SettingsFileTest::keepsSpaceColourOnUnlessTheReaderTurnsItOff()
 
 // A new tab's Omnibar opens over the page by default, for a reader who never
 // chose and for one who upgrades: the Start page is the switch's to bring back.
-void SettingsFileTest::opensANewTabOverThePageUnlessTheReaderAsksForTheStartPage()
+void SettingsFileTest::keepsTheNewTabStartPageOffUnlessTheReaderTurnsItOn()
 {
     QTemporaryDir root;
     QVERIFY(root.isValid());
