@@ -40,7 +40,7 @@ namespace {
     const QStringList syncedPreferences {QStringLiteral("use-favicons"),
         QStringLiteral("tint-favicons"), QStringLiteral("app-icon"),
         QStringLiteral("browser-theme"), QStringLiteral("link-rules"),
-        QStringLiteral("site-styles")};
+        QStringLiteral("site-styles"), QStringLiteral("new-tab-start-page")};
     // Settings an earlier version carried and this one no longer has. A
     // repository still holding one has it taken away on the next capture, so
     // no machine reads it back and nobody reads it in the repository.

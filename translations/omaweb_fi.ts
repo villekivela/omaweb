@@ -3852,6 +3852,14 @@ Päivitykset osoitteesta %3</translation>
         <translation>Oikea</translation>
     </message>
     <message>
+        <source>New tab shows the Start page</source>
+        <translation>Uusi välilehti näyttää aloitussivun</translation>
+    </message>
+    <message>
+        <source>Off, a new tab opens the Omnibar over the page on show.</source>
+        <translation>Kun pois päältä, uusi välilehti avaa Omnibarin näytössä olevan sivun päälle.</translation>
+    </message>
+    <message>
         <source>Scene on the Start page</source>
         <translation>Aloitussivun maisema</translation>
     </message>

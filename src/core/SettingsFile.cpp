@@ -79,6 +79,9 @@ namespace {
             {QLatin1StringView("sidebar-side"), Kind::Text, QStringLiteral("left"),
                 {QStringLiteral("left"), QStringLiteral("right")}},
             {QLatin1StringView("glance"), Kind::Switch, true},
+            // Whether a new tab over a page shows the Start page rather than
+            // the Omnibar over that page.
+            {QLatin1StringView("new-tab-start-page"), Kind::Switch, false},
             {QLatin1StringView("start-page-scene"), Kind::Text, QStringLiteral("crt-road")},
             {QLatin1StringView("start-page-glass"), Kind::Switch, true},
             // The Telemetry Scene's text size, and the modules the reader

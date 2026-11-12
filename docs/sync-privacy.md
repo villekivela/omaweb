@@ -37,12 +37,12 @@ recovery key. GitHub stores only ciphertext and can't read them.
 ### Readable in the repository
 
 Your whole `keybindings.json`, every Site style in `styles/`, your filter subscription addresses,
-and six settings: `use-favicons`, `tint-favicons`, `app-icon`, `browser-theme`, `link-rules` and
-`site-styles`, which names the Site styles you switched off. These are stored as plain text, so
-anyone who can read the repository, GitHub included, can read them. Your Link rules name the sites
-they match and the Spaces they send them to, and each Site style is named for the site it styles. A
-repository an earlier version wrote `ease-sidebar` or `floating-controls` into loses that file on
-the next sync, since neither setting exists any more.
+and seven settings: `use-favicons`, `tint-favicons`, `app-icon`, `browser-theme`, `link-rules`,
+`site-styles`, which names the Site styles you switched off, and `new-tab-start-page`. These are
+stored as plain text, so anyone who can read the repository, GitHub included, can read them. Your
+Link rules name the sites they match and the Spaces they send them to, and each Site style is named
+for the site it styles. A repository an earlier version wrote `ease-sidebar` or `floating-controls`
+into loses that file on the next sync, since neither setting exists any more.
 
 ### Never synced
 

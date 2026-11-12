@@ -174,6 +174,7 @@ Rectangle {
     property string appIcon: "black-and-white"
     property string sidebarSide: "left"
     property bool glanceEnabled: true
+    property bool newTabShowsStartPage: false
     property bool spaceColours: true
     // The Start page's Scene, by its id, or "none".
     property string startPageScene: "crt-road"
@@ -480,6 +481,7 @@ Rectangle {
     signal appIconChosen(string icon)
     signal sidebarSideChosen(string side)
     signal glanceToggled(bool enabled)
+    signal newTabShowsStartPageToggled(bool enabled)
     signal spaceColoursToggled(bool enabled)
     signal startPageSceneChosen(string scene)
     signal startPageGlassToggled(bool enabled)
@@ -1374,6 +1376,18 @@ Rectangle {
                         accessibleName: qsTr("Glance at a page's new tabs")
                         checked: root.glanceEnabled
                         onClicked: root.glanceToggled(!checked)
+                    }
+
+                    SettingToggle {
+                        objectName: "newTabShowsStartPage"
+                        enabled: root.settingsWritable
+                        width: pane.width
+                        colors: root.colors
+                        title: qsTr("New tab shows the Start page")
+                        note: qsTr("Off, a new tab opens the Omnibar over the page on show.")
+                        accessibleName: qsTr("New tab shows the Start page")
+                        checked: root.newTabShowsStartPage
+                        onClicked: root.newTabShowsStartPageToggled(!checked)
                     }
 
                     // The thumbnails stand in a row of their own under the

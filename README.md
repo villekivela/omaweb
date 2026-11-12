@@ -13,7 +13,8 @@ a sidebar, separates browsing identities into Spaces, and follows the desktop th
 
 ## Highlights
 
-- The Omnibar is where every new tab starts, resting on the Start page's night road. It opens
+- The Omnibar is where every new tab starts: over the page on show, or resting on the Start page's
+  night road where there is no page, or always with "New tab shows the Start page" on. It opens
   addresses, searches the web with the engine's suggestions, switches to an open tab in any Space,
   and runs commands.
 - Spaces keep cookies, logins, history, permissions, sessions, and tabs separate.

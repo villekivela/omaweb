@@ -107,8 +107,10 @@ survives a switch to another Space and back. _Avoid_: Tab history, recent tabs, 
 rest, `about:blank`, and a new-tab request that has no destination yet. It is the Omnibar at rest
 above the road's horizon, centred in the page area, focused, over the CRT road, a Scene that fills
 the page area, drawn as the website draws it in a viewport of that size, and never runs under the
-sidebar. It costs no engine. A new-tab request shows it over the page on show, and `Escape` gives
-that page back. _Avoid_: Home page, new tab page, about:blank, speed dial
+sidebar. It costs no engine. A new-tab request over a page opens the Omnibar over that page instead,
+unless the reader turned on "New tab shows the Start page", which shows the Start page over the page
+on show until `Escape` gives that page back. _Avoid_: Home page, new tab page, about:blank, speed
+dial
 
 **Scene**: The drawing behind the Start page, and nothing else: the host sizes it, keeps its clock
 and shows it, through the CRT glass when it declares one. A Scene may also name the light it casts,

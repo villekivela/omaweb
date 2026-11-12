@@ -24,6 +24,7 @@ private slots:
     void rewritesTheFileAsTheReaderLaidItOut();
     void writesOnlyWhatDiffersFromTheDefault();
     void keepsSpaceColourOnUnlessTheReaderTurnsItOff();
+    void opensANewTabOverThePageUnlessTheReaderAsksForTheStartPage();
     void keepsTheLastGoodValuesWhileTheFileCannotBeRead();
     void startsOnTheDefaultsFromAFileOfAnotherVersion();
     void readsABadValueAsItsDefaultAndNamesIt();
@@ -156,6 +157,25 @@ void SettingsFileTest::keepsSpaceColourOnUnlessTheReaderTurnsItOff()
     QVERIFY(!settings.set(QStringLiteral("space-colours"), QStringLiteral("off")));
     QVERIFY(settings.set(QStringLiteral("space-colours"), true));
     QVERIFY(!settings.isSet(QStringLiteral("space-colours")));
+}
+
+// A new tab's Omnibar opens over the page by default, for a reader who never
+// chose and for one who upgrades: the Start page is the switch's to bring back.
+void SettingsFileTest::opensANewTabOverThePageUnlessTheReaderAsksForTheStartPage()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const auto path = root.filePath(QStringLiteral("settings.json"));
+    SettingsFile settings(root.path());
+
+    QVERIFY(SettingsFile::keys().contains(QStringLiteral("new-tab-start-page")));
+    QCOMPARE(settings.value(QStringLiteral("new-tab-start-page")), QJsonValue(false));
+    QVERIFY(settings.set(QStringLiteral("new-tab-start-page"), true));
+    QCOMPARE(
+        readFile(path), QByteArray("{\n  \"version\": 1,\n  \"new-tab-start-page\": true\n}\n"));
+    QVERIFY(!settings.set(QStringLiteral("new-tab-start-page"), QStringLiteral("on")));
+    QVERIFY(settings.set(QStringLiteral("new-tab-start-page"), false));
+    QVERIFY(!settings.isSet(QStringLiteral("new-tab-start-page")));
 }
 
 // A file the reader is halfway through editing is not a file of defaults:
