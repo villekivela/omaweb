@@ -89,7 +89,9 @@ gestures and user styles. A two-finger swipe over a page goes Back and Forward
 Gestures page in Settings then chooses what two- and three-finger swipes do and how far they travel
 ([#933](https://github.com/villekivela/omaweb/issues/933)). A CSS file per site in the configuration
 directory restyles that site, applies as it is saved, and Sync carries it
-([#913](https://github.com/villekivela/omaweb/issues/913)). The Omarchy kit catches up with quattro
+([#913](https://github.com/villekivela/omaweb/issues/913)). A panel on the right edits that file,
+and hides a part of the page the reader points at
+([#939](https://github.com/villekivela/omaweb/issues/939)). The Omarchy kit catches up with quattro
 again ([#932](https://github.com/villekivela/omaweb/issues/932)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
