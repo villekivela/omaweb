@@ -126,6 +126,33 @@ Item {
     }
     property alias canGoBack: webView.canGoBack
     property alias canGoForward: webView.canGoForward
+    QtHistorySwipe {
+        id: historySwipe
+        view: webView
+        enabled: webView.visible && root.visible && root.opacity > 0
+        canGoBack: webView.canGoBack
+        canGoForward: webView.canGoForward
+        onClaimed: QtPageGlide.cancelIn(webView)
+        onQueryNeeded: function (request, position, direction) {
+            const point = [position.x / webView.zoomFactor, position.y / webView.zoomFactor,
+                           direction];
+
+
+            const call = "typeof globalThis.__omawebHistorySwipeCanStart === 'function' && "
+                  + "globalThis.__omawebHistorySwipeCanStart(" + point.join(",") + ")";
+            webView.runJavaScript(call, WebEngineScript.ApplicationWorld, function (allowed) {
+                historySwipe.resolve(request, allowed === true);
+            });
+        }
+        onNavigate: function (direction) {
+            if (direction < 0)
+                root.goBack();
+            else
+                root.goForward();
+        }
+    }
+
+    readonly property real historySwipeProgress: historySwipe.progress
     property string profilePath: ""
     property var sharedProfile: null
     property var permissionController: null
@@ -3861,7 +3888,17 @@ Item {
                 root.userActivationScript, root.pressOriginScript, root.formHistoryScript,
                 root.controlAccentScript, root.pagePaletteScript, root.pageScrollbarScript,
                 root.pageScrollReportScript, root.mediaSessionScript, root.mediaPlayingScript,
-                root.cosmeticSurveyScript, root.proceduralFiltersScript];
+                root.cosmeticSurveyScript, root.proceduralFiltersScript, root.historySwipeScript];
+    }
+
+    property var historySwipeScript: {
+        const script = WebEngine.script();
+        script.name = "Omaweb history swipe boundary";
+        script.injectionPoint = WebEngineScript.DocumentCreation;
+        script.worldId = WebEngineScript.ApplicationWorld;
+        script.runsOnSubFrames = false;
+        script.sourceUrl = Qt.resolvedUrl("history-swipe.js");
+        return script;
     }
 
     // What a frame knows of an address in another app's scheme before Qt
@@ -4953,6 +4990,7 @@ Item {
         onLoadingChanged: function (loadRequest) {
             root.refreshRenderProcessPid();
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
+                historySwipe.cancel();
                 // A new document leaves behind what the last one reported.
                 // An attempt to open an app starts a load too, but its report
                 // has been taken by then.

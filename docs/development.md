@@ -139,6 +139,11 @@ the hardware renderer, so those two captures go without `QT_QUICK_BACKEND=softwa
 presets load QML, themes, and the icon font directly from the source tree. Editing those files
 requires an application restart but no compile or relink.
 
+With `--tabs --browse`, `--show history-back` and `--show history-forward` hold the page-history
+gesture feedback at its commit threshold. These captures use the same `HistorySwipeFeedback`
+component the real page draws. Run `node tests/scripts/tst_historyswipe.mjs` for the DOM boundary
+checks; CTest includes them when Node is available, and the CI style job always runs them.
+
 The `release` preset compiles the QML ahead of time instead: the shared UI, the vendored kit and the
 engine view each become a static library that `qt_add_qml_module` runs `qmlcachegen` over, so
 bytecode and the bindings the compiler can type ship in the binary and the first launch parses no

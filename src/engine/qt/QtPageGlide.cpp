@@ -6,6 +6,7 @@
 #include <QLoggingCategory>
 #include <QQmlEngine>
 #include <QQuickItem>
+#include <QScopedValueRollback>
 #include <QWheelEvent>
 
 #include <algorithm>
@@ -116,6 +117,15 @@ void QtPageGlide::stopIn(QQuickItem *view)
 {
     if (gliding() && m_scrolled && view != nullptr && view->isAncestorOf(m_scrolled)) {
         halt("page load");
+    }
+}
+
+void QtPageGlide::cancelIn(QQuickItem *view)
+{
+    if (view && m_scrolled && view->isAncestorOf(m_scrolled)) {
+        halt("history swipe");
+        m_speed.clear();
+        m_scrolled.clear();
     }
 }
 
@@ -259,6 +269,7 @@ void QtPageGlide::send(Qt::ScrollPhase phase, QPoint delta)
     m_stampedAt = at;
     event.setTimestamp(at);
     m_sending = true;
+    const QScopedValueRollback<bool> guard(pageGlideEvent, true);
     QCoreApplication::sendEvent(m_scrolled, &event);
     m_sending = false;
 }

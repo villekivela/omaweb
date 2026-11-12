@@ -6,6 +6,9 @@
 
 namespace omaweb {
 
+// Synthetic glide updates are not a new movement of the reader's fingers.
+inline thread_local bool pageGlideEvent = false;
+
 // Whether `item` is the one Chromium's input and frames go through. Qt makes it a child of the
 // view and does not export its type, so it is known by its class name.
 inline bool isPageInput(const QQuickItem *item)
