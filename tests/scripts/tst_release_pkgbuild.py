@@ -160,22 +160,16 @@ class EngineAndCapability(unittest.TestCase):
     def test_the_x86_64_engine_is_linked_as_chrome_is(self) -> None:
         # 6.11.3-2 is the first x86_64 engine linked at ThinLTO's --lto-O2, as
         # Chrome's own targets are, which took Speedometer from 0.73 of
-        # Chromium 140 to 0.82 (#886). Every engine after it is linked so too.
-        # The client depends on no engine on either architecture.
-        for pkgbuild, browser, client in (
-            (SOURCE_PKGBUILD.read_text(), "omaweb-git", "omaweb-cli-git"),
-            (release_pkgbuild(), "omaweb", "omaweb-cli"),
-        ):
-            body = package_function(pkgbuild, browser)
-            x86_64 = re.findall(r"^\s*depends_x86_64=\((.*)\)$", body, re.MULTILINE)
+        # Chromium 140 to 0.82 (#886). The floor every architecture shares
+        # must not fall below it, and no package takes a lower one of its own.
+        for pkgbuild in (SOURCE_PKGBUILD.read_text(), release_pkgbuild()):
             floors = [
                 name.split(">=", 1)[1]
-                for name in depends(pkgbuild) + re.findall(r"'([^']+)'", " ".join(x86_64))
+                for name in depends(pkgbuild)
                 if name.startswith(f"{ENGINE}>=")
             ]
             self.assertGreaterEqual(max(map(version, floors)), version("6.11.3-2"))
-            self.assertNotIn("depends_x86_64", package_function(pkgbuild, client))
-            self.assertNotRegex(pkgbuild, r"(?m)^depends_x86_64=")
+            self.assertNotIn("depends_x86_64", pkgbuild)
 
     def test_the_option_is_one_cmake_declares(self) -> None:
         # A misspelt or renamed option is accepted by CMake with a warning
