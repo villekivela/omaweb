@@ -92,7 +92,9 @@ directory restyles that site, applies as it is saved, and Sync carries it
 ([#913](https://github.com/villekivela/omaweb/issues/913)). A panel on the right edits that file,
 and hides a part of the page the reader points at
 ([#939](https://github.com/villekivela/omaweb/issues/939)). The Omarchy kit catches up with quattro
-again ([#932](https://github.com/villekivela/omaweb/issues/932)).
+again ([#932](https://github.com/villekivela/omaweb/issues/932)). The engine moves to QtWebEngine
+6.140.0, the first released apart from Qt, with Chromium's security fixes up to 157.0.8103.50
+([#484](https://github.com/villekivela/omaweb/issues/484)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
@@ -116,12 +118,10 @@ not distribute its bundles ([ADR 0029](adr/0029-distribute-only-for-linux.md)).
   ([#175](https://github.com/villekivela/omaweb/issues/175)).
 - The Ladybird adapter ([#7](https://github.com/villekivela/omaweb/issues/7)) stays experimental and
   outside the default build graph until it satisfies the daily-driver contract.
-- The engine's move to QtWebEngine 6.140.0
-  ([#484](https://github.com/villekivela/omaweb/issues/484)) waits on Qt's final release, and so
-  does what is built on it: an engine patch that gives an Agent tab its own debugging session, so an
-  Agent reads the tab's network ([#373](https://github.com/villekivela/omaweb/issues/373)) and, in
-  an Agent Space, the page's main world ([#534](https://github.com/villekivela/omaweb/issues/534)).
-  They join the release that is open when 6.140.0 is out.
+- An engine patch that gives an Agent tab its own debugging session, so an Agent reads the tab's
+  network ([#373](https://github.com/villekivela/omaweb/issues/373)) and, in an Agent Space, the
+  page's main world ([#534](https://github.com/villekivela/omaweb/issues/534)), is built on the
+  6.140.0 engine and follows its move ([#484](https://github.com/villekivela/omaweb/issues/484)).
 - Account and Sync with replaceable providers are deferred.
 - Spellchecking ([#912](https://github.com/villekivela/omaweb/issues/912)) is deferred. The engine
   has the checker built in, so it is browser work when it comes back.
