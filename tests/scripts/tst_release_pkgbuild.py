@@ -43,7 +43,7 @@ def depends(pkgbuild: str) -> list[str]:
 
 
 def version(text: str) -> tuple[int, ...]:
-    """A pacman version such as 6.11.3-2, compared by its numbers."""
+    """A pacman version such as 6.11.3-2, compared by its numbers. No epoch or suffix."""
     return tuple(int(part) for part in re.split(r"[.-]", text))
 
 
@@ -157,7 +157,7 @@ class EngineAndCapability(unittest.TestCase):
         for pkgbuild in (SOURCE_PKGBUILD.read_text(), release_pkgbuild()):
             self.assertIn(f"{ENGINE}>=6.140.0-1", depends(pkgbuild))
 
-    def test_the_x86_64_engine_is_linked_as_chrome_is(self) -> None:
+    def test_no_architecture_gets_an_engine_linked_below_chrome(self) -> None:
         # 6.11.3-2 is the first x86_64 engine linked at ThinLTO's --lto-O2, as
         # Chrome's own targets are, which took Speedometer from 0.73 of
         # Chromium 140 to 0.82 (#886). The floor every architecture shares
