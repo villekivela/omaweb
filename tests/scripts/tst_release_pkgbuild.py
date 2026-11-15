@@ -42,6 +42,11 @@ def depends(pkgbuild: str) -> list[str]:
     return [name for line in lines for name in re.findall(r"'([^']+)'", line)]
 
 
+def version(text: str) -> tuple[int, ...]:
+    """A pacman version such as 6.11.3-2, compared by its numbers. No epoch or suffix."""
+    return tuple(int(part) for part in re.split(r"[.-]", text))
+
+
 def configure_arguments(pkgbuild: str) -> list[str]:
     """The arguments of the one `cmake --preset release` call, continuations joined."""
     joined = re.sub(r"\\\n\s*", " ", pkgbuild)
@@ -146,28 +151,25 @@ class EngineAndCapability(unittest.TestCase):
         # 6.11.2-12 calls the window geometry API that 6.11.2-7 does not have,
         # so it would not start on it (#684). Omaweb runs on 6.11.2-16, but
         # that engine carries Chromium's security fixes only up to
-        # 151.0.7922.71, and 6.11.3-1 carries them up to 155.0.8059.85 (#802).
-        # pacman upgrades Omaweb without the engine unless the dependency asks
-        # for a newer one.
+        # 151.0.7922.71, 6.11.3-1 carries them up to 155.0.8059.85 (#802), and
+        # 6.140.0-1 up to 157.0.8103.50 (#484). pacman upgrades Omaweb without
+        # the engine unless the dependency asks for a newer one.
         for pkgbuild in (SOURCE_PKGBUILD.read_text(), release_pkgbuild()):
-            self.assertIn(f"{ENGINE}>=6.11.3-1", depends(pkgbuild))
+            self.assertIn(f"{ENGINE}>=6.140.0-1", depends(pkgbuild))
 
-    def test_the_x86_64_engine_is_linked_as_chrome_is(self) -> None:
-        # 6.11.3-2 links the x86_64 engine at ThinLTO's --lto-O2, as Chrome's
-        # own targets are, which took Speedometer from 0.73 of Chromium 140 to
-        # 0.82 (#886). aarch64 builds with GCC and stays on 6.11.3-1, so the
-        # floor is the browser package's on x86_64 alone; the client depends on
-        # no engine on either.
-        for pkgbuild, browser, client in (
-            (SOURCE_PKGBUILD.read_text(), "omaweb-git", "omaweb-cli-git"),
-            (release_pkgbuild(), "omaweb", "omaweb-cli"),
-        ):
-            self.assertEqual(
-                assignment(package_function(pkgbuild, browser), "depends_x86_64"),
-                f"'{ENGINE}>=6.11.3-2'",
-            )
-            self.assertNotIn("depends_x86_64", package_function(pkgbuild, client))
-            self.assertNotRegex(pkgbuild, r"(?m)^depends_x86_64=")
+    def test_no_architecture_gets_an_engine_linked_below_chrome(self) -> None:
+        # 6.11.3-2 is the first x86_64 engine linked at ThinLTO's --lto-O2, as
+        # Chrome's own targets are, which took Speedometer from 0.73 of
+        # Chromium 140 to 0.82 (#886). The floor every architecture shares
+        # must not fall below it, and no package takes a lower one of its own.
+        for pkgbuild in (SOURCE_PKGBUILD.read_text(), release_pkgbuild()):
+            floors = [
+                name.split(">=", 1)[1]
+                for name in depends(pkgbuild)
+                if name.startswith(f"{ENGINE}>=")
+            ]
+            self.assertGreaterEqual(max(map(version, floors)), version("6.11.3-2"))
+            self.assertNotIn("depends_x86_64", pkgbuild)
 
     def test_the_option_is_one_cmake_declares(self) -> None:
         # A misspelt or renamed option is accepted by CMake with a warning

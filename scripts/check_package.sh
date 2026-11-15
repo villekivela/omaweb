@@ -35,9 +35,9 @@ if pacman -Si "$engine" > /dev/null 2>&1; then
 else
     makepkg_dep_flags="-d"
     # At the version the PKGBUILD asks for: pacman refuses a bare assumed
-    # package for a versioned dependency. An architecture can ask for a newer
-    # engine than the rest (`depends_x86_64`), so the highest floor named is
-    # the one assumed, which meets every lower one too.
+    # package for a versioned dependency. An architecture may ask for a newer
+    # engine than the rest (`depends_x86_64`, as up to 6.11.3-2), so the
+    # highest floor named is the one assumed, which meets every lower one too.
     floor=$(grep -o "'$engine>=[^']*'" "$repo_root/packaging/PKGBUILD" \
         | sed "s/^'$engine>=\(.*\)'$/\1/" | sort -V | tail -n 1)
     pacman_dep_flags="--assume-installed $engine${floor:+=$floor}"
