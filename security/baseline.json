@@ -1,7 +1,7 @@
 {
   "version": 1,
   "reviewed": "2026-10-28",
-  "qtwebengine": "6.11.3",
+  "qtwebengine": "6.140.0",
   "chromium": "140.0.7339.264",
   "chromiumSecurityPatch": "155.0.8059.85",
   "notes": [
