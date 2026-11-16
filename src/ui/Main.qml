@@ -3657,13 +3657,12 @@ ApplicationWindow {
         window.forgetPendingSave();
     }
 
-    // The core counts the stops: a split is one of them.
     // What a committed touchpad swipe does, the way the fingers went: 1 is the
     // next, -1 the previous, as the footer runs. Back and forward goes on the
-    // page swiped over, or the page on show.
+    // page swiped over, or the page on show, a Glance over the tab included.
     function runSwipe(action, direction, engine) {
         if (action === "back-and-forward") {
-            const page = engine || engineLoader;
+            const page = engine || window.glanceEngine || engineLoader;
             if (direction < 0)
                 page.goBack();
             else
@@ -3685,6 +3684,7 @@ ApplicationWindow {
         }
     }
 
+    // The core counts the stops: a split is one of them.
     function stepTab(delta) {
         window.windowBrowser.stepTab(delta);
     }
@@ -4897,6 +4897,10 @@ ApplicationWindow {
 
                     function onPageTooltipRequested(tooltip) {
                         window.showPageTooltip(window.glanceEngine, tooltip);
+                    }
+
+                    function onPageSwiped(direction) {
+                        window.runSwipe(window.pageSwipeAction, direction, window.glanceEngine);
                     }
 
                     function onFormSubmitted(fields) {

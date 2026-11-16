@@ -623,7 +623,8 @@ whichever swipe asked for them.
 - Over a page, the engine view's `QtHistorySwipe` commits as above and emits `pageSwiped`.
   `TabEngineHost` hands it every page's action and distance. The view gates on the page's history
   only for Back and forward, and disables the recognizer for Nothing, so the page keeps the scroll.
-  A pop-up window runs Back and forward itself and treats the other actions as Nothing.
+  A page lent to a Tab window reports to that window, and a Tab window or a pop-up window runs Back
+  and forward itself and treats the other actions as Nothing. The Glance relays its own.
 - Over the sidebar, `SpaceSwipe` keeps its Space slide for Switch Space and emits `swiped` for
   anything else, with the list left where it is.
 - Three fingers reach a Wayland client as `QNativeGestureEvent`s: a begin, a `PanNativeGesture` per

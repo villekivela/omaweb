@@ -268,6 +268,10 @@ Item {
                                                    ? root.fullscreenEngine.siteFullscreenOrigin : ""
     readonly property bool siteFullscreenActive: root.fullscreenEngine !== null
 
+    // What a swipe over a page does and how far it goes, which every page is
+    // handed from Settings.
+    property string pageSwipeAction: "back-and-forward"
+    property real swipeDistance: 120
     signal printFinished(string destination, bool succeeded)
     signal pageCaptured(string destination, bool succeeded, string reason)
     // What a tab's page asks to open, from every engine this window answers
@@ -284,8 +288,6 @@ Item {
     // A sideways swipe over a page committed; the window runs what Settings
     // chose for it.
     signal pageSwiped(var engine, int direction)
-    property string pageSwipeAction: "back-and-forward"
-    property real swipeDistance: 120
     signal browserPromptRequested(var engine, string requestId, var prompt)
     signal securityKeyRequested(var engine, string requestId, var step)
     signal fileSelectionRequested(var engine, string requestId, var selection)
@@ -808,9 +810,6 @@ Item {
             });
             engine.swipeDistance = Qt.binding(function () {
                 return root.swipeDistance;
-            });
-            engine.pageSwiped.connect(function (direction) {
-                root.pageSwiped(engine, direction);
             });
         }
         return engine;
@@ -1951,6 +1950,10 @@ Item {
 
                 function onPageTooltipRequested(tooltip) {
                     root.pageTooltipRequested(tabSlot.engine, tooltip);
+                }
+
+                function onPageSwiped(direction) {
+                    root.pageSwiped(tabSlot.engine, direction);
                 }
 
                 // Kept in the Space of the tab the form was in, which is not

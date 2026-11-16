@@ -121,8 +121,11 @@ Item {
         preferredRendererType: Shape.CurveRenderer
 
         readonly property real level: root.padY + root.padHeight * 0.11
-        readonly property real from: root.width / 2 - root.padWidth * 0.3
-        readonly property real to: root.width / 2 + root.padWidth * 0.3
+        readonly property real from: DevicePixels.snap(root.width / 2 - root.padWidth * 0.3,
+                                                       root.pixelRatio)
+        readonly property real to: DevicePixels.snap(root.width / 2 + root.padWidth * 0.3,
+                                                     root.pixelRatio)
+
         readonly property real head: root.padWidth * 0.047
 
         ShapePath {
@@ -153,9 +156,11 @@ Item {
         preferredRendererType: Shape.CurveRenderer
 
         readonly property real k: root.height / 172
-        readonly property string path: root.handPath(root.fingers, k, root.width / 2 - 47 * k
-                                                     + root.slide * root.reach, root.padY
-                                                     + root.padHeight * 0.3 - 8 * k)
+        // At rest on the display's pixels; the slide moves it from there.
+        readonly property real restingX: DevicePixels.snap(root.width / 2 - 47 * k, root.pixelRatio)
+        readonly property string path: root.handPath(root.fingers, k, restingX + root.slide
+                                                     * root.reach, root.padY + root.padHeight * 0.3
+                                                     - 8 * k)
 
         ShapePath {
             fillRule: ShapePath.WindingFill

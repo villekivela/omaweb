@@ -52,7 +52,8 @@ signals:
     void changed();
 
 private:
-    void read();
+    // Takes the file's values; true where any differs from those held.
+    bool read();
 
     SettingsFile m_settings;
     QString m_page;

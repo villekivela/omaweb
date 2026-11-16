@@ -27,9 +27,8 @@ Row {
     property int step: 1
     property bool overridden: false
     property string unit: "%"
-    // Whether the value is in pixels rather than percent, for what a screen
-    // reader is told.
-    property bool inPixels: false
+    // What a screen reader is told the value is in: pixels, or percent.
+    readonly property bool inPixels: unit.trim() === "px"
     property string accessibleName: ""
     // Where reset takes the value, named so that reset is a return and not a
     // jump: "the theme's".

@@ -200,11 +200,11 @@ reports the gap and remains experimental rather than imitating behavior it canno
   movement, and a phased gesture whose end never comes is released after 1 s. A notch of a sideways
   wheel or a tilt-wheel switches one Space with the pointer's slide, and notches during the slide or
   within 200 ms after it are dropped. With reduced motion the list stays still under the fingers,
-  and a swipe that passes the same threshold switches once and the Space arrives settled. The swipe
-  does nothing in a Private window, with a single Space, or while a tab is being dragged. Set to
-  Back and forward or Switch tab, the list stays put under the fingers and the action runs on the
-  same commit rule, in the same direction, for a notch too. Set to Nothing, the sidebar's tab list
-  scrolls as if the swipe were not there.
+  and a swipe that passes the same threshold switches once and the Space arrives settled. Switch
+  Space does nothing in a Private window, with a single Space, or while a tab is being dragged. Set
+  to Back and forward or Switch tab, the list stays put under the fingers and the action runs on the
+  same commit rule, in the same direction, for a notch too, in a Private window as well; only a tab
+  drag stops it. Set to Nothing, the sidebar's tab list scrolls as if the swipe were not there.
 - While the sidebar holds the keyboard, `j` and `k` move the Sidebar cursor through its rows, pins
   first, without changing the page. `l` or `Return` opens the row under it and focuses the page, and
   `h` returns the cursor to the tab on show. A single key the reader binds to a command takes
@@ -996,20 +996,25 @@ reports the gap and remains experimental rather than imitating behavior it canno
   Switch tab wraps from the last tab to the first and back as `next-tab` does, and Switch Space
   wraps as `next-space` does. It commits on release after the swipe distance or a flick faster than
   1000 px/s, and whichever axis first moves 6 logical pixels owns it. Back and forward goes on the
-  page on show. Set to Nothing, the swipe is left to whatever else takes it.
+  page on show, a Glance over the tab included. Set to Nothing, the swipe is left to whatever else
+  takes it. The compositor reports where the fingers went, not a scroll, so the reader's scroll
+  direction setting does not turn it round: with natural scrolling it runs the way two fingers over
+  the sidebar do, and with traditional scrolling the other way. It acts in the main window; a Tab
+  window and a pop-up window leave it alone.
 - Gestures in Settings, after Keyboard, has a card for each swipe: two fingers over the page, two
   fingers over the sidebar, and three fingers anywhere. Each card draws a touchpad and a hand in the
   theme's accent, with the number of fingers the swipe takes and an arrow for its direction, then
   names the swipe, says where the fingers go and offers Back and forward, Switch Space, Switch tab
-  or Nothing. The cards stand two to a row. The card with the pointer over it or the keyboard's
-  focus on its picker draws its border in the accent and slides the hand across the touchpad and
-  back; under reduced motion the hand stays still. One Swipe distance slider, from 60 to 240 px in
-  steps of 10 and 120 by default, sets how far every swipe goes before it acts. A note says that
-  Hyprland's own three-finger workspace gesture acts on the same swipe while it is on, so Three
-  fingers should be Nothing then. The choices are `gestures` in `settings.json`, which holds only
-  what the reader changed; an edit of the file applies at once, and Sync carries it. A pop-up window
-  runs Back and forward from a page swipe and nothing else, since it has no tab or Space of its own
-  to switch.
+  or Nothing. The cards stand two to a row, level, with their pickers in line. The card whose picker
+  has the keyboard's focus draws its border in the accent, and while it has the focus or the pointer
+  over it the hand slides across the touchpad and back; under reduced motion the hand stays still.
+  One Swipe distance slider, from 60 to 240 px in steps of 10 and 120 by default, sets how far every
+  swipe goes before it acts. A note says that Hyprland's own three-finger workspace gesture acts on
+  the same swipe while it is on, so Three fingers should be Nothing then. The choices are `gestures`
+  in `settings.json`, which holds only what the reader changed; an edit of the file applies at once,
+  and Sync carries it. A Tab window or a pop-up window runs Back and forward from a swipe over its
+  page and nothing else, since it has no tab or Space of its own to switch; a swipe over a Glance
+  goes back and forward in the Glance.
 - A touchpad scroll in a page glides on after the fingers lift and slows to a stop, as in GTK 4. The
   glide starts at the speed the fingers had over the last 150 ms before they lifted, so fingers that
   come to rest first leave the page where it is, and it slows as GTK's does. It scrolls whatever the

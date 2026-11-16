@@ -22324,6 +22324,75 @@ TestCase {
         window.settingsOpen = false;
     }
 
+    // Back and forward from a swipe goes on the page on show: a Glance over
+    // the tab, not the tab beneath it, whether three fingers or two over the
+    // Glance asked.
+    function test_aSwipeGoesBackAndForwardInTheGlanceNotTheTabBeneath() {
+        const opener = openPage("https://swipe-opener.example");
+        opener.canGoForward = true;
+        gestureSettings.setAction("three-fingers", "back-and-forward");
+        openGlance("https://swipe-glanced.example/first");
+        const glanced = window.glanceEngine;
+        glanced.canGoForward = true;
+        try {
+            gestureProbe.swipe(window.contentItem, 3, -20, 7);
+            compare(glanced.forwardCount, 1);
+            glanced.pageSwiped(-1);
+            compare(glanced.backCount, 1);
+            compare(opener.forwardCount, 0);
+            compare(opener.backCount, 0);
+        } finally {
+            gestureSettings.setAction("three-fingers", "switch-tab");
+            opener.canGoForward = false;
+            window.closeGlance();
+        }
+    }
+
+    // A page in a Tab window answers to that window: a swipe over it goes
+    // back there, and never switches the main window's tab.
+    function test_aSwipeOverAPageInATabWindowStaysInThatWindow() {
+        const engine = openPage("https://swipe-popped.example");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://swipe-staying.example");
+        const stayingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+        const backsBefore = engine.backCount;
+        engine.pageSwiped(-1);
+        compare(engine.backCount, backsBefore + 1);
+        compare(browser.activeTabId, stayingTabId);
+
+        gestureSettings.setAction("page", "switch-tab");
+        engine.pageSwiped(-1);
+        compare(engine.backCount, backsBefore + 1);
+        compare(browser.activeTabId, stayingTabId);
+        gestureSettings.setAction("page", "back-and-forward");
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+    }
+
+    // Switch tab wraps: from the first tab, a swipe towards the previous goes
+    // to the last, and from there towards the next comes back to the first.
+    function test_switchTabFromASwipeWrapsAtBothEnds() {
+        const spaces = swipeSpaces();
+        const lastTab = browser.openTabInSpace(spaces.first, "https://swipe-last.example/");
+        browser.activateTab(spaces.firstTab);
+        compare(browser.activeTabId, spaces.firstTab);
+        gestureProbe.swipe(window.contentItem, 3, 20, 7);
+        compare(browser.activeTabId, lastTab);
+        gestureProbe.swipe(window.contentItem, 3, -20, 7);
+        compare(browser.activeTabId, spaces.firstTab);
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        tryVerify(function () {
+            return engineHost.item !== null && engineHost.item.currentUrl.toString()
+                    === "https://swipe-first.example/";
+        });
+        wait(0);
+        forgetSwipeSpaces(spaces);
+    }
+
     // Each of the three gestures does what Settings chose for it: Back and
     // forward on the page on show, a switch of Space or of tab the way the
     // fingers went, or nothing (#933). The fingers go towards the next here,

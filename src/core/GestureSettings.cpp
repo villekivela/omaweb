@@ -4,6 +4,7 @@
 #include <QJsonValue>
 
 #include <algorithm>
+#include <tuple>
 #include <utility>
 
 namespace omaweb {
@@ -42,9 +43,7 @@ GestureSettings::GestureSettings(QString configRoot, QObject *parent)
         if (!keys.contains(QLatin1String(key))) {
             return;
         }
-        const auto before = std::tuple(m_page, m_sidebar, m_threeFingers, m_distance);
-        read();
-        if (std::tuple(m_page, m_sidebar, m_threeFingers, m_distance) != before) {
+        if (read()) {
             emit changed();
         }
     });
@@ -86,16 +85,18 @@ void GestureSettings::setDistance(int distance)
     }
 }
 
-void GestureSettings::read()
+bool GestureSettings::read()
 {
     const auto stored = m_settings.value(QLatin1String(key)).toObject();
-    const auto action = [&stored](const Gesture &gesture) {
-        return stored.value(gesture.name).toString(gesture.fallback);
+    const auto action = [&stored](const QString &name) {
+        return stored.value(name).toString(find(name)->fallback);
     };
-    m_page = action(gestures[0]);
-    m_sidebar = action(gestures[1]);
-    m_threeFingers = action(gestures[2]);
+    const auto before = std::tuple(m_page, m_sidebar, m_threeFingers, m_distance);
+    m_page = action(QStringLiteral("page"));
+    m_sidebar = action(QStringLiteral("sidebar"));
+    m_threeFingers = action(QStringLiteral("three-fingers"));
     m_distance = stored.value(QLatin1String(distanceMember)).toInt(defaultDistance());
+    return std::tuple(m_page, m_sidebar, m_threeFingers, m_distance) != before;
 }
 
 } // namespace omaweb

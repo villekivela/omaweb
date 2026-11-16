@@ -2044,53 +2044,62 @@ Rectangle {
                             }
                         ]
 
-                        GestureCard {
-                            id: pageGestureCard
-                            width: gestureCards.cardWidth
-                            rowHeight: sidebarGestureCard.implicitHeight
-                            enabled: root.settingsWritable && !!root.gestureSettings
-                            colors: root.colors
-                            gesture: "page"
-                            fingers: 2
-                            title: qsTr("Two fingers over the page")
-                            note: qsTr("Swipe sideways while the pointer is on the page.")
-                            options: gestureCards.actions
-                            action: root.gestureSettings ? root.gestureSettings.pageAction : ""
-                            onChosen: function (action) {
-                                root.gestureSettings.setAction(gesture, action);
-                            }
+                        // The two cards in a row end level, so their pickers
+                        // stand in line when one note wraps and the other
+                        // does not.
+                        readonly property real firstRowHeight: {
+                            const first = gestureCardRepeater.count > 1 ? gestureCardRepeater.itemAt(
+                                                                              0) : null;
+                            const second = first ? gestureCardRepeater.itemAt(1) : null;
+                            return second ? Math.max(first.implicitHeight, second.implicitHeight) :
+                                            0;
                         }
 
-                        GestureCard {
-                            id: sidebarGestureCard
-                            width: gestureCards.cardWidth
-                            rowHeight: pageGestureCard.implicitHeight
-                            enabled: root.settingsWritable && !!root.gestureSettings
-                            colors: root.colors
-                            gesture: "sidebar"
-                            fingers: 2
-                            title: qsTr("Two fingers over the sidebar")
-                            note: qsTr("Swipe sideways while the pointer is on the sidebar.")
-                            options: gestureCards.actions
-                            action: root.gestureSettings ? root.gestureSettings.sidebarAction : ""
-                            onChosen: function (action) {
-                                root.gestureSettings.setAction(gesture, action);
-                            }
-                        }
+                        Repeater {
+                            id: gestureCardRepeater
+                            model: [
+                                {
+                                    gesture: "page",
+                                    fingers: 2,
+                                    title: qsTr("Two fingers over the page"),
+                                    note: qsTr("Swipe sideways while the pointer is on the page."),
+                                    setting: "pageAction"
+                                },
+                                {
+                                    gesture: "sidebar",
+                                    fingers: 2,
+                                    title: qsTr("Two fingers over the sidebar"),
+                                    note: qsTr(
+                                              "Swipe sideways while the pointer is on the sidebar."),
+                                    setting: "sidebarAction"
+                                },
+                                {
+                                    gesture: "three-fingers",
+                                    fingers: 3,
+                                    title: qsTr("Three fingers anywhere"),
+                                    note: qsTr("Swipe sideways anywhere in the window."),
+                                    setting: "threeFingerAction"
+                                }
+                            ]
 
-                        GestureCard {
-                            width: gestureCards.cardWidth
-                            enabled: root.settingsWritable && !!root.gestureSettings
-                            colors: root.colors
-                            gesture: "three-fingers"
-                            fingers: 3
-                            title: qsTr("Three fingers anywhere")
-                            note: qsTr("Swipe sideways anywhere in the window.")
-                            options: gestureCards.actions
-                            action: root.gestureSettings ? root.gestureSettings.threeFingerAction :
-                                                           ""
-                            onChosen: function (action) {
-                                root.gestureSettings.setAction(gesture, action);
+                            GestureCard {
+                                required property var modelData
+                                required property int index
+
+                                width: gestureCards.cardWidth
+                                rowHeight: index < 2 ? gestureCards.firstRowHeight : 0
+                                enabled: root.settingsWritable && !!root.gestureSettings
+                                colors: root.colors
+                                gesture: modelData.gesture
+                                fingers: modelData.fingers
+                                title: modelData.title
+                                note: modelData.note
+                                options: gestureCards.actions
+                                action: root.gestureSettings
+                                        ? root.gestureSettings[modelData.setting] : ""
+                                onChosen: function (action) {
+                                    root.gestureSettings.setAction(gesture, action);
+                                }
                             }
                         }
                     }
@@ -2115,7 +2124,6 @@ Rectangle {
                             overridden: !!root.gestureSettings && root.gestureSettings.distance
                                         !== root.gestureSettings.defaultDistance
                             unit: " px"
-                            inPixels: true
                             accessibleName: qsTr("Swipe distance")
                             onMoved: function (pixels) {
                                 root.gestureSettings.setDistance(pixels);

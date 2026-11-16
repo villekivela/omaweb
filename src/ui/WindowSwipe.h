@@ -41,6 +41,7 @@ public:
     static constexpr qreal axisLock = 6;
     static constexpr qreal flickSpeed = 1000;
     static constexpr quint64 speedWindow = 100;
+    static constexpr qreal defaultDistance = 120;
 
     explicit WindowSwipe(QQuickItem *parent = nullptr);
     ~WindowSwipe() override;
@@ -48,6 +49,7 @@ public:
 signals:
     void fingersChanged();
     void distanceChanged();
+    // The fingers lifted far enough along, or flicked, in `direction`.
     void committed(int direction);
 
 protected:
@@ -63,11 +65,13 @@ private:
 
     bool gesture(QNativeGestureEvent *event);
     void watch(QQuickWindow *window);
+    // How fast the fingers were moving at `at`, in pixels a second, from the
+    // movement in the `speedWindow` before it.
     qreal speedAt(quint64 at) const;
 
     QPointer<QQuickWindow> m_window;
     int m_fingers = 3;
-    qreal m_distance = 120;
+    qreal m_distance = defaultDistance;
     bool m_tracking = false;
     Axis m_axis = Axis::Undecided;
     QPointF m_travel;
