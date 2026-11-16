@@ -2459,12 +2459,14 @@ TestCase {
         return page;
     }
 
-    // Gestures follows Keyboard: a card for each of the three swipes, two to a
-    // row, each with its picture, a title, a line on where it reads the
-    // fingers and a choice of four actions. Under them one distance for every
+    // Gestures follows Keyboard: a card for each of the three swipes, in as many
+    // columns as fit, each with its picture, a title, a line on where it reads
+    // the fingers and a choice of four actions. Under them one distance for every
     // swipe, and the note on Hyprland's own three-finger gesture (#933).
     function test_theGesturesSectionOffersAnActionForEachSwipeAndOneDistance() {
         const page = makeGesturesPage();
+        // A typical sheet fits two columns.
+        page.width = 1100;
         compare(page.sections[page.sections.indexOf("keyboard") + 1], "gestures");
         const cards = ["page", "sidebar", "three-fingers"].map(function (gesture) {
             const card = findChild(page, "gestureCard-" + gesture);
@@ -2567,6 +2569,42 @@ TestCase {
         }
     }
 
+    // The cards reflow with the sheet: as many columns as fit with each card at
+    // least 300 px wide, from one to three (#933).
+    function test_theGestureCardsReflowIntoAsManyColumnsAsFit() {
+        const page = makeGesturesPage();
+        const cards = ["page", "sidebar", "three-fingers"].map(function (gesture) {
+            return findChild(page, "gestureCard-" + gesture);
+        });
+        const layouts = [];
+        [[700, 1], [1100, 2], [1800, 3]].forEach(function (pair) {
+            page.width = pair[0];
+            tryVerify(function () {
+                return cards[0].width > 0;
+            });
+            wait(0);
+            const columns = [];
+            cards.forEach(function (card) {
+                if (columns.indexOf(card.x) < 0)
+                    columns.push(card.x);
+                verify(card.width >= 300, pair[0] + ": " + card.width);
+            });
+            layouts.push(pair[0] + ":" + columns.length);
+            compare(columns.length, pair[1], layouts.join(" "));
+            // Cards in one row end level, and each keeps its drawing centred.
+            for (let index = 1; index < cards.length; ++index) {
+                if (cards[index].y === cards[0].y)
+                    compare(cards[index].height, cards[0].height);
+            }
+            cards.forEach(function (card) {
+                const drawing = findChild(card, "gestureDrawing");
+                compare(drawing.height, 96);
+                fuzzyCompare(drawing.mapToItem(card, 0, 0).x + drawing.width / 2, card.width / 2,
+                             0.5);
+            });
+        });
+    }
+
     // The drawing keeps one size, 96 px tall and centred in its card, however
     // wide the sheet and so the card are (#933).
     function test_aGestureDrawingKeepsItsSizeWhateverTheSheetsWidth() {
@@ -2583,7 +2621,7 @@ TestCase {
             sizes.push(drawing.width + "x" + drawing.height);
             compare(drawing.height, 96);
             compare(drawing.width, 192);
-            compare(drawing.mapToItem(card, 0, 0).x + drawing.width / 2, card.width / 2);
+            fuzzyCompare(drawing.mapToItem(card, 0, 0).x + drawing.width / 2, card.width / 2, 0.5);
         });
         compare(sizes[0], sizes[2]);
     }
