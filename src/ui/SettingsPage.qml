@@ -2020,11 +2020,15 @@ Rectangle {
 
                     Grid {
                         id: gestureCards
-                        columns: 2
+                        // As many columns as fit with each card at least
+                        // cardFloor wide, from one to three.
+                        readonly property real cardFloor: 300
+                        columns: Math.max(1, Math.min(3, Math.floor((pane.width + columnSpacing) / (cardFloor
+                                                                                                    + columnSpacing))))
                         columnSpacing: Style.spacing.huge
                         rowSpacing: Style.spacing.huge
-                        readonly property real cardWidth: Math.floor((pane.width - columnSpacing)
-                                                                     / 2)
+                        readonly property real cardWidth: Math.floor((pane.width - columnSpacing * (
+                                                                          columns - 1)) / columns)
                         readonly property var actions: [
                             {
                                 value: "back-and-forward",
@@ -2044,15 +2048,20 @@ Rectangle {
                             }
                         ]
 
-                        // The two cards in a row end level, so their pickers
-                        // stand in line when one note wraps and the other
-                        // does not.
-                        readonly property real firstRowHeight: {
-                            const first = gestureCardRepeater.count > 1 ? gestureCardRepeater.itemAt(
-                                                                              0) : null;
-                            const second = first ? gestureCardRepeater.itemAt(1) : null;
-                            return second ? Math.max(first.implicitHeight, second.implicitHeight) :
-                                            0;
+                        // The cards in a row end level, so their pickers
+                        // stand in line when one note wraps and the others
+                        // do not.
+                        function rowHeight(index) {
+                            const start = index - index % columns;
+                            let tallest = 0;
+                            // Reading the count re-runs this as the cards appear.
+                            const end = Math.min(start + columns, gestureCardRepeater.count);
+                            for (let at = start; at < end; ++at) {
+                                const card = gestureCardRepeater.itemAt(at);
+                                if (card)
+                                    tallest = Math.max(tallest, card.implicitHeight);
+                            }
+                            return tallest;
                         }
 
                         Repeater {
@@ -2087,7 +2096,7 @@ Rectangle {
                                 required property int index
 
                                 width: gestureCards.cardWidth
-                                rowHeight: index < 2 ? gestureCards.firstRowHeight : 0
+                                rowHeight: gestureCards.rowHeight(index)
                                 enabled: root.settingsWritable && !!root.gestureSettings
                                 colors: root.colors
                                 gesture: modelData.gesture
