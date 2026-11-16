@@ -268,6 +268,10 @@ Item {
                                                    ? root.fullscreenEngine.siteFullscreenOrigin : ""
     readonly property bool siteFullscreenActive: root.fullscreenEngine !== null
 
+    // What a swipe over a page does and how far it goes, which every page is
+    // handed from Settings.
+    property string pageSwipeAction: "back-and-forward"
+    property real swipeDistance: 120
     signal printFinished(string destination, bool succeeded)
     signal pageCaptured(string destination, bool succeeded, string reason)
     // What a tab's page asks to open, from every engine this window answers
@@ -281,6 +285,9 @@ Item {
     signal pageSiteDataCleared(string origin, var cleared, string error)
     signal pageContextRequested(var engine, var context)
     signal pageTooltipRequested(var engine, var tooltip)
+    // A sideways swipe over a page committed; the window runs what Settings
+    // chose for it.
+    signal pageSwiped(var engine, int direction)
     signal browserPromptRequested(var engine, string requestId, var prompt)
     signal securityKeyRequested(var engine, string requestId, var step)
     signal fileSelectionRequested(var engine, string requestId, var selection)
@@ -686,6 +693,14 @@ Item {
         if (!engine)
             return null;
         root.registerEngine(tabId, engine, spaceId);
+        // A page lent to a Tab window has no tab or Space there to switch, so
+        // it keeps a swipe only for Back and forward and leaves any other to
+        // the page, as a pop-up window does. Back here, it takes the reader's
+        // action again.
+        engine.swipeAction = Qt.binding(function () {
+            return root.lent(tabId) && root.pageSwipeAction !== "back-and-forward" ? "nothing" :
+                                                                                     root.pageSwipeAction;
+        });
         return engine;
     }
 
@@ -794,10 +809,17 @@ Item {
             untiedZoomComponent.createObject(engine, {
                                                  "engine": engine
                                              });
-        if (engine)
+        if (engine) {
             historyFeedbackComponent.createObject(engine, {
                                                       "engine": engine
                                                   });
+            engine.swipeAction = Qt.binding(function () {
+                return root.pageSwipeAction;
+            });
+            engine.swipeDistance = Qt.binding(function () {
+                return root.swipeDistance;
+            });
+        }
         return engine;
     }
 
@@ -1936,6 +1958,10 @@ Item {
 
                 function onPageTooltipRequested(tooltip) {
                     root.pageTooltipRequested(tabSlot.engine, tooltip);
+                }
+
+                function onPageSwiped(direction) {
+                    root.pageSwiped(tabSlot.engine, direction);
                 }
 
                 // Kept in the Space of the tab the form was in, which is not

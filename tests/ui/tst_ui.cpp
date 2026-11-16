@@ -23,6 +23,7 @@
 #include "PageScale.h"
 #include "ProblemRecording.h"
 #include "ProblemReporter.h"
+#include "GestureSettings.h"
 #include "SidebarOpacity.h"
 #include "SqliteSessionStore.h"
 #include "KitTheme.h"
@@ -42,6 +43,7 @@
 #include "InputOrigin.h"
 #include "PrimaryHold.h"
 #include "SpaceSwipe.h"
+#include "WindowSwipe.h"
 #include "Scenes.h"
 #include "SystemClipboard.h"
 #include "ThemeController.h"
@@ -55,6 +57,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPainter>
+#include <QPointingDevice>
 #include <QQmlContext>
 #include <QDir>
 #include <QDateTime>
@@ -332,6 +335,43 @@ public:
         event.setTimestamp(static_cast<quint64>(timestamp));
         QCoreApplication::sendEvent(window, &event);
     }
+};
+
+// A swipe of several fingers as Qt's Wayland plugin hands one to the window: a
+// begin, a pan for each movement, and an end. The offscreen platform has no
+// touchpad, so the events are sent as the plugin would send them. Answers
+// whether the window took the swipe rather than leave it to the item under
+// the pointer.
+class GestureProbe final : public QObject {
+    Q_OBJECT
+
+public:
+    Q_INVOKABLE bool swipe(QQuickItem *item, int fingers, qreal dx, int steps) const
+    {
+        auto *window = item->window();
+        const auto point = item->mapToScene(QPointF(item->width() / 2, item->height() / 2));
+        const auto send = [&](Qt::NativeGestureType type, QPointF delta, quint64 at) {
+            QNativeGestureEvent event(
+                type, &m_touchpad, fingers, point, point, window->mapToGlobal(point), 0, delta);
+            event.setTimestamp(at);
+            QCoreApplication::sendEvent(window, &event);
+            return event.isAccepted();
+        };
+        m_clock += 1000;
+        const bool taken = send(Qt::BeginNativeGesture, {}, m_clock);
+        for (int step = 0; step < steps; ++step) {
+            m_clock += 50;
+            send(Qt::PanNativeGesture, QPointF(dx, 0), m_clock);
+        }
+        send(Qt::EndNativeGesture, {}, ++m_clock);
+        return taken;
+    }
+
+private:
+    QPointingDevice m_touchpad {QStringLiteral("probe touchpad"), 2,
+        QInputDevice::DeviceType::TouchPad, QPointingDevice::PointerType::Finger,
+        QInputDevice::Capability::Position, 5, 0};
+    mutable quint64 m_clock = 0;
 };
 
 // What the desktop is asked to open. The offscreen platform has no desktop to
@@ -766,6 +806,7 @@ public slots:
         omaweb::registerInputOrigin();
         omaweb::registerPrimaryHold();
         omaweb::registerSpaceSwipe();
+        omaweb::registerWindowSwipe();
         omaweb::registerScenes();
         omaweb::registerExternalProtocolHandler();
         omaweb::registerPagePrinter();
@@ -828,6 +869,8 @@ public slots:
         m_sidebarOpacity = std::make_unique<omaweb::SidebarOpacity>(
             m_dataRoot->filePath(QStringLiteral("config")));
         m_theme->followSidebarOpacity(m_sidebarOpacity.get());
+        m_gestureSettings = std::make_unique<omaweb::GestureSettings>(
+            m_dataRoot->filePath(QStringLiteral("config")));
         m_pageScale
             = std::make_unique<omaweb::PageScale>(m_dataRoot->filePath(QStringLiteral("config")));
         m_problemRecording = std::make_unique<omaweb::ProblemRecording>();
@@ -898,6 +941,7 @@ public slots:
         engine->rootContext()->setContextProperty(QStringLiteral("imageProbe"), m_imageProbe.get());
         engine->rootContext()->setContextProperty(QStringLiteral("cursorProbe"), &m_cursorProbe);
         engine->rootContext()->setContextProperty(QStringLiteral("wheelProbe"), &m_wheelProbe);
+        engine->rootContext()->setContextProperty(QStringLiteral("gestureProbe"), &m_gestureProbe);
         engine->rootContext()->setContextProperty(QStringLiteral("desktopProbe"), &m_desktopProbe);
         engine->rootContext()->setContextProperty(
             QStringLiteral("windowFocusProbe"), &m_windowFocusProbe);
@@ -908,6 +952,8 @@ public slots:
         engine->rootContext()->setContextProperty(
             QStringLiteral("sidebarOpacity"), m_sidebarOpacity.get());
         engine->rootContext()->setContextProperty(QStringLiteral("pageScale"), m_pageScale.get());
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("gestureSettings"), m_gestureSettings.get());
         engine->rootContext()->setContextProperty(
             QStringLiteral("problemRecording"), m_problemRecording.get());
         engine->rootContext()->setContextProperty(
@@ -1004,6 +1050,7 @@ public slots:
         m_problemRecording.reset();
         m_pageScale.reset();
         m_sidebarOpacity.reset();
+        m_gestureSettings.reset();
         m_fontSettings.reset();
         m_theme.reset();
         m_windowManager.reset();
@@ -1028,6 +1075,7 @@ private:
     SyncLauncherProbe m_syncLauncher;
     CursorProbe m_cursorProbe;
     WheelProbe m_wheelProbe;
+    GestureProbe m_gestureProbe;
     // The browser's own glide, which carries a touchpad scroll in the chrome on past the lift
     // as it does a page's. It watches the application's events, so it is made once there is one.
     std::unique_ptr<omaweb::QtPageGlide> m_glide;
@@ -1054,6 +1102,7 @@ private:
     std::unique_ptr<omaweb::ThemeController> m_theme;
     std::unique_ptr<omaweb::FontSettings> m_fontSettings;
     std::unique_ptr<omaweb::SidebarOpacity> m_sidebarOpacity;
+    std::unique_ptr<omaweb::GestureSettings> m_gestureSettings;
     std::unique_ptr<omaweb::PageScale> m_pageScale;
     std::unique_ptr<omaweb::ProblemRecording> m_problemRecording;
     std::unique_ptr<omaweb::ProblemReporter> m_problemReporter;

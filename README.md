@@ -114,8 +114,13 @@ but does not install the Qt plugin.
 Over a page, a two-finger horizontal touchpad swipe goes Back or Forward on release. A stronger
 outline marks the navigation threshold; move back below that threshold before lifting to cancel.
 Horizontal content keeps its scrolling, and the gesture respects a site's overscroll policy. Frames,
-canvases, input fields, fullscreen pages and closed web components keep their gestures. Sidebar
-swipes continue to switch Spaces.
+canvases, input fields, fullscreen pages and closed web components keep their gestures. A two-finger
+swipe over the sidebar switches Spaces, and a three-finger swipe anywhere switches tabs.
+
+Settings > Gestures chooses what each of the three swipes does: Back and forward, Switch Space,
+Switch tab or Nothing. Its Swipe distance sets how far every swipe goes before it acts. Hyprland's
+own three-finger workspace gesture acts on the same swipe, so set Three fingers to Nothing while it
+is on.
 
 ## Keyboard shortcuts
 

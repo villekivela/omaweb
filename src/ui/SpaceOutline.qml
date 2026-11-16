@@ -257,6 +257,13 @@ Rectangle {
     // far enough, and the Space arrives settled.
     readonly property bool swipeFollows: root.easeSpaces && root.spacesCanMove
     property real swipeOffset: 0
+    // How far a slow swipe goes before it acts, and what it does: the
+    // reader's. Anything but a switch of Space is the window's to run, so the
+    // list stays where it is and `swiped` hands the direction on.
+    property real swipeDistance: 120
+    property string swipeAction: "switch-space"
+    readonly property bool swipeSwitchesSpace: swipeAction === "switch-space"
+    signal swiped(int direction)
     // The leaving list's picture is held while the list is away from rest,
     // and taken again once it is back.
     onSwipeOffsetChanged: if (swipeOffset === 0)
@@ -2451,20 +2458,28 @@ Rectangle {
         objectName: "spaceSwipe"
         anchors.fill: parent
         z: 3
-        enabled: root.swipeAllowed
-        settling: root.arriving
+        enabled: root.swipeSwitchesSpace ? root.swipeAllowed : root.swipeAction !== "nothing"
+                                           && root.browser !== null && root.draggedRow === null
+        settling: root.swipeSwitchesSpace && root.arriving
+        distance: root.swipeDistance
         onOffsetChanged: {
-            if (!swiping || !root.swipeFollows)
+            if (!swiping || !root.swipeFollows || !root.swipeSwitchesSpace)
                 return;
             swipeSpring.stop();
             root.swipeOffset = offset;
         }
         onCommitted: function (direction) {
-            root.swipeTo(direction, root.swipeOffset / listLayer.width);
+            if (root.swipeSwitchesSpace)
+                root.swipeTo(direction, root.swipeOffset / listLayer.width);
+            else
+                root.swiped(direction);
         }
         onSprangBack: swipeSpring.start()
         onStepped: function (direction) {
-            root.swipeTo(direction, 0);
+            if (root.swipeSwitchesSpace)
+                root.swipeTo(direction, 0);
+            else
+                root.swiped(direction);
         }
     }
 

@@ -22231,14 +22231,19 @@ TestCase {
         forgetSwipeSpaces(spaces);
     }
 
-    // Let go with the next Space at least half in view, the swipe switches to
-    // it and the slide carries on from where the fingers left it. A flick
-    // towards a neighbour switches however little of it is in view. Short of
-    // both, the list springs back.
-    function test_aSwipeCommitsHalfInOrOnAFlickAndSpringsBackShortOfBoth() {
+    // Let go with the list moved the swipe distance or further, the swipe
+    // switches to the next Space and the slide carries on from where the
+    // fingers left it. The distance is the reader's, 120 pixels until they
+    // choose, whatever the sidebar's width. A flick towards a neighbour
+    // switches however little of it is in view. Short of both, the list
+    // springs back.
+    function test_aSwipeCommitsAtTheSwipeDistanceOrOnAFlickAndSpringsBackShortOfBoth() {
         const spaces = swipeSpaces();
         const sidebar = findChild(window.contentItem, "sidebar");
+        const widthBefore = window.sidebarWidth;
+        window.setSidebarWidth(320);
         const width = findChild(sidebar, "spaceSwipe").width;
+        compare(width, 320);
 
         swipeAcross(sidebar, -10, 4, 50);
         const spring = watchChanges(sidebar, "swipeOffset");
@@ -22247,13 +22252,17 @@ TestCase {
         settleSwipe();
         compare(browser.activeSpaceId, spaces.first);
 
-        const steps = Math.ceil(width / 20) + 1;
-        swipeAcross(sidebar, -10, steps, 50);
+        swipeAcross(sidebar, -10, 11, 50);
+        liftFingers(sidebar);
+        settleSwipe();
+        compare(browser.activeSpaceId, spaces.first);
+
+        swipeAcross(sidebar, -10, 12, 50);
         const arrival = watchChanges(sidebar, "arrivalOffset");
         liftFingers(sidebar);
         compare(browser.activeSpaceId, spaces.second);
         verify(sidebar.arriving);
-        fuzzyCompare(arrival.seen[0], 1 - steps * 10 / width, 0.01);
+        fuzzyCompare(arrival.seen[0], 1 - 120 / width, 0.01);
         stopWatching(arrival);
         settleSwipe();
 
@@ -22268,6 +22277,215 @@ TestCase {
         liftFingers(sidebar);
         settleSwipe();
         compare(browser.activeSpaceId, spaces.first);
+
+        // Half the sidebar is short of a distance the reader set longer.
+        gestureSettings.setDistance(200);
+        swipeAcross(sidebar, -10, 16, 50);
+        liftFingers(sidebar);
+        settleSwipe();
+        compare(browser.activeSpaceId, spaces.first);
+        swipeAcross(sidebar, -10, 20, 50);
+        liftFingers(sidebar);
+        compare(browser.activeSpaceId, spaces.second);
+        settleSwipe();
+
+        gestureSettings.setDistance(gestureSettings.defaultDistance);
+        window.setSidebarWidth(widthBefore);
+        forgetSwipeSpaces(spaces);
+    }
+
+    // The Gestures section writes the reader's choices to the setting the
+    // swipes read, and draws what the setting holds, a change from the file
+    // or Sync included.
+    function test_theGesturesSectionChangesWhatTheSwipesDo() {
+        window.requestSettings();
+        tryVerify(function () {
+            return findChild(window.contentItem, "settingsSurface") !== null;
+        });
+        const settings = findChild(window.contentItem, "settingsSurface");
+        settings.section = settings.sections.indexOf("gestures");
+        const picker = findChild(settings, "gestureAction-three-fingers");
+        verify(picker !== null);
+        compare(picker.value, "switch-tab");
+        picker.changed("switch-space");
+        compare(gestureSettings.threeFingerAction, "switch-space");
+        compare(window.threeFingerSwipeAction, "switch-space");
+        gestureSettings.setAction("three-fingers", "nothing");
+        compare(picker.value, "nothing");
+        verify(!findChild(window.contentItem, "windowSwipe").enabled);
+
+        const slider = findChild(settings, "swipeDistance");
+        slider.moved(180);
+        compare(gestureSettings.distance, 180);
+        compare(findChild(window.contentItem, "sidebar").swipeDistance, 180);
+
+        gestureSettings.setAction("three-fingers", "switch-tab");
+        gestureSettings.setDistance(gestureSettings.defaultDistance);
+        window.settingsOpen = false;
+    }
+
+    // Back and forward from a swipe goes on the page on show: a Glance over
+    // the tab, not the tab beneath it, whether three fingers or two over the
+    // Glance asked.
+    function test_aSwipeGoesBackAndForwardInTheGlanceNotTheTabBeneath() {
+        const opener = openPage("https://swipe-opener.example");
+        opener.canGoForward = true;
+        gestureSettings.setAction("three-fingers", "back-and-forward");
+        openGlance("https://swipe-glanced.example/first");
+        const glanced = window.glanceEngine;
+        glanced.canGoForward = true;
+        try {
+            gestureProbe.swipe(window.contentItem, 3, -20, 7);
+            compare(glanced.forwardCount, 1);
+            glanced.pageSwiped(-1);
+            compare(glanced.backCount, 1);
+            compare(opener.forwardCount, 0);
+            compare(opener.backCount, 0);
+        } finally {
+            gestureSettings.setAction("three-fingers", "switch-tab");
+            opener.canGoForward = false;
+            window.closeGlance();
+        }
+    }
+
+    // A page in a Tab window answers to that window: a swipe over it goes
+    // back there, and never switches the main window's tab.
+    function test_aSwipeOverAPageInATabWindowStaysInThatWindow() {
+        const engine = openPage("https://swipe-popped.example");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://swipe-staying.example");
+        const stayingTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+        const backsBefore = engine.backCount;
+        engine.pageSwiped(-1);
+        compare(engine.backCount, backsBefore + 1);
+        compare(browser.activeTabId, stayingTabId);
+
+        gestureSettings.setAction("page", "switch-tab");
+        engine.pageSwiped(-1);
+        compare(engine.backCount, backsBefore + 1);
+        compare(browser.activeTabId, stayingTabId);
+        gestureSettings.setAction("page", "back-and-forward");
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(tabId) === null;
+        });
+    }
+
+    // A Tab window has no tab or Space to switch, so with Switch tab or Switch
+    // Space chosen its page leaves a sideways swipe to the page itself rather
+    // than take it and do nothing. Back and forward stays, and the page takes
+    // the reader's action back when it returns to the main window.
+    function test_aTabWindowLeavesASwipeToItsPageUnlessItGoesBack() {
+        const engine = openPage("https://swipe-lent.example");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://swipe-home.example");
+        gestureSettings.setAction("page", "switch-tab");
+        compare(engine.swipeAction, "switch-tab");
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+        try {
+            compare(engine.swipeAction, "nothing");
+            gestureSettings.setAction("page", "back-and-forward");
+            compare(engine.swipeAction, "back-and-forward");
+            gestureSettings.setAction("page", "switch-space");
+            compare(engine.swipeAction, "nothing");
+            tabWindow.close();
+            tryVerify(function () {
+                return window.tabWindowFor(tabId) === null;
+            });
+            compare(engine.swipeAction, "switch-space");
+        } finally {
+            gestureSettings.setAction("page", "back-and-forward");
+        }
+    }
+
+    // Switch tab wraps: from the first tab, a swipe towards the previous goes
+    // to the last, and from there towards the next comes back to the first.
+    function test_switchTabFromASwipeWrapsAtBothEnds() {
+        const spaces = swipeSpaces();
+        const lastTab = browser.openTabInSpace(spaces.first, "https://swipe-last.example/");
+        browser.activateTab(spaces.firstTab);
+        compare(browser.activeTabId, spaces.firstTab);
+        gestureProbe.swipe(window.contentItem, 3, 20, 7);
+        compare(browser.activeTabId, lastTab);
+        gestureProbe.swipe(window.contentItem, 3, -20, 7);
+        compare(browser.activeTabId, spaces.firstTab);
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        tryVerify(function () {
+            return engineHost.item !== null && engineHost.item.currentUrl.toString()
+                    === "https://swipe-first.example/";
+        });
+        wait(0);
+        forgetSwipeSpaces(spaces);
+    }
+
+    // Each of the three gestures does what Settings chose for it: Back and
+    // forward on the page on show, a switch of Space or of tab the way the
+    // fingers went, or nothing (#933). The fingers go towards the next here,
+    // so Back and forward goes forward. The recognizers' own reading of the
+    // fingers is tested on its own; the page's is the engine's.
+    function test_eachGestureRunsTheActionChosenForIt_data() {
+        const rows = [];
+        for (const gesture of ["page", "sidebar", "three-fingers"]) {
+            for (const action of ["back-and-forward", "switch-space", "switch-tab", "nothing"])
+                rows.push({
+                              "tag": gesture + " " + action,
+                              "gesture": gesture,
+                              "action": action
+                          });
+        }
+        return rows;
+    }
+
+    function test_eachGestureRunsTheActionChosenForIt(data) {
+        const spaces = swipeSpaces();
+        const sidebar = findChild(window.contentItem, "sidebar");
+        const otherTab = browser.openTabInSpace(spaces.first, "https://swipe-other.example/");
+        browser.activateTab(spaces.firstTab);
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        tryVerify(function () {
+            return engineHost.item !== null && engineHost.item.currentUrl.toString()
+                    === "https://swipe-first.example/";
+        });
+        const engine = engineHost.item;
+        const forwardsBefore = engine.forwardCount;
+        const defaults = {
+            "page": "back-and-forward",
+            "sidebar": "switch-space",
+            "three-fingers": "switch-tab"
+        };
+        gestureSettings.setAction(data.gesture, data.action);
+
+        if (data.gesture === "page") {
+            engine.pageSwiped(1);
+        } else if (data.gesture === "sidebar") {
+            swipeAcross(sidebar, -10, 13, 50);
+            liftFingers(sidebar);
+        } else {
+            // Set to Nothing, the window leaves the swipe to whatever is under
+            // the pointer.
+            compare(gestureProbe.swipe(window.contentItem, 3, -20, 7), data.action !== "nothing");
+        }
+
+        compare(engine.forwardCount - forwardsBefore, data.action === "back-and-forward" ? 1 : 0);
+        compare(browser.activeSpaceId, data.action === "switch-space" ? spaces.second :
+                                                                        spaces.first);
+        if (data.action !== "switch-space")
+            compare(browser.activeTabId, data.action === "switch-tab" ? otherTab : spaces.firstTab);
+        // The page a switch put on show takes the focus a turn later, which
+        // has to find its tab still there.
+        tryVerify(function () {
+            return engineHost.item !== null && engineHost.item.currentUrl.toString() === (
+                        data.action === "switch-tab" ? "https://swipe-other.example/" : data.action
+                                                       === "switch-space"
+                                                       ? "https://swipe-second.example/" :
+                                                         "https://swipe-first.example/");
+        });
+        wait(0);
+        settleSwipe();
+        gestureSettings.setAction(data.gesture, defaults[data.gesture]);
         forgetSwipeSpaces(spaces);
     }
 

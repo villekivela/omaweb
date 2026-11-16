@@ -126,12 +126,23 @@ Item {
     }
     property alias canGoBack: webView.canGoBack
     property alias canGoForward: webView.canGoForward
+    // What a sideways swipe over the page does, which the host hands every
+    // page from Settings, and how far it goes. The fingers are read here and
+    // `pageSwiped` says which way; the chrome runs the action.
+    property string swipeAction: "back-and-forward"
+    property real swipeDistance: 120
+    signal pageSwiped(int direction)
+    readonly property bool swipeGoesBack: swipeAction === "back-and-forward"
     QtHistorySwipe {
         id: historySwipe
         view: webView
-        enabled: webView.visible && root.visible && root.opacity > 0
-        canGoBack: webView.canGoBack
-        canGoForward: webView.canGoForward
+        enabled: webView.visible && root.visible && root.opacity > 0 && root.swipeAction
+                 !== "nothing"
+        distance: root.swipeDistance
+        // A page without history has nowhere for Back and forward to go, but a
+        // tab or a Space is still there to switch to.
+        canGoBack: !root.swipeGoesBack || webView.canGoBack
+        canGoForward: !root.swipeGoesBack || webView.canGoForward
         onClaimed: QtPageGlide.cancelIn(webView)
         onQueryNeeded: function (request, position, direction) {
             const point = [position.x / webView.zoomFactor, position.y / webView.zoomFactor,
@@ -145,10 +156,7 @@ Item {
             });
         }
         onNavigate: function (direction) {
-            if (direction < 0)
-                root.goBack();
-            else
-                root.goForward();
+            root.pageSwiped(direction);
         }
     }
 

@@ -51,7 +51,17 @@ namespace {
 
     constexpr auto versionKey = "version";
 
-    enum class Kind { Switch, Number, Fraction, Text, Fonts, Extensions, HostSwitches, LinkRules };
+    enum class Kind {
+        Switch,
+        Number,
+        Fraction,
+        Text,
+        Fonts,
+        Extensions,
+        HostSwitches,
+        LinkRules,
+        Gestures
+    };
 
     struct Key {
         QLatin1StringView name;
@@ -117,6 +127,10 @@ namespace {
             // The site styles the reader switched off, by host, each `false`
             // (SiteStyles.h). A host not named is on.
             {QLatin1StringView("site-styles"), Kind::HostSwitches, unstated},
+            // What each touchpad swipe does and the distance every swipe
+            // shares (GestureSettings.h). A gesture not named keeps its own
+            // default.
+            {QLatin1StringView("gestures"), Kind::Gestures, unstated},
         };
         return keys;
     }
@@ -173,6 +187,30 @@ namespace {
             const auto extensions = value.toObject();
             return std::ranges::all_of(
                 extensions, [](const QJsonValue &enabled) { return enabled.isBool(); });
+        }
+        case Kind::Gestures: {
+            if (!value.isObject()) {
+                return false;
+            }
+            static const QStringList actions {QStringLiteral("back-and-forward"),
+                QStringLiteral("switch-space"), QStringLiteral("switch-tab"),
+                QStringLiteral("nothing")};
+            static const QStringList gestures {
+                QStringLiteral("page"), QStringLiteral("sidebar"), QStringLiteral("three-fingers")};
+            const auto members = value.toObject();
+            for (auto it = members.constBegin(); it != members.constEnd(); ++it) {
+                if (it.key() == QLatin1String("distance")) {
+                    const auto distance = it.value().toInteger();
+                    if (!isWholeNumber(it.value()) || distance < 60 || distance > 240
+                        || distance % 10 != 0) {
+                        return false;
+                    }
+                } else if (!gestures.contains(it.key())
+                    || !actions.contains(it.value().toString())) {
+                    return false;
+                }
+            }
+            return true;
         }
         case Kind::LinkRules: {
             // A pattern that does not parse is still a rule: Settings marks
@@ -462,7 +500,7 @@ QJsonValue SettingsFile::fromText(const QString &key, const QString &text)
         return document.isArray() ? QJsonValue(document.array())
                                   : QJsonValue(QJsonValue::Undefined);
     }
-    if (known && known->kind == Kind::HostSwitches) {
+    if (known && (known->kind == Kind::HostSwitches || known->kind == Kind::Gestures)) {
         const auto document = QJsonDocument::fromJson(text.toUtf8());
         return document.isObject() ? QJsonValue(document.object())
                                    : QJsonValue(QJsonValue::Undefined);
@@ -485,7 +523,7 @@ bool SettingsFile::setMember(const QString &key, const QString &member, const QJ
     const auto *known = find(key);
     if (!known
         || (known->kind != Kind::Fonts && known->kind != Kind::Extensions
-            && known->kind != Kind::HostSwitches)) {
+            && known->kind != Kind::HostSwitches && known->kind != Kind::Gestures)) {
         return false;
     }
     return change([&](QJsonObject &object, Order *order) {

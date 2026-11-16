@@ -146,7 +146,7 @@ void SpaceSwipe::release(quint64 liftedAt)
     }
     const qreal distance = m_offset;
     const qreal speed = speedAt(liftedAt);
-    const bool farEnough = std::abs(distance) >= width() / 2;
+    const bool farEnough = std::abs(distance) >= m_distance;
     const bool flicked = distance != 0 && speed * distance > 0 && std::abs(speed) > flickSpeed;
     setSwiping(false);
     if (distance != 0 && (farEnough || flicked)) {

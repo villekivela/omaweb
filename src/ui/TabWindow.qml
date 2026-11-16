@@ -445,6 +445,16 @@ Window {
         function onDeveloperToolsClosed() {
             root.browser.closeDeveloperTools();
         }
+        // A Tab window holds one page, so only Back and forward runs from a
+        // swipe over it; there is no tab or Space here to switch.
+        function onPageSwiped(direction) {
+            if (root.engine.swipeAction !== "back-and-forward")
+                return;
+            if (direction < 0)
+                root.engine.goBack();
+            else
+                root.engine.goForward();
+        }
         function onWindowCloseRequested() {
             root.browser.closeTabInSpace(root.tabId, root.entry.spaceId);
         }

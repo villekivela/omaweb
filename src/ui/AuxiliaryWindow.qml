@@ -40,6 +40,11 @@ ApplicationWindow {
     // The browser's SiteStyles, which this window's page takes as a tab's in
     // the opener's Space does.
     property var siteStyles: null
+    // What a swipe over a page does, from Settings. A window of one page has
+    // no tab or Space of its own to switch to, so only Back and forward runs
+    // here.
+    property string pageSwipeAction: "back-and-forward"
+    property real swipeDistance: 120
     // The core's Agent rules and the id this window has there, when an Agent
     // tab's page opened it (ADR 0051). The Agent drives it by that id as it
     // drives the tab, and it is the Agent's for as long as the core lists it.
@@ -151,6 +156,19 @@ ApplicationWindow {
             historyFeedbackComponent.createObject(item, {
                                                       "engine": item
                                                   });
+            item.swipeAction = Qt.binding(function () {
+                return auxiliary.pageSwipeAction === "back-and-forward" ? "back-and-forward" :
+                                                                          "nothing";
+            });
+            item.swipeDistance = Qt.binding(function () {
+                return auxiliary.swipeDistance;
+            });
+            item.pageSwiped.connect(function (direction) {
+                if (direction < 0)
+                    item.goBack();
+                else
+                    item.goForward();
+            });
             darkeningComponent.createObject(item, {
                                                 "engine": item,
                                                 "setting": auxiliary.pageDarkening,

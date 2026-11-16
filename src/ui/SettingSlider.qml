@@ -27,6 +27,8 @@ Row {
     property int step: 1
     property bool overridden: false
     property string unit: "%"
+    // What a screen reader is told the value is in: pixels, or percent.
+    readonly property bool inPixels: unit.trim() === "px"
     property string accessibleName: ""
     // Where reset takes the value, named so that reset is a return and not a
     // jump: "the theme's".
@@ -55,9 +57,13 @@ Row {
     signal moved(int value)
     signal reset
 
-    readonly property string spokenValue: root.overridden ? qsTr("%1 percent").arg(root.current) :
-                                                            qsTr("%1 percent, %2").arg(
-                                                                root.current).arg(root.defaultName)
+    readonly property string spokenValue: {
+        if (root.inPixels)
+            return root.overridden ? qsTr("%1 pixels").arg(root.current) : qsTr("%1 pixels, %2").arg(
+                                         root.current).arg(root.defaultName);
+        return root.overridden ? qsTr("%1 percent").arg(root.current) : qsTr("%1 percent, %2").arg(
+                                     root.current).arg(root.defaultName);
+    }
 
     function snapped(candidate) {
         const steps = Math.round((candidate - root.minimum) / root.step);

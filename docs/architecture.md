@@ -612,6 +612,31 @@ lifting and duplicate end events, so a mouse wheel or the synthetic glide cannot
 recognizer exposes progress to `HistorySwipeFeedback`, which the UI attaches to each page, including
 auxiliary windows. Hiding or destroying a page invalidates outstanding queries.
 
+## Touchpad gestures
+
+Three swipes run an action the reader picks in Settings, which `GestureSettings` reads from the
+`gestures` object in `settings.json` and follows as the file changes. Each recognizer reads the
+fingers and reports only a direction: 1 towards the next, -1 towards the previous. `Main.qml` runs
+the action through `runSwipe`, so Back and forward, Switch Space and Switch tab mean the same thing
+whichever swipe asked for them.
+
+- Over a page, the engine view's `QtHistorySwipe` commits as above and emits `pageSwiped`.
+  `TabEngineHost` hands it every page's action and distance. The view gates on the page's history
+  only for Back and forward, and disables the recognizer for Nothing, so the page keeps the scroll.
+  A page lent to a Tab window reports to that window, and a Tab window or a pop-up window runs Back
+  and forward itself and treats the other actions as Nothing. The Glance relays its own.
+- Over the sidebar, `SpaceSwipe` keeps its Space slide for Switch Space and emits `swiped` for
+  anything else, with the list left where it is.
+- Three fingers reach a Wayland client as `QNativeGestureEvent`s: a begin, a `PanNativeGesture` per
+  movement carrying the compositor's delta, and an end, each with a finger count. Qt Quick would
+  deliver them to the item under the pointer, which over a page is the engine's, so `WindowSwipe`
+  filters its window's events before delivery. Qt maps a cancelled swipe to the same end event, and
+  Hyprland 0.56 forwards a swipe its own gesture also acts on, so Omaweb cannot tell the two apart;
+  Settings tells the reader to choose Nothing while Hyprland's gesture is on.
+
+Every recognizer commits at the reader's distance or on a flick faster than 1000 px/s over the last
+100 ms, and locks an axis after six logical pixels.
+
 ## Touchpad glide
 
 Qt's Wayland plugin ends a touchpad scroll with `ScrollEnd` and sends no `ScrollMomentum` after it,

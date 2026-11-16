@@ -28,6 +28,7 @@
 #include "ProblemRecording.h"
 #include "ProblemReport.h"
 #include "ProblemReporter.h"
+#include "GestureSettings.h"
 #include "SidebarOpacity.h"
 #include "EngineSuggestions.h"
 #include "GlobalPrivacyControl.h"
@@ -79,6 +80,7 @@
 #endif
 #include "PrimaryHold.h"
 #include "SpaceSwipe.h"
+#include "WindowSwipe.h"
 #include "QtHistorySwipe.h"
 #include "Scenes.h"
 #include "SystemClipboard.h"
@@ -518,6 +520,7 @@ int main(int argc, char *argv[])
     omaweb::QtPageFonts pageFonts(&fontSettings);
     // The reader's sidebar opacity, over the theme's and for every window.
     omaweb::SidebarOpacity sidebarOpacity(configRoot());
+    omaweb::GestureSettings gestureSettings(configRoot());
     theme.followSidebarOpacity(&sidebarOpacity);
     QObject::connect(&engineContentBlocker, &omaweb::QtContentBlocker::profileAttached, &pageFonts,
         &omaweb::QtPageFonts::attachToProfile);
@@ -624,6 +627,7 @@ int main(int argc, char *argv[])
     omaweb::registerInputOrigin();
     omaweb::registerPrimaryHold();
     omaweb::registerSpaceSwipe();
+    omaweb::registerWindowSwipe();
     omaweb::registerQtHistorySwipe();
     omaweb::registerScenes();
     omaweb::registerExternalProtocolHandler();
@@ -680,6 +684,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("browserTheme"), &browserTheme);
     engine.rootContext()->setContextProperty(QStringLiteral("fontSettings"), &fontSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("sidebarOpacity"), &sidebarOpacity);
+    engine.rootContext()->setContextProperty(QStringLiteral("gestureSettings"), &gestureSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("pageScale"), &pageScale);
     engine.rootContext()->setContextProperty(QStringLiteral("settingsFile"), &settingsFile);
     engine.rootContext()->setContextProperty(QStringLiteral("pageFonts"), &pageFonts);

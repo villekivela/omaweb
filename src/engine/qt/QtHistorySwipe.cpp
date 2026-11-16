@@ -220,14 +220,14 @@ void QtHistorySwipe::consume(const QWheelEvent &event)
     }
     // Reversing towards the starting point cancels the swipe rather than arming the other way.
     const qreal along = std::max(0.0, m_travel.x() * -m_direction);
-    setProgress(-m_direction * std::min(1.25, along / distance));
+    setProgress(-m_direction * std::min(1.25, along / m_distance));
     if (event.phase() == Qt::ScrollEnd) {
         m_timeout.stop();
         m_state = State::Settled;
         setProgress(0);
         const qreal speed = speedAt(event.timestamp());
         const bool flicked = along > 0 && speed * -m_direction > flickSpeed;
-        if ((along >= distance || flicked) && (m_direction < 0 ? m_canGoBack : m_canGoForward)) {
+        if ((along >= m_distance || flicked) && (m_direction < 0 ? m_canGoBack : m_canGoForward)) {
             emit navigate(m_direction);
         }
     }

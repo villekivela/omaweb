@@ -158,6 +158,8 @@ Rectangle {
     property var fontSettings: null
     // The reader's say over the sidebar's opacity, over the theme's.
     property var sidebarOpacity: null
+    // What each touchpad swipe does and how far every one goes (#933).
+    property var gestureSettings: null
     // The size pages are drawn at beneath a tab's zoom (ADR 0067).
     property var pageScale: null
     // The installed Omarchy theme the browser draws in (#710).
@@ -229,13 +231,13 @@ Rectangle {
 
     // The keys the rest of the chrome finds a section by, and what the rail
     // calls each one, in the same order.
-    readonly property var sections: ["tabs", "interface", "keyboard", "content blocking",
+    readonly property var sections: ["tabs", "interface", "keyboard", "gestures", "content blocking",
         "site styles", "network", "downloads", "search", "privacy", "addresses", "payment cards",
         "spaces", "agents", "extensions", "sync", "about"]
-    readonly property var sectionTitles: [qsTr("tabs"), qsTr("interface"), qsTr("keyboard"), qsTr("content blocking"),
-        qsTr("site styles"), qsTr("network"), qsTr("downloads"), qsTr("search"), qsTr("privacy"),
-        qsTr("addresses"), qsTr("payment cards"), qsTr("spaces"), qsTr("agents"), qsTr("extensions"), qsTr(
-            "sync"), qsTr("about")]
+    readonly property var sectionTitles: [qsTr("tabs"), qsTr("interface"), qsTr("keyboard"), qsTr("gestures"),
+        qsTr("content blocking"), qsTr("site styles"), qsTr("network"), qsTr("downloads"), qsTr(
+            "search"), qsTr("privacy"), qsTr("addresses"), qsTr("payment cards"), qsTr("spaces"),
+        qsTr("agents"), qsTr("extensions"), qsTr("sync"), qsTr("about")]
 
     // The rail is as wide as the longest section name it draws, measured in the
     // bold face the current section takes so the pane beside it does not shift
@@ -2009,11 +2011,148 @@ Rectangle {
                     }
                 }
 
-                // ---- content blocking --------------------------------------
+                // ---- gestures ----------------------------------------------
 
                 Column {
                     width: pane.width
                     visible: root.section === 3
+                    spacing: Style.spacing.huge
+
+                    Grid {
+                        id: gestureCards
+                        columns: 2
+                        columnSpacing: Style.spacing.huge
+                        rowSpacing: Style.spacing.huge
+                        readonly property real cardWidth: Math.floor((pane.width - columnSpacing)
+                                                                     / 2)
+                        readonly property var actions: [
+                            {
+                                value: "back-and-forward",
+                                label: qsTr("Back and forward")
+                            },
+                            {
+                                value: "switch-space",
+                                label: qsTr("Switch Space")
+                            },
+                            {
+                                value: "switch-tab",
+                                label: qsTr("Switch tab")
+                            },
+                            {
+                                value: "nothing",
+                                label: qsTr("Nothing", "a touchpad swipe that does nothing")
+                            }
+                        ]
+
+                        // The two cards in a row end level, so their pickers
+                        // stand in line when one note wraps and the other
+                        // does not.
+                        readonly property real firstRowHeight: {
+                            const first = gestureCardRepeater.count > 1 ? gestureCardRepeater.itemAt(
+                                                                              0) : null;
+                            const second = first ? gestureCardRepeater.itemAt(1) : null;
+                            return second ? Math.max(first.implicitHeight, second.implicitHeight) :
+                                            0;
+                        }
+
+                        Repeater {
+                            id: gestureCardRepeater
+                            model: [
+                                {
+                                    gesture: "page",
+                                    fingers: 2,
+                                    title: qsTr("Two fingers over the page"),
+                                    note: qsTr("Swipe sideways while the pointer is on the page."),
+                                    setting: "pageAction"
+                                },
+                                {
+                                    gesture: "sidebar",
+                                    fingers: 2,
+                                    title: qsTr("Two fingers over the sidebar"),
+                                    note: qsTr(
+                                              "Swipe sideways while the pointer is on the sidebar."),
+                                    setting: "sidebarAction"
+                                },
+                                {
+                                    gesture: "three-fingers",
+                                    fingers: 3,
+                                    title: qsTr("Three fingers anywhere"),
+                                    note: qsTr("Swipe sideways anywhere in the window."),
+                                    setting: "threeFingerAction"
+                                }
+                            ]
+
+                            GestureCard {
+                                required property var modelData
+                                required property int index
+
+                                width: gestureCards.cardWidth
+                                rowHeight: index < 2 ? gestureCards.firstRowHeight : 0
+                                enabled: root.settingsWritable && !!root.gestureSettings
+                                colors: root.colors
+                                gesture: modelData.gesture
+                                fingers: modelData.fingers
+                                title: modelData.title
+                                note: modelData.note
+                                options: gestureCards.actions
+                                action: root.gestureSettings
+                                        ? root.gestureSettings[modelData.setting] : ""
+                                onChosen: function (action) {
+                                    root.gestureSettings.setAction(gesture, action);
+                                }
+                            }
+                        }
+                    }
+
+                    SettingRow {
+                        width: pane.width
+                        colors: root.colors
+                        title: qsTr("Swipe distance")
+                        note: qsTr(
+                                  "How far your fingers travel before a swipe acts, for every swipe above. Shorter acts sooner; longer is harder to set off by accident.")
+
+                        SettingSlider {
+                            objectName: "swipeDistance"
+                            enabled: root.settingsWritable && !!root.gestureSettings
+                            colors: root.colors
+                            minimum: root.gestureSettings ? root.gestureSettings.minimumDistance :
+                                                            60
+                            maximum: root.gestureSettings ? root.gestureSettings.maximumDistance :
+                                                            240
+                            step: root.gestureSettings ? root.gestureSettings.distanceStep : 10
+                            current: root.gestureSettings ? root.gestureSettings.distance : 120
+                            overridden: !!root.gestureSettings && root.gestureSettings.distance
+                                        !== root.gestureSettings.defaultDistance
+                            unit: " px"
+                            accessibleName: qsTr("Swipe distance")
+                            onMoved: function (pixels) {
+                                root.gestureSettings.setDistance(pixels);
+                            }
+                            onReset: root.gestureSettings.setDistance(
+                                         root.gestureSettings.defaultDistance)
+                        }
+                    }
+
+                    // Hyprland hands Omaweb a three-finger swipe even while its
+                    // own gesture acts on it (#933), and no cancel tells the
+                    // two apart.
+                    Text {
+                        objectName: "gesturesHyprlandNote"
+                        width: pane.width
+                        wrapMode: Text.WordWrap
+                        color: root.colors.mutedText
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.bodySmall
+                        text: qsTr(
+                                  "Hyprland's own three-finger workspace gesture, in ~/.config/hypr/input.lua, acts on the same swipe. While it is on, set Three fingers to Nothing here, or a swipe switches the workspace and the tab together.")
+                    }
+                }
+
+                // ---- content blocking --------------------------------------
+
+                Column {
+                    width: pane.width
+                    visible: root.section === 4
                     spacing: pane.spacing
 
                     SettingToggle {
@@ -2034,7 +2173,7 @@ Rectangle {
                     }
 
                     Repeater {
-                        model: root.section === 3 ? root.subscriptions : []
+                        model: root.section === 4 ? root.subscriptions : []
 
                         SettingToggle {
                             required property var modelData
@@ -2102,7 +2241,7 @@ Rectangle {
                                  && root.knownLists.length > 0
 
                         Repeater {
-                            model: root.section === 3 ? root.knownLists : []
+                            model: root.section === 4 ? root.knownLists : []
 
                             SettingRow {
                                 required property var modelData
@@ -2263,7 +2402,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 4
+                    visible: root.section === 5
                     spacing: pane.spacing
 
                     Text {
@@ -2288,7 +2427,7 @@ Rectangle {
                         spacing: 0
 
                         Repeater {
-                            model: root.section === 4 && root.siteStyles ? root.siteStyles.styles :
+                            model: root.section === 5 && root.siteStyles ? root.siteStyles.styles :
                                                                            []
 
                             SettingRow {
@@ -2367,7 +2506,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 5
+                    visible: root.section === 6
                     spacing: 0
 
                     // Browser-wide and off by default: on, what is typed in
@@ -2413,7 +2552,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 6
+                    visible: root.section === 7
                     spacing: 0
 
                     SettingRow {
@@ -2435,7 +2574,7 @@ Rectangle {
                     }
 
                     Repeater {
-                        model: root.section === 6 ? root.downloads : null
+                        model: root.section === 7 ? root.downloads : null
 
                         SettingRow {
                             id: downloadRow
@@ -2540,7 +2679,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 7
+                    visible: root.section === 8
                     spacing: pane.spacing
 
                     Column {
@@ -2550,7 +2689,7 @@ Rectangle {
                         Repeater {
                             id: searchEngineList
                             objectName: "searchEngineList"
-                            model: root.section === 7 ? root.engines : []
+                            model: root.section === 8 ? root.engines : []
 
                             SettingRow {
                                 required property var modelData
@@ -2719,7 +2858,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 8
+                    visible: root.section === 9
                     spacing: pane.spacing
 
                     // The section is named for what it will hold rather than
@@ -3051,7 +3190,7 @@ Rectangle {
                 // engine's sit in their section.
                 Column {
                     width: pane.width
-                    visible: root.section === 9
+                    visible: root.section === 10
                     spacing: pane.spacing
 
                     Column {
@@ -3061,7 +3200,7 @@ Rectangle {
                         Repeater {
                             id: addressList
                             objectName: "addressList"
-                            model: root.section === 9 ? root.savedAddresses : []
+                            model: root.section === 10 ? root.savedAddresses : []
 
                             SettingRow {
                                 required property var modelData
@@ -3425,7 +3564,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 11
+                    visible: root.section === 12
                     spacing: pane.spacing
 
                     SettingToggle {
@@ -3881,7 +4020,7 @@ Rectangle {
                 Column {
                     id: agentsSection
                     width: pane.width
-                    visible: root.section === 12
+                    visible: root.section === 13
                     spacing: 0
 
                     readonly property bool setupShown: !!root.agentControl
@@ -4045,7 +4184,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 13
+                    visible: root.section === 14
                     spacing: pane.spacing
 
                     Text {
@@ -4110,7 +4249,7 @@ Rectangle {
                         visible: root.knownExtensionsAvailable && !root.privateWindow
 
                         Repeater {
-                            model: root.section === 13 ? root.knownExtensions : []
+                            model: root.section === 14 ? root.knownExtensions : []
 
                             SettingToggle {
                                 required property var modelData
@@ -4146,7 +4285,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 14
+                    visible: root.section === 15
                     spacing: pane.spacing
 
                     Text {
@@ -4470,7 +4609,7 @@ Rectangle {
 
                 Column {
                     width: pane.width
-                    visible: root.section === 15
+                    visible: root.section === 16
                     spacing: pane.spacing
 
                     Text {
