@@ -40,6 +40,12 @@ Rectangle {
     }
     property bool loading: false
     property real historySwipeProgress: 0
+    // What a sideways swipe over the page does and how far it goes, which the
+    // host hands every page from Settings. The lab has no touchpad to read, so
+    // a test emits `pageSwiped` as the real view does when one commits.
+    property string swipeAction: "back-and-forward"
+    property real swipeDistance: 120
+    signal pageSwiped(int direction)
     // Whether the page on show has drawn anything of its own yet. The lab
     // paints as soon as an address arrives, except on `slow-paint.example`,
     // which stands in for a page slow to draw until `simulateFirstPaint`.

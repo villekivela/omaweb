@@ -476,6 +476,8 @@ add_library(omaweb-core STATIC
     src/core/ProblemReporter.h
     src/core/SidebarOpacity.cpp
     src/core/SidebarOpacity.h
+    src/core/GestureSettings.cpp
+    src/core/GestureSettings.h
     src/core/PrivateSessionStore.cpp
     src/core/PrivateSessionStore.h
     src/core/SessionStore.h
@@ -623,6 +625,8 @@ add_library(omaweb-ui STATIC
     src/ui/InputOrigin.h
     src/ui/SpaceSwipe.cpp
     src/ui/SpaceSwipe.h
+    src/ui/WindowSwipe.cpp
+    src/ui/WindowSwipe.h
     src/ui/PrimaryHold.cpp
     src/ui/PrimaryHold.h
     src/ui/Scenes.cpp
@@ -1005,6 +1009,8 @@ set(omaweb_ui_files
     src/ui/SettingField.qml
     src/ui/SettingRow.qml
     src/ui/SettingSlider.qml
+    src/ui/GestureCard.qml
+    src/ui/GestureDrawing.qml
     src/ui/SettingStepper.qml
     src/ui/SettingToggle.qml
     src/ui/SettingsButton.qml
@@ -1677,6 +1683,17 @@ if(BUILD_TESTING)
     set_tests_properties(omaweb-qt-history-swipe PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+    qt_add_executable(omaweb-window-swipe-tests
+        "tests/ui/tst_windowswipe.cpp"
+        "src/ui/WindowSwipe.cpp"
+    )
+    target_include_directories(omaweb-window-swipe-tests PRIVATE src/ui)
+    target_link_libraries(omaweb-window-swipe-tests PRIVATE Qt6::Qml Qt6::Quick Qt6::Test)
+    omaweb_strict_target(omaweb-window-swipe-tests)
+    add_test(NAME omaweb-window-swipe COMMAND omaweb-window-swipe-tests)
+    set_tests_properties(omaweb-window-swipe PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
     find_program(OMAWEB_NODE_EXECUTABLE NAMES node)
     if(OMAWEB_NODE_EXECUTABLE)
         add_test(NAME omaweb-history-swipe-boundary
@@ -2005,6 +2022,11 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-sidebar-opacity-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-sidebar-opacity-tests)
     add_test(NAME omaweb-sidebar-opacity COMMAND omaweb-sidebar-opacity-tests)
+
+    qt_add_executable(omaweb-gesture-settings-tests tests/core/tst_gesturesettings.cpp)
+    target_link_libraries(omaweb-gesture-settings-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-gesture-settings-tests)
+    add_test(NAME omaweb-gesture-settings COMMAND omaweb-gesture-settings-tests)
 
     qt_add_executable(omaweb-page-scale-tests tests/core/tst_pagescale.cpp)
     target_link_libraries(omaweb-page-scale-tests PRIVATE omaweb-core Qt6::Test)

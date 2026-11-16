@@ -2014,6 +2014,43 @@ TestCase {
         }
     }
 
+    // What each touchpad swipe does and how far they go, stubbed the way the
+    // page reads it. The real object is driven through the window by tst_main.
+    QtObject {
+        id: gestureSettingsStub
+
+        property string pageAction: "back-and-forward"
+        property string sidebarAction: "switch-space"
+        property string threeFingerAction: "switch-tab"
+        property int distance: 120
+        readonly property int minimumDistance: 60
+        readonly property int maximumDistance: 240
+        readonly property int distanceStep: 10
+        readonly property int defaultDistance: 120
+        property var calls: []
+
+        function setAction(gesture, action) {
+            calls = calls.concat([[gesture, action]]);
+            if (gesture === "page")
+                pageAction = action;
+            else if (gesture === "sidebar")
+                sidebarAction = action;
+            else
+                threeFingerAction = action;
+        }
+        function setDistance(pixels) {
+            calls = calls.concat([["distance", pixels]]);
+            distance = Math.min(maximumDistance, Math.max(minimumDistance, pixels));
+        }
+        function reset() {
+            pageAction = "back-and-forward";
+            sidebarAction = "switch-space";
+            threeFingerAction = "switch-tab";
+            distance = 120;
+            calls = [];
+        }
+    }
+
     // The browser theme as the page reads it: the desktop on Tokyo Night and
     // three themes installed, one of them picked or not as a test says.
     QtObject {
@@ -2412,6 +2449,122 @@ TestCase {
         fontSettingsStub.override = 8;
         verify(findChild(stepper, "increase").enabled);
         verify(!findChild(stepper, "decrease").enabled);
+    }
+
+    function makeGesturesPage() {
+        gestureSettingsStub.reset();
+        const page = makePage();
+        page.gestureSettings = gestureSettingsStub;
+        page.section = page.sections.indexOf("gestures");
+        return page;
+    }
+
+    // Gestures follows Keyboard: a card for each of the three swipes, two to a
+    // row, each with its picture, a title, a line on where it reads the
+    // fingers and a choice of four actions. Under them one distance for every
+    // swipe, and the note on Hyprland's own three-finger gesture (#933).
+    function test_theGesturesSectionOffersAnActionForEachSwipeAndOneDistance() {
+        const page = makeGesturesPage();
+        compare(page.sections[page.sections.indexOf("keyboard") + 1], "gestures");
+        const cards = ["page", "sidebar", "three-fingers"].map(function (gesture) {
+            const card = findChild(page, "gestureCard-" + gesture);
+            verify(card !== null, gesture);
+            verify(card.visible, gesture);
+            return card;
+        });
+        // The cards are laid out once their drawings know their width.
+        tryVerify(function () {
+            return cards[0].width > 0 && cards[1].x > cards[0].x + cards[0].width - 1 && cards[2].y
+                    >= cards[0].y + cards[0].height;
+        }, 1000, cards.map(function (card) {
+            return card.x + "," + card.y + " " + card.width + "x" + card.height;
+        }).join(" | "));
+        compare(cards[1].y, cards[0].y);
+        // Side by side, the cards end level with their pickers in line, even
+        // with one note wrapping and the other not.
+        compare(cards[1].height, cards[0].height);
+        compare(findChild(cards[1], "gestureAction-sidebar").mapToItem(page, 0, 0).y, findChild(
+                    cards[0], "gestureAction-page").mapToItem(page, 0, 0).y);
+        compare(cards[2].x, cards[0].x);
+        compare(findChild(cards[0], "gestureDrawing").fingers, 2);
+        compare(findChild(cards[1], "gestureDrawing").fingers, 2);
+        compare(findChild(cards[2], "gestureDrawing").fingers, 3);
+        compare(findChild(cards[0], "gestureTitle").text, "Two fingers over the page");
+        compare(findChild(cards[1], "gestureTitle").text, "Two fingers over the sidebar");
+        compare(findChild(cards[2], "gestureTitle").text, "Three fingers anywhere");
+
+        const values = ["back-and-forward", "switch-space", "switch-tab", "nothing"];
+        const pickers = ["page", "sidebar", "three-fingers"].map(function (gesture) {
+            const picker = findChild(page, "gestureAction-" + gesture);
+            verify(picker !== null, gesture);
+            compare(picker.options.map(function (option) {
+                return option.value;
+            }), values);
+            return picker;
+        });
+        compare(pickers[0].options.map(function (option) {
+            return option.label;
+        }), ["Back and forward", "Switch Space", "Switch tab", "Nothing"]);
+        compare(pickers[0].value, "back-and-forward");
+        compare(pickers[1].value, "switch-space");
+        compare(pickers[2].value, "switch-tab");
+        pickers[2].changed("nothing");
+        compare(gestureSettingsStub.calls, [["three-fingers", "nothing"]]);
+        compare(pickers[2].value, "nothing");
+        pickers[1].changed("switch-tab");
+        compare(gestureSettingsStub.sidebarAction, "switch-tab");
+
+        const slider = findChild(page, "swipeDistance");
+        verify(slider !== null);
+        compare(findChild(slider, "value").text, "120 px");
+        compare(slider.Accessible.name, "Swipe distance");
+        compare(slider.Accessible.description, "120 pixels, the default");
+        bringIntoView(slider);
+        slider.forceActiveFocus();
+        keyClick(Qt.Key_Right);
+        compare(gestureSettingsStub.distance, 130);
+        compare(findChild(slider, "value").text, "130 px");
+        compare(slider.Accessible.description, "130 pixels");
+        for (let press = 0; press < 20; ++press)
+            keyClick(Qt.Key_Right);
+        compare(gestureSettingsStub.distance, 240);
+        for (let press = 0; press < 20; ++press)
+            keyClick(Qt.Key_Left);
+        compare(gestureSettingsStub.distance, 60);
+        click(findChild(slider, "reset"));
+        compare(gestureSettingsStub.distance, 120);
+
+        const note = findChild(page, "gesturesHyprlandNote");
+        verify(note !== null && note.visible);
+        verify(note.text.indexOf("Hyprland") >= 0 && note.text.indexOf("Nothing") >= 0);
+    }
+
+    // A card with the keyboard's focus or the pointer over it draws its border
+    // in the accent and slides the hand across the touchpad; under reduced
+    // motion the hand stays where it is.
+    function test_aGestureCardShowsFocusAndMovesTheHandUnlessMotionIsReduced() {
+        const page = makeGesturesPage();
+        const card = findChild(page, "gestureCard-sidebar");
+        const ring = findChild(card, "gestureFocusRing");
+        const drawing = findChild(card, "gestureDrawing");
+        verify(!ring.visible);
+        verify(!drawing.moving);
+        findChild(card, "gestureAction-sidebar").forceActiveFocus();
+        verify(ring.visible);
+        compare(ring.border.color, Qt.color(testCase.colorsFixture.accent));
+        verify(drawing.moving);
+        const start = drawing.slide;
+        tryVerify(function () {
+            return drawing.slide !== start;
+        });
+
+        SystemMotion.reduced = true;
+        try {
+            verify(!drawing.moving);
+            compare(drawing.slide, 0);
+        } finally {
+            SystemMotion.reduced = false;
+        }
     }
 
     // The sidebar's opacity is the reader's over the theme's: the slider reads
@@ -3220,7 +3373,7 @@ TestCase {
         const page = makePage();
         const pane = findChild(page, "settingsPane");
         verify(pane !== null);
-        compare(page.sections.length, 16);
+        compare(page.sections.length, 17);
         // Site styles lays out rows of its own, with a long host among them.
         siteStyles.edit("a-rather-long-host-name.subdomain.example.org", "p { margin: 0; }");
         verify(siteStyles.hide("github.com", ".promo"));

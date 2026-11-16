@@ -43,11 +43,14 @@ class QtHistorySwipe : public QObject {
     Q_PROPERTY(bool enabled MEMBER m_enabled NOTIFY enabledChanged)
     Q_PROPERTY(bool canGoBack MEMBER m_canGoBack)
     Q_PROPERTY(bool canGoForward MEMBER m_canGoForward)
+    // How far, in logical pixels, a slow swipe travels before it commits: the
+    // reader's, from Settings.
+    Q_PROPERTY(qreal distance MEMBER m_distance NOTIFY distanceChanged)
     Q_PROPERTY(qreal progress READ progress NOTIFY progressChanged)
 
 public:
     static constexpr qreal axisLock = 6;
-    static constexpr qreal distance = 120;
+    static constexpr qreal defaultDistance = 120;
     static constexpr qreal flickSpeed = 1000;
     static constexpr quint64 speedWindow = 100;
     static constexpr int queryTimeout = 150;
@@ -64,6 +67,7 @@ public:
 signals:
     void viewChanged();
     void enabledChanged();
+    void distanceChanged();
     void progressChanged();
     void queryNeeded(int request, QPointF position, int direction);
     // Clear the page's pending glide before ending its scroll and taking over.
@@ -94,6 +98,7 @@ private:
     bool m_enabled = true;
     bool m_canGoBack = false;
     bool m_canGoForward = false;
+    qreal m_distance = defaultDistance;
     bool m_replaying = false;
     State m_state = State::Idle;
     QPointF m_travel;

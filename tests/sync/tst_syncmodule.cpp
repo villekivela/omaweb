@@ -396,6 +396,7 @@ private slots:
     void syncsTheAppIcon();
     void syncsHowANewTabOpens();
     void syncsWhetherTheSidebarHasANewTabRow();
+    void syncsWhatEachTouchpadSwipeDoes();
     void syncsTheBrowserTheme();
     void syncsTheLinkRules();
     void syncsWhichSiteStylesAreOff();
@@ -1030,6 +1031,51 @@ void SyncModuleTest::syncsWhetherTheSidebarHasANewTabRow()
 
     QCOMPARE(
         setting(secondConfigRoot.path(), QStringLiteral("sidebar-new-tab")), QJsonValue(false));
+}
+
+// What each touchpad swipe does and how far they go follow the reader to
+// their other machines (#933).
+void SyncModuleTest::syncsWhatEachTouchpadSwipeDoes()
+{
+    QTemporaryDir remoteRoot;
+    QTemporaryDir firstDataRoot;
+    QTemporaryDir firstConfigRoot;
+    QTemporaryDir secondDataRoot;
+    QTemporaryDir secondConfigRoot;
+    QString error;
+    QVERIFY2(runGit(remoteRoot.path(),
+                 {QStringLiteral("init"), QStringLiteral("--bare"),
+                     QStringLiteral("--initial-branch=main"), QStringLiteral("sync.git")},
+                 &error),
+        qPrintable(error));
+    const auto remote = QUrl::fromLocalFile(remoteRoot.filePath(QStringLiteral("sync.git")));
+    const auto key = QByteArray(32, 'j');
+
+    SqliteSessionStore firstStore(firstDataRoot.path());
+    QVERIFY(firstStore.open(&error));
+    QVERIFY(writeSettings(firstConfigRoot.path(),
+        {{QStringLiteral("gestures"),
+            QJsonObject {{QStringLiteral("three-fingers"), QStringLiteral("nothing")},
+                {QStringLiteral("distance"), 90}}}}));
+    SyncModule first({.dataRoot = firstDataRoot.path(),
+        .configRoot = firstConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-a")});
+    OMAWEB_VERIFY_SYNC(first.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(first, firstStore));
+
+    SqliteSessionStore secondStore(secondDataRoot.path());
+    QVERIFY(secondStore.open(&error));
+    SyncModule second({.dataRoot = secondDataRoot.path(),
+        .configRoot = secondConfigRoot.path(),
+        .remoteUrl = remote,
+        .machineId = QStringLiteral("machine-b")});
+    OMAWEB_VERIFY_SYNC(second.open({.recoveryKey = key}));
+    OMAWEB_VERIFY_SYNC(settle(second, secondStore));
+
+    QCOMPARE(setting(secondConfigRoot.path(), QStringLiteral("gestures")),
+        QJsonValue(QJsonObject {{QStringLiteral("three-fingers"), QStringLiteral("nothing")},
+            {QStringLiteral("distance"), 90}}));
 }
 
 // A browser theme the reader picked reaches their other machines, which draw

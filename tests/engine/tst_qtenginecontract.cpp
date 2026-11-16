@@ -2653,15 +2653,46 @@ void QtEngineContractTest::qtHistorySwipeNavigatesWithoutTakingPageScrolling()
     QTRY_COMPARE_WITH_TIMEOUT(queries.size(), 2, 5000);
     QTest::qWait(500);
     QCOMPARE(navigation.size(), 0);
+    // The view says which way the swipe went; the chrome runs what Settings
+    // chose, which for a page is Back and forward until the reader says
+    // otherwise. This stands in for the chrome.
+    QSignalSpy swiped(shown.adapter.get(), SIGNAL(pageSwiped(int)));
+    QObject::connect(
+        shown.adapter.get(), SIGNAL(pageSwiped(int)), shown.adapter.get(), SLOT(goBack()));
     gesture({350, 200}, 140);
     QTRY_COMPARE_WITH_TIMEOUT(
         shown.adapter->property("pageTitle").toString(), QStringLiteral("/first"), 15000);
     QCOMPARE(navigation.size(), 1);
+    QCOMPARE(swiped.size(), 1);
+    QCOMPARE(swiped.first().first().toInt(), -1);
+    QObject::disconnect(
+        shown.adapter.get(), SIGNAL(pageSwiped(int)), shown.adapter.get(), SLOT(goBack()));
+    QObject::connect(
+        shown.adapter.get(), SIGNAL(pageSwiped(int)), shown.adapter.get(), SLOT(goForward()));
     QTRY_VERIFY_WITH_TIMEOUT(shown.adapter->property("canGoForward").toBool(), 5000);
     gesture({350, 200}, -140);
     QTRY_COMPARE_WITH_TIMEOUT(
         shown.adapter->property("pageTitle").toString(), QStringLiteral("/second"), 15000);
     QCOMPARE(navigation.size(), 2);
+    QCOMPARE(swiped.at(1).first().toInt(), 1);
+    QObject::disconnect(
+        shown.adapter.get(), SIGNAL(pageSwiped(int)), shown.adapter.get(), SLOT(goForward()));
+
+    // Switching a tab or a Space needs no history: with none forward, a swipe
+    // that way still goes.
+    QVERIFY(!shown.adapter->property("canGoForward").toBool());
+    QVERIFY(shown.adapter->setProperty("swipeAction", QStringLiteral("switch-tab")));
+    gesture({350, 200}, -140);
+    QTRY_COMPARE_WITH_TIMEOUT(swiped.size(), 3, 5000);
+    QCOMPARE(swiped.at(2).first().toInt(), 1);
+
+    // Nothing leaves the swipe to the page: the page is not even asked.
+    QVERIFY(shown.adapter->setProperty("swipeAction", QStringLiteral("nothing")));
+    const auto asked = queries.size();
+    gesture({350, 200}, 140);
+    QTest::qWait(500);
+    QCOMPARE(queries.size(), asked);
+    QCOMPARE(swiped.size(), 3);
 }
 
 // A page that asks for a window is answered at once, or the engine tells it the

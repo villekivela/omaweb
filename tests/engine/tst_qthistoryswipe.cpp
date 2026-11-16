@@ -66,6 +66,7 @@ private slots:
     void direction_data();
     void direction();
     void belowThresholdAndReversal();
+    void readersDistance();
     void verticalModifiersAndWheel();
     void modifiedInputPasses();
     void plainWheelPasses();
@@ -121,6 +122,7 @@ void QtHistorySwipeTest::init()
     swipe.setProperty("enabled", true);
     swipe.setProperty("canGoBack", true);
     swipe.setProperty("canGoForward", true);
+    swipe.setProperty("distance", 120);
 }
 
 void QtHistorySwipeTest::sharedDispatch()
@@ -403,6 +405,32 @@ void QtHistorySwipeTest::belowThresholdAndReversal()
     wheel(Qt::ScrollUpdate, {-60, 0});
     wheel(Qt::ScrollEnd);
     QCOMPARE(navigation.size(), 0);
+}
+
+// The distance is the reader's, from Settings: a slow swipe goes at that far
+// and not a pixel short of it.
+void QtHistorySwipeTest::readersDistance()
+{
+    QSignalSpy query(&swipe, &omaweb::QtHistorySwipe::queryNeeded);
+    QSignalSpy navigation(&swipe, &omaweb::QtHistorySwipe::navigate);
+    const auto swipeBy = [&](int pixels) {
+        begin();
+        wheel(Qt::ScrollUpdate, {pixels, 0});
+        swipe.resolve(query.last().first().toInt(), true);
+        wheel(Qt::ScrollEnd);
+    };
+
+    swipe.setProperty("distance", 60);
+    swipeBy(59);
+    QCOMPARE(navigation.size(), 0);
+    swipeBy(60);
+    QCOMPARE(navigation.size(), 1);
+
+    swipe.setProperty("distance", 200);
+    swipeBy(150);
+    QCOMPARE(navigation.size(), 1);
+    swipeBy(200);
+    QCOMPARE(navigation.size(), 2);
 }
 
 void QtHistorySwipeTest::verticalModifiersAndWheel()

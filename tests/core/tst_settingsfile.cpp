@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFile>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QLockFile>
 #include <QScopeGuard>
@@ -42,6 +43,7 @@ private slots:
     void roundTripsAFractionThroughText();
     void writesOneMemberIntoWhatIsOnDisk();
     void holdsLinkRulesAsAnOrderedList();
+    void holdsAnActionForEachGestureAndOneDistance();
 };
 
 namespace {
@@ -576,4 +578,45 @@ void SettingsFileTest::holdsLinkRulesAsAnOrderedList()
 }
 
 QTEST_GUILESS_MAIN(SettingsFileTest)
+// Each touchpad gesture is one of four actions, and every swipe shares one
+// distance, from 60 to 240 pixels in steps of 10. A member Omaweb does not
+// name, or a value off those, is a file it cannot use.
+void SettingsFileTest::holdsAnActionForEachGestureAndOneDistance()
+{
+    const auto key = QStringLiteral("gestures");
+    QVERIFY(SettingsFile::defaultValue(key).isUndefined());
+    const QList<QJsonObject> accepted {
+        {{QStringLiteral("page"), QStringLiteral("switch-tab")}},
+        {{QStringLiteral("sidebar"), QStringLiteral("back-and-forward")},
+            {QStringLiteral("three-fingers"), QStringLiteral("nothing")}},
+        {{QStringLiteral("page"), QStringLiteral("switch-space")},
+            {QStringLiteral("distance"), 60}},
+        {{QStringLiteral("distance"), 240}},
+    };
+    for (const auto &value : accepted) {
+        QVERIFY2(SettingsFile::accepts(key, value), QJsonDocument(value).toJson());
+    }
+    const QList<QJsonValue> refused {
+        QJsonObject {{QStringLiteral("page"), QStringLiteral("zoom")}},
+        QJsonObject {{QStringLiteral("four-fingers"), QStringLiteral("switch-tab")}},
+        QJsonObject {{QStringLiteral("distance"), 125}},
+        QJsonObject {{QStringLiteral("distance"), 50}},
+        QJsonObject {{QStringLiteral("distance"), 250}},
+        QJsonObject {{QStringLiteral("distance"), QStringLiteral("120")}},
+        QJsonValue(QStringLiteral("switch-tab")),
+    };
+    for (const auto &value : refused) {
+        QVERIFY2(!SettingsFile::accepts(key, value),
+            QJsonDocument(QJsonArray {value}).toJson(QJsonDocument::Compact));
+    }
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    writeFile(root.filePath(QStringLiteral("settings.json")),
+        R"({"version": 1, "gestures": {"page": "switch-tab", "distance": 7}})");
+    SettingsFile settings(root.path());
+    QCOMPARE(settings.invalidKeys(), QStringList {key});
+    QVERIFY(settings.value(key).isUndefined());
+}
+
 #include "tst_settingsfile.moc"

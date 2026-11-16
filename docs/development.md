@@ -74,7 +74,7 @@ the private palette, which is the only way to review that chrome without opening
 reviewed without installing it. Pass `--show collapsed`, `--show peek`, `--show settings`,
 `--show history` or `--show shortcuts` to open the state a capture cannot press a key to reach. Use
 `--tabs --show peek` to review the floating sidebar and its page blur. A state can name a section
-and a dialog over it: `--show settings:<section>` opens one of `tabs`, `keyboard`,
+and a dialog over it: `--show settings:<section>` opens one of `tabs`, `keyboard`, `gestures`,
 `content-blocking`, `network`, `downloads`, `search`, `privacy` or `about`, and
 `--show settings:privacy:clear` stands the clear-browsing-data dialog on Privacy. Naming the section
 is how a layout change is reviewed at a font size the page was not written at: point

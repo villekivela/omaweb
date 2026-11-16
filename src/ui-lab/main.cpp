@@ -24,6 +24,7 @@
 #include "PageScale.h"
 #include "ProblemRecording.h"
 #include "ProblemReporter.h"
+#include "GestureSettings.h"
 #include "SidebarOpacity.h"
 #include "DefaultBrowser.h"
 #include "ExternalProtocolHandler.h"
@@ -44,6 +45,7 @@
 #include "InputOrigin.h"
 #include "PrimaryHold.h"
 #include "SpaceSwipe.h"
+#include "WindowSwipe.h"
 #include "Scenes.h"
 #include "SystemClipboard.h"
 #include "SystemMotion.h"
@@ -695,6 +697,7 @@ int main(int argc, char *argv[])
     // lab's own data root rather than the reader's configuration.
     omaweb::FontSettings fontSettings(dataRootPath, QFontDatabase::families());
     omaweb::SidebarOpacity sidebarOpacity(dataRootPath);
+    omaweb::GestureSettings gestureSettings(dataRootPath);
     theme.followSidebarOpacity(&sidebarOpacity);
     omaweb::PageScale pageScale(dataRootPath);
     // The desktop's text scaling, as the settings portal would report it, so
@@ -724,6 +727,7 @@ int main(int argc, char *argv[])
     omaweb::registerInputOrigin();
     omaweb::registerPrimaryHold();
     omaweb::registerSpaceSwipe();
+    omaweb::registerWindowSwipe();
     omaweb::registerScenes();
     omaweb::registerExternalProtocolHandler();
     omaweb::registerPagePrinter();
@@ -768,6 +772,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
     engine.rootContext()->setContextProperty(QStringLiteral("fontSettings"), &fontSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("sidebarOpacity"), &sidebarOpacity);
+    engine.rootContext()->setContextProperty(QStringLiteral("gestureSettings"), &gestureSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("pageScale"), &pageScale);
     // The file the lab's own settings are written to, under its data root, so
     // Settings names a file and says what is wrong with it as it would.

@@ -281,6 +281,11 @@ Item {
     signal pageSiteDataCleared(string origin, var cleared, string error)
     signal pageContextRequested(var engine, var context)
     signal pageTooltipRequested(var engine, var tooltip)
+    // A sideways swipe over a page committed; the window runs what Settings
+    // chose for it.
+    signal pageSwiped(var engine, int direction)
+    property string pageSwipeAction: "back-and-forward"
+    property real swipeDistance: 120
     signal browserPromptRequested(var engine, string requestId, var prompt)
     signal securityKeyRequested(var engine, string requestId, var step)
     signal fileSelectionRequested(var engine, string requestId, var selection)
@@ -794,10 +799,20 @@ Item {
             untiedZoomComponent.createObject(engine, {
                                                  "engine": engine
                                              });
-        if (engine)
+        if (engine) {
             historyFeedbackComponent.createObject(engine, {
                                                       "engine": engine
                                                   });
+            engine.swipeAction = Qt.binding(function () {
+                return root.pageSwipeAction;
+            });
+            engine.swipeDistance = Qt.binding(function () {
+                return root.swipeDistance;
+            });
+            engine.pageSwiped.connect(function (direction) {
+                root.pageSwiped(engine, direction);
+            });
+        }
         return engine;
     }
 

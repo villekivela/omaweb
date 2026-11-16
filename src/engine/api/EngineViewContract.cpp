@@ -26,6 +26,12 @@ QStringList validateEngineViewContract(const QObject &adapter)
         {"audioMuted", QMetaType::Bool},
         {"canGoBack", QMetaType::Bool},
         {"canGoForward", QMetaType::Bool},
+        // What a sideways two-finger swipe over the page does, as Settings
+        // names it, and how far it goes before it commits. The view reads the
+        // fingers and says which way through `pageSwiped`; the chrome runs
+        // the action, Back and forward included.
+        {"swipeAction", QMetaType::QString},
+        {"swipeDistance", QMetaType::Double},
         {"profilePath", QMetaType::QString},
         {"sharedProfile", QMetaType::QVariant},
         {"browserProfile", QMetaType::QVariant},
@@ -253,6 +259,8 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // reader one tooltip in one style, so an adapter that lets its engine
         // draw its own puts a second one in the window.
         {"pageTooltipRequested", true, 1},
+        // 1 towards the next, -1 towards the previous.
+        {"pageSwiped", true, 1, QMetaType::Int},
         // A submitted form's fields that form history may keep and the reader
         // typed into, each a map of `name` and `value`.
         {"formSubmitted", true, 1},

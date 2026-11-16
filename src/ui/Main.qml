@@ -287,6 +287,19 @@ ApplicationWindow {
     // apart from their context properties for the same reason again.
     readonly property var readerFonts: fontSettings
     readonly property var readerSidebarOpacity: sidebarOpacity
+    // What each touchpad swipe does, and how far every one goes before it acts.
+    readonly property var readerGestures: gestureSettings
+    readonly property real swipeDistance: window.readerGestures ? window.readerGestures.distance :
+                                                                  120
+    readonly property string pageSwipeAction: window.readerGestures
+                                              ? window.readerGestures.pageAction :
+                                                "back-and-forward"
+    readonly property string sidebarSwipeAction: window.readerGestures
+                                                 ? window.readerGestures.sidebarAction :
+                                                   "switch-space"
+    readonly property string threeFingerSwipeAction: window.readerGestures
+                                                     ? window.readerGestures.threeFingerAction :
+                                                       "switch-tab"
     readonly property var readerPageScale: pageScale
     // The Problem recording and the report (ADR 0068), named apart from their
     // context properties. A Private window records nothing.
@@ -3645,6 +3658,33 @@ ApplicationWindow {
     }
 
     // The core counts the stops: a split is one of them.
+    // What a committed touchpad swipe does, the way the fingers went: 1 is the
+    // next, -1 the previous, as the footer runs. Back and forward goes on the
+    // page swiped over, or the page on show.
+    function runSwipe(action, direction, engine) {
+        if (action === "back-and-forward") {
+            const page = engine || engineLoader;
+            if (direction < 0)
+                page.goBack();
+            else
+                page.goForward();
+        } else if (action === "switch-space") {
+            window.stepSpace(direction);
+        } else if (action === "switch-tab") {
+            window.stepTab(direction);
+        }
+    }
+
+    // Three fingers sideways anywhere in the window, over the page included.
+    WindowSwipe {
+        objectName: "windowSwipe"
+        enabled: window.threeFingerSwipeAction !== "nothing"
+        distance: window.swipeDistance
+        onCommitted: function (direction) {
+            window.runSwipe(window.threeFingerSwipeAction, direction, null);
+        }
+    }
+
     function stepTab(delta) {
         window.windowBrowser.stepTab(delta);
     }
@@ -4240,6 +4280,11 @@ ApplicationWindow {
             SpaceOutline {
                 id: sidebar
                 objectName: "sidebar"
+                swipeDistance: window.swipeDistance
+                swipeAction: window.sidebarSwipeAction
+                onSwiped: function (direction) {
+                    window.runSwipe(window.sidebarSwipeAction, direction, null);
+                }
                 // A floating outline has to sit above the blur that samples
                 // the composed shell. Reparenting it keeps that sample from
                 // including the outline and feeding the effect back into
@@ -4486,6 +4531,8 @@ ApplicationWindow {
                 TabEngineHost {
                     id: engineLoader
                     scale: glance.beneathScale
+                    pageSwipeAction: window.pageSwipeAction
+                    swipeDistance: window.swipeDistance
                     // A tab further down the list arrives from below, one
                     // further up from above, and a pin further along the row
                     // from the right, by less than a row: the arriving page
@@ -4579,6 +4626,10 @@ ApplicationWindow {
 
                     onPageContextRequested: function (engine, context) {
                         window.openPageMenu(engine, context);
+                    }
+
+                    onPageSwiped: function (engine, direction) {
+                        window.runSwipe(window.pageSwipeAction, direction, engine);
                     }
 
                     onPageTooltipRequested: function (engine, tooltip) {
@@ -5520,6 +5571,7 @@ ApplicationWindow {
                             engineWebRtcPolicy: window.engineWebRtcAddressPolicy
                             fontSettings: window.readerFonts
                             sidebarOpacity: window.readerSidebarOpacity
+                            gestureSettings: window.readerGestures
                             pageScale: window.readerPageScale
                             browserTheme: window.readerBrowserTheme
                             settingsFile: window.readerSettings
@@ -5905,6 +5957,8 @@ ApplicationWindow {
             permissionController: window.windowBrowser
             pageDarkening: window.pageDarkeningSetting
             siteStyles: window.readerSiteStyles
+            pageSwipeAction: window.pageSwipeAction
+            swipeDistance: window.swipeDistance
             browserController: window.windowBrowser
             contentBlocker: contentBlocker
             engineContentBlocker: engineContentBlocker

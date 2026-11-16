@@ -22,9 +22,9 @@ namespace omaweb {
 // fingers one pixel for one. The fingers lift on `ScrollEnd`; a gesture
 // without phases ends after `idleRelease` ms without an event, and one whose
 // `ScrollEnd` never comes after `lostRelease` ms. On release the swipe commits
-// towards the Space in view when it is at least half the item's width in, or
-// moving towards it faster than `flickSpeed` over the last `speedWindow` ms,
-// and springs back otherwise.
+// towards the Space in view when the fingers have moved `distance` towards it,
+// or are moving towards it faster than `flickSpeed` over the last
+// `speedWindow` ms, and springs back otherwise.
 //
 // A wheel sends angle steps of its own, and on Wayland pixels beside them.
 // Each notch of `notchAngle` steps one Space, and a notch while `settling` or
@@ -44,6 +44,9 @@ class SpaceSwipe : public QQuickItem {
     Q_PROPERTY(bool swiping READ swiping NOTIFY swipingChanged)
     // Whether the Space slide is running, which a notch waits out.
     Q_PROPERTY(bool settling READ settling WRITE setSettling NOTIFY settlingChanged)
+    // How far, in logical pixels, a slow swipe travels before it commits: the
+    // reader's, from Settings, whatever the sidebar's width.
+    Q_PROPERTY(qreal distance MEMBER m_distance NOTIFY distanceChanged)
 
 public:
     static constexpr qreal axisLock = 6;
@@ -53,6 +56,7 @@ public:
     static constexpr quint64 speedWindow = 100;
     static constexpr int notchAngle = 120;
     static constexpr int notchQuiet = 200;
+    static constexpr qreal defaultDistance = 120;
 
     explicit SpaceSwipe(QQuickItem *parent = nullptr);
 
@@ -65,6 +69,7 @@ signals:
     void offsetChanged();
     void swipingChanged();
     void settlingChanged();
+    void distanceChanged();
     // The fingers lifted with the Space in `direction` far enough in, or
     // flicked towards it.
     void committed(int direction);
@@ -110,6 +115,7 @@ private:
     QTimer m_lift;
 
     bool m_settling = false;
+    qreal m_distance = defaultDistance;
     int m_notchAngle = 0;
     QElapsedTimer m_clock;
     qint64 m_quietUntil = 0;

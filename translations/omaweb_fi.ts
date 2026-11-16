@@ -2656,6 +2656,14 @@
         <translation>oletus</translation>
     </message>
     <message>
+        <source>%1 pixels</source>
+        <translation>%1 pikseliä</translation>
+    </message>
+    <message>
+        <source>%1 pixels, %2</source>
+        <translation>%1 pikseliä, %2</translation>
+    </message>
+    <message>
         <source>%1 percent</source>
         <translation>%1 prosenttia</translation>
     </message>
@@ -4031,6 +4039,10 @@ Päivitykset osoitteesta %3</translation>
         <translation>1 rivi</translation>
     </message>
     <message>
+        <source>gestures</source>
+        <translation>eleet</translation>
+    </message>
+    <message>
         <source>1 hidden</source>
         <translation>1 piilotettu</translation>
     </message>
@@ -4041,6 +4053,59 @@ Päivitykset osoitteesta %3</translation>
     <message>
         <source>A row after the sidebar&apos;s tabs that opens a new tab with a click.</source>
         <translation>Rivi sivupalkin välilehtien jälkeen, joka avaa uuden välilehden napsautuksella.</translation>
+    </message>
+    <message>
+        <source>Back and forward</source>
+        <translation>Takaisin ja eteenpäin</translation>
+    </message>
+    <message>
+        <source>Switch Space</source>
+        <translation>Vaihda Tilaa</translation>
+    </message>
+    <message>
+        <source>Switch tab</source>
+        <translation>Vaihda välilehteä</translation>
+    </message>
+    <message>
+        <source>Nothing</source>
+        <comment>a touchpad swipe that does nothing</comment>
+        <translation>Ei mitään</translation>
+    </message>
+    <message>
+        <source>Two fingers over the page</source>
+        <translation>Kaksi sormea sivun päällä</translation>
+    </message>
+    <message>
+        <source>Swipe sideways while the pointer is on the page.</source>
+        <translation>Pyyhkäise sivuttain, kun osoitin on sivun päällä.</translation>
+    </message>
+    <message>
+        <source>Two fingers over the sidebar</source>
+        <translation>Kaksi sormea sivupalkin päällä</translation>
+    </message>
+    <message>
+        <source>Swipe sideways while the pointer is on the sidebar.</source>
+        <translation>Pyyhkäise sivuttain, kun osoitin on sivupalkin päällä.</translation>
+    </message>
+    <message>
+        <source>Three fingers anywhere</source>
+        <translation>Kolme sormea missä tahansa</translation>
+    </message>
+    <message>
+        <source>Swipe sideways anywhere in the window.</source>
+        <translation>Pyyhkäise sivuttain missä tahansa ikkunassa.</translation>
+    </message>
+    <message>
+        <source>Swipe distance</source>
+        <translation>Pyyhkäisyn pituus</translation>
+    </message>
+    <message>
+        <source>How far your fingers travel before a swipe acts, for every swipe above. Shorter acts sooner; longer is harder to set off by accident.</source>
+        <translation>Kuinka pitkälle sormet liikkuvat ennen kuin pyyhkäisy tekee jotain, kaikille yllä oleville pyyhkäisyille. Lyhyempi toimii nopeammin, pidempää on vaikeampi laukaista vahingossa.</translation>
+    </message>
+    <message>
+        <source>Hyprland&apos;s own three-finger workspace gesture, in ~/.config/hypr/input.lua, acts on the same swipe. While it is on, set Three fingers to Nothing here, or a swipe switches the workspace and the tab together.</source>
+        <translation>Hyprlandin oma kolmen sormen työtilaele tiedostossa ~/.config/hypr/input.lua toimii samasta pyyhkäisystä. Kun se on päällä, valitse tässä Kolmelle sormelle Ei mitään, muuten pyyhkäisy vaihtaa sekä työtilan että välilehden.</translation>
     </message>
     <message>
         <source>Edit</source>
