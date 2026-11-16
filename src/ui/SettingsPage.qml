@@ -2054,7 +2054,9 @@ Rectangle {
                         function rowHeight(index) {
                             const start = index - index % columns;
                             let tallest = 0;
-                            for (let at = start; at < start + columns; ++at) {
+                            // Reading the count re-runs this as the cards appear.
+                            const end = Math.min(start + columns, gestureCardRepeater.count);
+                            for (let at = start; at < end; ++at) {
                                 const card = gestureCardRepeater.itemAt(at);
                                 if (card)
                                     tallest = Math.max(tallest, card.implicitHeight);

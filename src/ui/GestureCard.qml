@@ -62,8 +62,9 @@ FocusScope {
         spacing: Style.spacing.md
 
         GestureDrawing {
+            id: drawing
             objectName: "gestureDrawing"
-            x: DevicePixels.snap((parent.width - width) / 2, pixelRatio)
+            x: DevicePixels.snap((parent.width - width) / 2, drawing.pixelRatio)
             width: implicitWidth
             height: implicitHeight
             colors: root.colors
