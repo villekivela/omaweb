@@ -24,7 +24,9 @@ Item {
     // Where the hand is across the pad, from -1 to 1.
     property real slide: 0
 
-    implicitHeight: Math.round(width * 0.5)
+    // One size however wide the card: the proportions below are of this box.
+    implicitHeight: 96
+    implicitWidth: implicitHeight * 2
     clip: true
 
     onMovingChanged: if (!moving)

@@ -2567,6 +2567,27 @@ TestCase {
         }
     }
 
+    // The drawing keeps one size, 96 px tall and centred in its card, however
+    // wide the sheet and so the card are (#933).
+    function test_aGestureDrawingKeepsItsSizeWhateverTheSheetsWidth() {
+        const page = makeGesturesPage();
+        const card = findChild(page, "gestureCard-page");
+        const drawing = findChild(card, "gestureDrawing");
+        const sizes = [];
+        [900, 1200, 1800].forEach(function (width) {
+            page.width = width;
+            tryVerify(function () {
+                return card.width > 0;
+            });
+            wait(0);
+            sizes.push(drawing.width + "x" + drawing.height);
+            compare(drawing.height, 96);
+            compare(drawing.width, 192);
+            compare(drawing.mapToItem(card, 0, 0).x + drawing.width / 2, card.width / 2);
+        });
+        compare(sizes[0], sizes[2]);
+    }
+
     // The sidebar's opacity is the reader's over the theme's: the slider reads
     // the theme's value until they move it, steps by 5% from there within 50% to
     // 100% from the keyboard, and reset hands the sidebar back to the theme.

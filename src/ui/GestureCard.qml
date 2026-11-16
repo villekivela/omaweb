@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import "DevicePixels.mjs" as DevicePixels
 
 // One touchpad swipe in Settings: its drawing, what it is, where the fingers
 // go, and the action it runs (#933). The card shows the keyboard's focus on
@@ -62,7 +63,8 @@ FocusScope {
 
         GestureDrawing {
             objectName: "gestureDrawing"
-            width: parent.width
+            x: DevicePixels.snap((parent.width - width) / 2, pixelRatio)
+            width: implicitWidth
             height: implicitHeight
             colors: root.colors
             fingers: root.fingers
