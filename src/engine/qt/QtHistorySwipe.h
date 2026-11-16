@@ -1,9 +1,11 @@
 #pragma once
 
+#include <QHash>
 #include <QObject>
 #include <QPointF>
 #include <QPointer>
 #include <QQuickItem>
+#include <QSet>
 #include <QTimer>
 #include <QWheelEvent>
 
@@ -12,6 +14,26 @@
 #include <vector>
 
 namespace omaweb {
+
+class QtHistorySwipe;
+
+// One application filter routes a page's input to its own history recognizer. Construct it
+// before the recognizers, and keep it alive until they have all been destroyed.
+class QtHistorySwipeDispatcher : public QObject {
+public:
+    explicit QtHistorySwipeDispatcher(QObject *parent = nullptr);
+    ~QtHistorySwipeDispatcher() override;
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
+private:
+    friend class QtHistorySwipe;
+    void add(QQuickItem *view, QtHistorySwipe *swipe);
+    void remove(QQuickItem *view, QtHistorySwipe *swipe);
+    QHash<QQuickItem *, QtHistorySwipe *> m_views;
+    QSet<QtHistorySwipe *> m_active;
+};
 
 // A phased touchpad scroll may become history navigation only after the page says the content
 // under the pointer cannot scroll horizontally. An unanswered query leaves scrolling unchanged.
@@ -32,6 +54,7 @@ public:
     static constexpr int lostRelease = 1000;
 
     explicit QtHistorySwipe(QObject *parent = nullptr);
+    ~QtHistorySwipe() override;
     QQuickItem *view() const;
     void setView(QQuickItem *view);
     qreal progress() const;
@@ -48,10 +71,9 @@ signals:
     // -1 is Back, 1 is Forward, as the browser's history runs.
     void navigate(int direction);
 
-protected:
-    bool eventFilter(QObject *watched, QEvent *event) override;
-
 private:
+    friend class QtHistorySwipeDispatcher;
+    bool handleWheel(QQuickItem *page, QWheelEvent *wheel);
     enum class State { Idle, Tracking, Passing, Querying, Navigating, Settled };
     struct Sample {
         quint64 at;

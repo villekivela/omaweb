@@ -22,10 +22,41 @@ protected:
 };
 } // namespace probe
 
+class CountingDispatcher : public omaweb::QtHistorySwipeDispatcher {
+public:
+    int unrelatedEvents = 0;
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (event->type() == QEvent::User)
+            ++unrelatedEvents;
+        return omaweb::QtHistorySwipeDispatcher::eventFilter(watched, event);
+    }
+};
+
+class CountingSwipe : public omaweb::QtHistorySwipe {
+public:
+    int unrelatedEvents = 0;
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (event->type() == QEvent::User)
+            ++unrelatedEvents;
+        return omaweb::QtHistorySwipe::eventFilter(watched, event);
+    }
+};
+
 class QtHistorySwipeTest final : public QObject {
     Q_OBJECT
 private slots:
     void init();
+    void sharedDispatch();
+    void multiViewLifecycle();
+    void cancelActiveViews();
+    void cancelSettledBeforeDuplicateBegin_data();
+    void cancelSettledBeforeDuplicateBegin();
     void axisLock();
     void verticalAxisLock();
     void diagonalAxisLock();
@@ -55,6 +86,7 @@ private:
     void wheel(Qt::ScrollPhase phase, QPoint delta = {},
         Qt::KeyboardModifiers modifiers = Qt::NoModifier, qint64 elapsed = 200);
     void begin();
+    CountingDispatcher dispatcher;
     omaweb::QtHistorySwipe swipe;
     QQuickWindow window;
     QQuickItem view;
@@ -89,6 +121,167 @@ void QtHistorySwipeTest::init()
     swipe.setProperty("enabled", true);
     swipe.setProperty("canGoBack", true);
     swipe.setProperty("canGoForward", true);
+}
+
+void QtHistorySwipeTest::sharedDispatch()
+{
+    QQuickItem firstView(window.contentItem());
+    QQuickItem otherView(window.contentItem());
+    probe::RenderWidgetHostViewQtDelegateItem otherPage;
+    otherPage.setParentItem(&otherView);
+    CountingSwipe first;
+    CountingSwipe second;
+    std::vector<std::unique_ptr<QQuickItem>> extraViews;
+    std::vector<std::unique_ptr<CountingSwipe>> extras;
+    for (int i = 0; i < 30; ++i) {
+        extraViews.push_back(std::make_unique<QQuickItem>(window.contentItem()));
+        extras.push_back(std::make_unique<CountingSwipe>());
+        extras.back()->setView(extraViews.back().get());
+    }
+    first.setView(&firstView);
+    second.setView(&otherView);
+    first.setProperty("canGoBack", true);
+    second.setProperty("canGoBack", true);
+    QSignalSpy firstQuery(&first, &omaweb::QtHistorySwipe::queryNeeded);
+    QSignalSpy secondQuery(&second, &omaweb::QtHistorySwipe::queryNeeded);
+    const auto send = [](QQuickItem *target, Qt::ScrollPhase phase, QPoint delta) {
+        QWheelEvent event(QPointF(40, 40), QPointF(140, 140), delta, delta * 12, Qt::NoButton,
+            Qt::NoModifier, phase, false, Qt::MouseEventSynthesizedBySystem);
+        QCoreApplication::sendEvent(target, &event);
+    };
+    send(&otherPage, Qt::ScrollBegin, {});
+    send(&otherPage, Qt::ScrollUpdate, {20, 0});
+    QCOMPARE(firstQuery.size(), 0);
+    QCOMPARE(secondQuery.size(), 1);
+    second.resolve(secondQuery.first().first().toInt(), false);
+    QObject unrelated;
+    dispatcher.unrelatedEvents = 0;
+    QEvent event(QEvent::User);
+    QCoreApplication::sendEvent(&unrelated, &event);
+    QCOMPARE(dispatcher.unrelatedEvents, 1);
+    QCOMPARE(first.unrelatedEvents, 0);
+    QCOMPARE(second.unrelatedEvents, 0);
+    for (const auto &extra : extras)
+        QCOMPARE(extra->unrelatedEvents, 0);
+}
+
+void QtHistorySwipeTest::multiViewLifecycle()
+{
+    QQuickItem firstView(window.contentItem());
+    QQuickItem secondView(&firstView);
+    QQuickItem reboundView(window.contentItem());
+    probe::RenderWidgetHostViewQtDelegateItem firstPage;
+    probe::RenderWidgetHostViewQtDelegateItem secondPage;
+    probe::RenderWidgetHostViewQtDelegateItem reboundPage;
+    firstPage.setParentItem(&firstView);
+    secondPage.setParentItem(&secondView);
+    reboundPage.setParentItem(&reboundView);
+    auto first = std::make_unique<omaweb::QtHistorySwipe>();
+    omaweb::QtHistorySwipe second;
+    first->setView(&firstView);
+    second.setView(&secondView);
+    first->setProperty("canGoBack", true);
+    second.setProperty("canGoBack", true);
+    QSignalSpy firstQuery(first.get(), &omaweb::QtHistorySwipe::queryNeeded);
+    QSignalSpy secondQuery(&second, &omaweb::QtHistorySwipe::queryNeeded);
+    QSignalSpy secondNavigation(&second, &omaweb::QtHistorySwipe::navigate);
+    quint64 timestamp = 100;
+    const auto send = [&timestamp](QQuickItem *target, Qt::ScrollPhase phase, QPoint delta) {
+        QWheelEvent event(QPointF(40, 40), QPointF(140, 140), delta, delta * 12, Qt::NoButton,
+            Qt::NoModifier, phase, false, Qt::MouseEventSynthesizedBySystem);
+        event.setTimestamp(timestamp += 200);
+        QCoreApplication::sendEvent(target, &event);
+    };
+    send(&firstPage, Qt::ScrollBegin, {});
+    send(&firstPage, Qt::ScrollUpdate, {130, 0});
+    QCOMPARE(firstQuery.size(), 1);
+    send(&secondPage, Qt::ScrollBegin, {});
+    send(&secondPage, Qt::ScrollUpdate, {130, 0});
+    QCOMPARE(firstQuery.size(), 1);
+    QCOMPARE(secondQuery.size(), 1);
+    second.resolve(secondQuery.first().first().toInt(), true);
+    QVERIFY(second.progress() > 0);
+    QCOMPARE(first->progress(), 0);
+    send(&secondPage, Qt::ScrollEnd, {});
+    QCOMPARE(secondNavigation.size(), 1);
+    const int stale = firstQuery.first().first().toInt();
+    first->setView(&reboundView);
+    first->resolve(stale, true);
+    QCOMPARE(first->progress(), 0);
+    send(&firstPage, Qt::ScrollBegin, {});
+    send(&firstPage, Qt::ScrollUpdate, {130, 0});
+    QCOMPARE(firstQuery.size(), 1);
+    send(&reboundPage, Qt::ScrollBegin, {});
+    send(&reboundPage, Qt::ScrollUpdate, {130, 0});
+    QCOMPARE(firstQuery.size(), 2);
+    first.reset();
+    send(&reboundPage, Qt::ScrollBegin, {});
+    send(&reboundPage, Qt::ScrollUpdate, {130, 0});
+    QCOMPARE(secondQuery.size(), 1);
+}
+
+void QtHistorySwipeTest::cancelActiveViews()
+{
+    QQuickItem otherView(window.contentItem());
+    probe::RenderWidgetHostViewQtDelegateItem otherPage;
+    otherPage.setParentItem(&otherView);
+    omaweb::QtHistorySwipe other;
+    other.setView(&otherView);
+    other.setProperty("canGoBack", true);
+    QSignalSpy query(&swipe, &omaweb::QtHistorySwipe::queryNeeded);
+    QSignalSpy otherQuery(&other, &omaweb::QtHistorySwipe::queryNeeded);
+    begin();
+    wheel(Qt::ScrollUpdate, {130, 0});
+    QWheelEvent beginOther(QPointF(40, 40), QPointF(140, 140), {}, {}, Qt::NoButton, Qt::NoModifier,
+        Qt::ScrollBegin, false, Qt::MouseEventSynthesizedBySystem);
+    QWheelEvent moveOther(QPointF(40, 40), QPointF(140, 140), {130, 0}, {1560, 0}, Qt::NoButton,
+        Qt::NoModifier, Qt::ScrollUpdate, false, Qt::MouseEventSynthesizedBySystem);
+    QCoreApplication::sendEvent(&otherPage, &beginOther);
+    QCoreApplication::sendEvent(&otherPage, &moveOther);
+    QCOMPARE(query.size(), 1);
+    QCOMPARE(otherQuery.size(), 1);
+    QKeyEvent key(QEvent::KeyPress, Qt::Key_A, Qt::NoModifier);
+    QCoreApplication::sendEvent(&window, &key);
+    swipe.resolve(query.first().first().toInt(), true);
+    other.resolve(otherQuery.first().first().toInt(), true);
+    QCOMPARE(swipe.progress(), 0);
+    QCOMPARE(other.progress(), 0);
+    QCOMPARE(page.heard.size(), 2);
+    QCOMPARE(otherPage.heard.size(), 2);
+}
+
+void QtHistorySwipeTest::cancelSettledBeforeDuplicateBegin_data()
+{
+    QTest::addColumn<bool>("settled");
+    QTest::newRow("settled") << true;
+    QTest::newRow("passing") << false;
+}
+
+void QtHistorySwipeTest::cancelSettledBeforeDuplicateBegin()
+{
+    QFETCH(bool, settled);
+    QSignalSpy query(&swipe, &omaweb::QtHistorySwipe::queryNeeded);
+    const auto send = [this](Qt::ScrollPhase phase, QPoint delta) {
+        QWheelEvent event(QPointF(40, 40), QPointF(140, 140), delta, delta * 12, Qt::NoButton,
+            Qt::NoModifier, phase, false, Qt::MouseEventSynthesizedBySystem);
+        event.setTimestamp(123);
+        QCoreApplication::sendEvent(&page, &event);
+    };
+    send(Qt::ScrollBegin, {});
+    if (settled) {
+        send(Qt::ScrollUpdate, {130, 0});
+        QCOMPARE(query.size(), 1);
+        swipe.resolve(query.first().first().toInt(), true);
+        send(Qt::ScrollEnd, {});
+    } else {
+        send(Qt::ScrollUpdate, {0, 6});
+        QCOMPARE(query.size(), 0);
+    }
+    QKeyEvent key(QEvent::KeyPress, Qt::Key_A, Qt::NoModifier);
+    QCoreApplication::sendEvent(&window, &key);
+    send(Qt::ScrollBegin, {});
+    send(Qt::ScrollUpdate, {130, 0});
+    QCOMPARE(query.size(), settled ? 2 : 1);
 }
 
 void QtHistorySwipeTest::axisLock()

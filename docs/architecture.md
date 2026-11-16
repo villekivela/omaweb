@@ -595,13 +595,15 @@ told it no longer has one.
 
 ## Touchpad history navigation
 
-`QtHistorySwipe` watches phased touchpad input to the page's Qt Quick input item. It locks an axis
-after ten logical pixels, and asks the page once before taking a horizontal gesture. The helper
-`history-swipe.js` runs in the application world, outside the site's JavaScript world, and checks
-the scroll chain under the pointer, including open shadow roots and RTL scroll positions. A frame,
-canvas, input, fullscreen page or opaque custom element refuses the gesture rather than guessing
-about scrolling it cannot inspect. CSS horizontal overscroll containment also refuses it. A site
-that implements gestures entirely in script is not fully described by these DOM checks.
+`QtHistorySwipeDispatcher` installs one application event filter and walks the input item's
+ancestors to find its page's `QtHistorySwipe` recognizer. Each recognizer keeps its own gesture
+state and locks an axis after six logical pixels, then asks the page once before taking a horizontal
+gesture. The helper `history-swipe.js` runs in the application world, outside the site's JavaScript
+world, and checks the scroll chain under the pointer, including open shadow roots and RTL scroll
+positions. A frame, canvas, input, fullscreen page or opaque custom element refuses the gesture
+rather than guessing about scrolling it cannot inspect. CSS horizontal overscroll containment also
+refuses it. A site that implements gestures entirely in script is not fully described by these DOM
+checks.
 
 While that asynchronous query is outstanding, the native recognizer queues the input. A refusal or a
 150 ms timeout replays it to the original page. An acceptance clears the pending page glide and ends

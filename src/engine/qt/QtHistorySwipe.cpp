@@ -12,6 +12,61 @@
 
 namespace omaweb {
 
+namespace {
+    QPointer<QtHistorySwipeDispatcher> dispatcher;
+}
+
+QtHistorySwipeDispatcher::QtHistorySwipeDispatcher(QObject *parent)
+    : QObject(parent)
+{
+    Q_ASSERT(!dispatcher);
+    dispatcher = this;
+    if (auto *application = QCoreApplication::instance())
+        application->installEventFilter(this);
+}
+
+QtHistorySwipeDispatcher::~QtHistorySwipeDispatcher() { dispatcher.clear(); }
+
+void QtHistorySwipeDispatcher::add(QQuickItem *view, QtHistorySwipe *swipe)
+{
+    if (view)
+        m_views.insert(view, swipe);
+}
+
+void QtHistorySwipeDispatcher::remove(QQuickItem *view, QtHistorySwipe *swipe)
+{
+    if (m_views.value(view) == swipe)
+        m_views.remove(view);
+    m_active.remove(swipe);
+}
+
+bool QtHistorySwipeDispatcher::eventFilter(QObject *watched, QEvent *event)
+{
+    if (pageGlideEvent)
+        return false;
+    if (event->type() == QEvent::WindowDeactivate || event->type() == QEvent::KeyPress
+        || event->type() == QEvent::MouseButtonPress) {
+        QList<QPointer<QtHistorySwipe>> active;
+        for (auto *swipe : std::as_const(m_active))
+            active.append(swipe);
+        for (const auto &swipe : active) {
+            if (swipe)
+                swipe->cancel();
+        }
+        return false;
+    }
+    if (event->type() != QEvent::Wheel)
+        return false;
+    auto *page = qobject_cast<QQuickItem *>(watched);
+    if (!isPageInput(page))
+        return false;
+    for (auto *item = page->parentItem(); item; item = item->parentItem()) {
+        if (auto *swipe = m_views.value(item, nullptr))
+            return swipe->handleWheel(page, static_cast<QWheelEvent *>(event));
+    }
+    return false;
+}
+
 QtHistorySwipe::QtHistorySwipe(QObject *parent)
     : QObject(parent)
 {
@@ -28,7 +83,12 @@ QtHistorySwipe::QtHistorySwipe(QObject *parent)
             cancel();
         }
     });
-    QCoreApplication::instance()->installEventFilter(this);
+}
+
+QtHistorySwipe::~QtHistorySwipe()
+{
+    if (dispatcher)
+        dispatcher->remove(m_view, this);
 }
 
 QQuickItem *QtHistorySwipe::view() const { return m_view; }
@@ -39,15 +99,21 @@ void QtHistorySwipe::setView(QQuickItem *view)
         return;
     }
     cancel();
+    if (dispatcher)
+        dispatcher->remove(m_view, this);
     disconnect(m_viewVisibility);
     disconnect(m_viewDestroyed);
     m_view = view;
     if (view) {
+        if (dispatcher)
+            dispatcher->add(view, this);
         m_viewVisibility = connect(view, &QQuickItem::visibleChanged, this, [this] {
             if (m_view && !m_view->isVisible())
                 cancel();
         });
-        m_viewDestroyed = connect(view, &QObject::destroyed, this, [this] {
+        m_viewDestroyed = connect(view, &QObject::destroyed, this, [this, view] {
+            if (dispatcher)
+                dispatcher->remove(view, this);
             cancel();
             emit viewChanged();
         });
@@ -67,6 +133,8 @@ void QtHistorySwipe::setProgress(qreal value)
 
 void QtHistorySwipe::cancel()
 {
+    if (dispatcher)
+        dispatcher->m_active.remove(this);
     if (m_state == State::Querying && m_page && m_page->isVisible()) {
         replay();
     } else if (m_state == State::Navigating) {
@@ -176,27 +244,10 @@ qreal QtHistorySwipe::speedAt(quint64 at) const
     return (to.offset - from->offset) * 1000.0 / static_cast<qreal>(to.at - from->at);
 }
 
-bool QtHistorySwipe::eventFilter(QObject *watched, QEvent *event)
+bool QtHistorySwipe::handleWheel(QQuickItem *page, QWheelEvent *wheel)
 {
-    if (m_replaying || pageGlideEvent) {
+    if (m_replaying || !m_enabled || !m_view || !m_view->isVisible())
         return false;
-    }
-    if (event->type() == QEvent::WindowDeactivate || event->type() == QEvent::KeyPress
-        || event->type() == QEvent::MouseButtonPress) {
-        cancel();
-        return false;
-    }
-    if (event->type() != QEvent::Wheel) {
-        return false;
-    }
-    if (!m_enabled || !m_view || !m_view->isVisible()) {
-        return false;
-    }
-    auto *page = qobject_cast<QQuickItem *>(watched);
-    if (!isPageInput(page) || !m_view->isAncestorOf(page)) {
-        return false;
-    }
-    auto *wheel = static_cast<QWheelEvent *>(event);
     if (!m_enabled || !m_view->isVisible() || wheel->modifiers() != Qt::NoModifier
         || wheel->buttons() != Qt::NoButton || wheel->phase() == Qt::NoScrollPhase) {
         if (m_state == State::Querying) {
@@ -213,6 +264,8 @@ bool QtHistorySwipe::eventFilter(QObject *watched, QEvent *event)
         }
         cancel();
         m_state = State::Tracking;
+        if (dispatcher)
+            dispatcher->m_active.insert(this);
         m_page = page;
         m_pageVisibility = connect(page, &QQuickItem::visibleChanged, this, [this] {
             if (m_page && !m_page->isVisible())

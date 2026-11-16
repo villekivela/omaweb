@@ -13908,6 +13908,7 @@ int main(int argc, char *argv[])
     omaweb::registerQtAgentInput();
     omaweb::registerQtPageScripts();
     omaweb::QtPageGlide pageGlide;
+    omaweb::QtHistorySwipeDispatcher historySwipeDispatcher;
     omaweb::registerQtPageGlide(&pageGlide);
     omaweb::registerQtHistorySwipe();
     omaweb::registerWindowExposure();
