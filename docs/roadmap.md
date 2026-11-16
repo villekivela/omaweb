@@ -92,7 +92,7 @@ directory restyles that site, applies as it is saved, and Sync carries it
 ([#913](https://github.com/villekivela/omaweb/issues/913)). A panel on the right edits that file,
 and hides a part of the page the reader points at
 ([#939](https://github.com/villekivela/omaweb/issues/939)). A new tab opens the Omnibar over the
-page on show, and a Settings switch brings the Start page back
+page the reader was on, and a Settings switch brings the Start page back
 ([#945](https://github.com/villekivela/omaweb/issues/945)). A "+ New tab" row after the sidebar's
 tabs opens one with a click, and a setting hides it
 ([#947](https://github.com/villekivela/omaweb/issues/947)). The Omarchy kit catches up with quattro
