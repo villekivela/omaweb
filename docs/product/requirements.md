@@ -1013,8 +1013,8 @@ reports the gap and remains experimental rather than imitating behavior it canno
   the same swipe while it is on, so Three fingers should be Nothing then. The choices are `gestures`
   in `settings.json`, which holds only what the reader changed; an edit of the file applies at once,
   and Sync carries it. A Tab window or a pop-up window runs Back and forward from a swipe over its
-  page and nothing else, since it has no tab or Space of its own to switch; a swipe over a Glance
-  goes back and forward in the Glance.
+  page, and with any other action chosen leaves the swipe to the page, since it has no tab or Space
+  of its own to switch; a swipe over a Glance goes back and forward in the Glance.
 - A touchpad scroll in a page glides on after the fingers lift and slows to a stop, as in GTK 4. The
   glide starts at the speed the fingers had over the last 150 ms before they lifted, so fingers that
   come to rest first leave the page where it is, and it slows as GTK's does. It scrolls whatever the

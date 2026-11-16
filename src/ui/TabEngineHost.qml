@@ -693,6 +693,14 @@ Item {
         if (!engine)
             return null;
         root.registerEngine(tabId, engine, spaceId);
+        // A page lent to a Tab window has no tab or Space there to switch, so
+        // it keeps a swipe only for Back and forward and leaves any other to
+        // the page, as a pop-up window does. Back here, it takes the reader's
+        // action again.
+        engine.swipeAction = Qt.binding(function () {
+            return root.lent(tabId) && root.pageSwipeAction !== "back-and-forward" ? "nothing" :
+                                                                                     root.pageSwipeAction;
+        });
         return engine;
     }
 

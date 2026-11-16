@@ -22373,6 +22373,34 @@ TestCase {
         });
     }
 
+    // A Tab window has no tab or Space to switch, so with Switch tab or Switch
+    // Space chosen its page leaves a sideways swipe to the page itself rather
+    // than take it and do nothing. Back and forward stays, and the page takes
+    // the reader's action back when it returns to the main window.
+    function test_aTabWindowLeavesASwipeToItsPageUnlessItGoesBack() {
+        const engine = openPage("https://swipe-lent.example");
+        const tabId = browser.activeTabId;
+        openPageInNewTab("https://swipe-home.example");
+        gestureSettings.setAction("page", "switch-tab");
+        compare(engine.swipeAction, "switch-tab");
+        verify(window.commands.run("pop-out-tab", tabId));
+        const tabWindow = tabWindowOf(tabId);
+        try {
+            compare(engine.swipeAction, "nothing");
+            gestureSettings.setAction("page", "back-and-forward");
+            compare(engine.swipeAction, "back-and-forward");
+            gestureSettings.setAction("page", "switch-space");
+            compare(engine.swipeAction, "nothing");
+            tabWindow.close();
+            tryVerify(function () {
+                return window.tabWindowFor(tabId) === null;
+            });
+            compare(engine.swipeAction, "switch-space");
+        } finally {
+            gestureSettings.setAction("page", "back-and-forward");
+        }
+    }
+
     // Switch tab wraps: from the first tab, a swipe towards the previous goes
     // to the last, and from there towards the next comes back to the first.
     function test_switchTabFromASwipeWrapsAtBothEnds() {
