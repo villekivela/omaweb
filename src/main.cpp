@@ -79,6 +79,7 @@
 #endif
 #include "PrimaryHold.h"
 #include "SpaceSwipe.h"
+#include "QtHistorySwipe.h"
 #include "Scenes.h"
 #include "SystemClipboard.h"
 #include "SystemMotion.h"
@@ -623,6 +624,7 @@ int main(int argc, char *argv[])
     omaweb::registerInputOrigin();
     omaweb::registerPrimaryHold();
     omaweb::registerSpaceSwipe();
+    omaweb::registerQtHistorySwipe();
     omaweb::registerScenes();
     omaweb::registerExternalProtocolHandler();
     omaweb::registerPagePrinter();
@@ -651,6 +653,7 @@ int main(int argc, char *argv[])
     omaweb::registerQtPageScripts();
     // Fingers resting on the touchpad stop a page's glide, as in GTK 4 (#808).
     omaweb::QtPageGlide pageGlide;
+    omaweb::QtHistorySwipeDispatcher historySwipeDispatcher;
     omaweb::TouchpadHold touchpadHold;
     QObject::connect(
         &touchpadHold, &omaweb::TouchpadHold::held, &pageGlide, &omaweb::QtPageGlide::stop);

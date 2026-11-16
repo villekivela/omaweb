@@ -48,6 +48,8 @@ public:
     Q_INVOKABLE void stop();
     // Stops a glide in the page `view` draws.
     Q_INVOKABLE void stopIn(QQuickItem *view);
+    // A history swipe takes over before the page hears the fingers lift.
+    Q_INVOKABLE void cancelIn(QQuickItem *view);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;

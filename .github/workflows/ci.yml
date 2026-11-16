@@ -69,6 +69,8 @@ jobs:
       # this test keeps equal to what the website draws.
       - name: Check the road's key colours are the website's
         run: node --test 'tests/scenes/*.test.mjs'
+      - name: Check page history swipe boundaries
+        run: node tests/scripts/tst_historyswipe.mjs
 
   commit-messages:
     runs-on: ubuntu-latest

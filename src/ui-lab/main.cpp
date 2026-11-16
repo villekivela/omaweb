@@ -1583,6 +1583,8 @@ int main(int argc, char *argv[])
             {QStringLiteral("page-menu:link"), {}},
             {QStringLiteral("page-menu:link-spaces"), {}},
             {QStringLiteral("page-menu:selection"), {}},
+            {QStringLiteral("history-back"), {}},
+            {QStringLiteral("history-forward"), {}},
             // The Site style panel over the documentation page, with its host
             // picker open, or with the picker on the page's diagram.
             {QStringLiteral("site-style"), {}},
@@ -1651,7 +1653,8 @@ int main(int argc, char *argv[])
             || requested == QLatin1String("address-suggestions")
             || requested == QLatin1String("card-suggestions")
             || requested == QLatin1String("card-save-offer") || securityKey
-            || requested.startsWith(QLatin1String("page-menu:"));
+            || requested.startsWith(QLatin1String("page-menu:"))
+            || requested.startsWith(QLatin1String("history-"));
         if (pageAsks) {
             const auto tabId = lastTabId(browser.unpinnedTabs());
             if (tabId.isEmpty()) {
@@ -1695,6 +1698,11 @@ int main(int argc, char *argv[])
                             }
                         });
                     }
+                    return;
+                }
+                if (requested.startsWith(QLatin1String("history-"))) {
+                    view->setProperty("historySwipeProgress",
+                        requested == QLatin1String("history-back") ? 1.0 : -1.0);
                     return;
                 }
                 if (securityKey) {
