@@ -48,6 +48,23 @@ For cage, install `cage qt6-wayland mesa`, run as a non-root user with
 capture with the lab's `--capture`. Offscreen shots use `QT_SCALE_FACTOR=2`. A blur missing from an
 offscreen shot is the renderer, not a regression. The build needs `qt6-shadertools`.
 
+### Publishing captures
+
+A pull request's captures go on the one `assets` branch, never on a branch of their own. Add them as
+a commit whose parent is the branch's tip and whose tree holds only this pull request's images, then
+link each image by that commit's SHA:
+
+```sh
+git fetch origin assets
+tree=$(git mktree <<<"100644 blob $(git hash-object -w after.png)	947-after.png")
+commit=$(git commit-tree "$tree" -p origin/assets -m "docs: add #947 captures")
+git push origin "$commit:refs/heads/assets"
+```
+
+The link is `https://github.com/villekivela/omaweb/blob/<commit>/947-after.png?raw=true`. If the
+push is refused because another capture landed first, fetch and make the commit again on the new
+tip. Never force-push `assets`: every image linked from an old pull request lives in its history.
+
 ## Sound
 
 A headless browser plays Web Audio through the machine's speakers. Mute every automated audio run:
