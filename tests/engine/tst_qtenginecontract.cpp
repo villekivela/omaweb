@@ -303,6 +303,7 @@ private slots:
     void qtScriptsEveryDocumentForItsOwnAddress();
     void qtStylesAPageWithTheReadersSiteStyle();
     void qtPicksAnElementToHide();
+    void qtDrawsThePickerUnderAStrictContentSecurityPolicy();
     void qtCountsAndPreviewsWhatAStyleHides();
     void qtKeepsPickingThroughALoadThatLeavesTheDocument();
     void qtNamesATagThatIsNoIdentifierByItself();
@@ -2503,8 +2504,9 @@ public:
                     socket->disconnectFromHost();
                     return;
                 }
-                socket->write("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: "
-                    + QByteArray::number(m_body.size()) + "\r\nConnection: close\r\n\r\n" + m_body);
+                socket->write("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n" + m_responseHeader
+                    + "Content-Length: " + QByteArray::number(m_body.size())
+                    + "\r\nConnection: close\r\n\r\n" + m_body);
                 socket->flush();
                 socket->disconnectFromHost();
             });
@@ -2512,6 +2514,9 @@ public:
     }
 
     QStringList requested() const { return m_requested; }
+
+    // A header every page answer carries, such as a Content-Security-Policy.
+    void setResponseHeader(QByteArray header) { m_responseHeader = std::move(header); }
 
     // The value of one header on the request for one path, or an empty
     // string where the request never came or carried no such header. Header
@@ -2541,6 +2546,7 @@ public:
 private:
     QByteArray m_body;
     QByteArray m_redirectTo;
+    QByteArray m_responseHeader;
     QStringList m_requested;
     QStringList m_requests;
 };
@@ -4752,6 +4758,62 @@ void QtEngineContractTest::qtPicksAnElementToHide()
     QVERIFY(input.pressKey(webView, QStringLiteral("Escape")));
     QTRY_VERIFY_WITH_TIMEOUT(!adapter->property("picking").toBool(), 5000);
     QCOMPARE(hidden.count(), 1);
+}
+
+// The picker's highlight is drawn with styles a page's Content Security
+// Policy cannot block: a policy without 'unsafe-inline' refuses a <style>
+// element, shadow root or not, and left the box without its border and tint.
+void QtEngineContractTest::qtDrawsThePickerUnderAStrictContentSecurityPolicy()
+{
+    PageServer server(R"HTML(<!doctype html><html><head><title>ready</title></head>
+        <body><canvas id="target" width="200" height="100"></canvas></body></html>)HTML");
+    // The page cannot carry an inline style either, so its element is sized
+    // by its attributes and sits where the body's default margin puts it.
+    server.setResponseHeader("Content-Security-Policy: default-src 'self'\r\n");
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QQmlEngine engine;
+    QQmlComponent component(
+        &engine, QUrl::fromLocalFile(QStringLiteral(OMAWEB_QT_ENGINE_VIEW_PATH)));
+    const std::unique_ptr<QObject> adapter(component.createWithInitialProperties({
+        {QStringLiteral("profilePath"), root.filePath(QStringLiteral("profile"))},
+    }));
+    QVERIFY2(adapter, qPrintable(component.errorString()));
+    QQuickWindow window;
+    window.resize(400, 400);
+    auto *view = qobject_cast<QQuickItem *>(adapter.get());
+    view->setParentItem(window.contentItem());
+    view->setSize(QSizeF(400, 400));
+    window.show();
+    QVERIFY(adapter->setProperty(
+        "currentUrl", QUrl(QStringLiteral("http://127.0.0.1:%1/").arg(server.serverPort()))));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        adapter->property("pageTitle").toString(), QStringLiteral("ready"), 15000);
+    const auto pick = [&adapter] { return adapter->property("pick").toMap(); };
+
+    QVERIFY(QMetaObject::invokeMethod(adapter.get(), "startPicking"));
+    QTRY_VERIFY_WITH_TIMEOUT(pick().contains(QStringLiteral("levels")), 5000);
+    auto *webView = adapter->findChild<QQuickItem *>(QStringLiteral("qtWebView"));
+    QVERIFY(webView);
+    omaweb::QtAgentInput input;
+    QTest::mouseMove(&window, QPoint(100, 50));
+    QVERIFY(input.click(webView, QPointF(100, 50)));
+    QTRY_COMPARE_WITH_TIMEOUT(
+        pick().value(QStringLiteral("selector")).toString(), QStringLiteral("#target"), 5000);
+
+    // The box's border is the accent, and the tint over its inside is not the
+    // page's own colour.
+    const auto drawn = [&window](QPoint at) {
+        const auto ratio = window.effectiveDevicePixelRatio();
+        return window.grabWindow().pixelColor(at * ratio);
+    };
+    const QColor accent(0x7c, 0x6c, 0xff);
+    QTRY_COMPARE_WITH_TIMEOUT(drawn(QPoint(9, 50)), accent, 5000);
+    QVERIFY(drawn(QPoint(100, 50)) != drawn(QPoint(300, 300)));
+    // The label sits over the box's top left, its padding the accent too.
+    QCOMPARE(drawn(QPoint(11, 20)), accent);
 }
 
 // Each row the panel lists for a hidden element says how many it hides on the
