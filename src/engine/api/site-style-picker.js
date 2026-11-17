@@ -139,16 +139,22 @@
     .join(";");
   const shadow = host.attachShadow({ mode: "closed" });
   const accent = globalThis.__omawebSiteStyleAccent || "#7c6cff";
-  shadow.innerHTML =
-    "<style>.box{position:fixed;box-sizing:border-box;border:2px solid " +
-    accent +
-    ";border-radius:4px;background:color-mix(in srgb," +
-    accent +
-    " 18%,transparent)}.box.related{opacity:.6}" +
-    ".label{position:fixed;font:12px/1.4 monospace;padding:2px 8px;border-radius:4px;" +
-    "color:#fff;background:" +
-    accent +
-    ";white-space:nowrap}</style>";
+  // A constructed sheet, not a <style> element: a page's Content Security
+  // Policy without 'unsafe-inline' refuses the element, shadow root or not,
+  // and leaves the highlight undrawn. The policy does not reach a sheet made in script.
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(
+    ".box{position:fixed;box-sizing:border-box;border:2px solid " +
+      accent +
+      ";border-radius:4px;background:color-mix(in srgb," +
+      accent +
+      " 18%,transparent)}.box.related{opacity:.6}" +
+      ".label{position:fixed;font:12px/1.4 monospace;padding:2px 8px;border-radius:4px;" +
+      "color:#fff;background:" +
+      accent +
+      ";white-space:nowrap}",
+  );
+  shadow.adoptedStyleSheets = [sheet];
   const layer = document.createElement("div");
   shadow.appendChild(layer);
 
