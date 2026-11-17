@@ -83,22 +83,21 @@ from a copy already on the machine. Omaweb's tabs can show up in oma-cast throug
 extension once two upstream pull requests merge, so the row waits with
 [#554](https://github.com/villekivela/omaweb/issues/554).
 
-[v0.22.0](https://github.com/villekivela/omaweb/milestone/23) is the release in progress, for
-gestures and user styles. A two-finger swipe over a page goes Back and Forward
-([#930](https://github.com/villekivela/omaweb/issues/930)), contributed from outside the project. A
-Gestures page in Settings then chooses what two- and three-finger swipes do and how far they travel
-([#933](https://github.com/villekivela/omaweb/issues/933)). A CSS file per site in the configuration
-directory restyles that site, applies as it is saved, and Sync carries it
-([#913](https://github.com/villekivela/omaweb/issues/913)). A panel on the right edits that file,
-and hides a part of the page the reader points at
-([#939](https://github.com/villekivela/omaweb/issues/939)). A new tab opens the Omnibar over the
-page the reader was on, and a Settings switch brings the Start page back
-([#945](https://github.com/villekivela/omaweb/issues/945)). A "+ New tab" row after the sidebar's
-tabs opens one with a click, and a setting hides it
-([#947](https://github.com/villekivela/omaweb/issues/947)). The Omarchy kit catches up with quattro
-again ([#932](https://github.com/villekivela/omaweb/issues/932)). The engine moves to QtWebEngine
-6.140.0, the first released apart from Qt, with Chromium's security fixes up to 157.0.8103.50
-([#484](https://github.com/villekivela/omaweb/issues/484)).
+[v0.22.0](https://github.com/villekivela/omaweb/releases/tag/v0.22.0) shipped gestures and user
+styles: a two-finger swipe over a page that goes Back and Forward, contributed from outside the
+project, a Gestures page that chooses what two- and three-finger swipes do and how far they travel,
+a CSS file per site that restyles it as it is saved, a panel that edits that file and hides what the
+reader points at, a new tab's Omnibar over the page, and a "+ New tab" row after the sidebar's tabs.
+Its engine is QtWebEngine 6.140.0, with Chromium's security fixes up to 157.0.8103.50.
+
+[v0.23.0](https://github.com/villekivela/omaweb/milestone/24) is the release in progress, for
+Agents. A patch in the engine series gives an Agent tab its own untrusted debugging session, and an
+Agent reads that tab's failed requests, status codes, headers and bodies through it
+([#373](https://github.com/villekivela/omaweb/issues/373)). In an Agent Space, an Agent then
+evaluates in the page's own world ([#534](https://github.com/villekivela/omaweb/issues/534)).
+Whether Qt's extension surface has grown is checked again against 6.140.0
+([#288](https://github.com/villekivela/omaweb/issues/288)), and the Omarchy kit catches up with
+quattro ([#953](https://github.com/villekivela/omaweb/issues/953)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
@@ -122,10 +121,6 @@ not distribute its bundles ([ADR 0029](adr/0029-distribute-only-for-linux.md)).
   ([#175](https://github.com/villekivela/omaweb/issues/175)).
 - The Ladybird adapter ([#7](https://github.com/villekivela/omaweb/issues/7)) stays experimental and
   outside the default build graph until it satisfies the daily-driver contract.
-- An engine patch that gives an Agent tab its own debugging session, so an Agent reads the tab's
-  network ([#373](https://github.com/villekivela/omaweb/issues/373)) and, in an Agent Space, the
-  page's main world ([#534](https://github.com/villekivela/omaweb/issues/534)), is built on the
-  6.140.0 engine and follows its move ([#484](https://github.com/villekivela/omaweb/issues/484)).
 - Account and Sync with replaceable providers are deferred.
 - Spellchecking ([#912](https://github.com/villekivela/omaweb/issues/912)) is deferred. The engine
   has the checker built in, so it is browser work when it comes back.
