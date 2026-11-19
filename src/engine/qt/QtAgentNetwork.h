@@ -15,9 +15,10 @@ namespace omaweb {
 
 // An Agent tab's network, read through a debugging session of its page alone
 // (ADR 0051). The session is the engine patch's `QWebEngineDevToolsSession`,
-// whose client Chromium does not trust, so it reaches the page and its frames
-// and no other page, worker or the browser. An engine without the patch has
-// no session, and this reports nothing.
+// whose client Chromium does not trust, so it reaches no other page or the
+// browser. Of the children its auto-attach can bring, frames alone are asked
+// for, as a service worker serves other tabs too. An engine without the patch
+// has no session, and this reports nothing.
 //
 // The session is open while `active` is true and the view has a page: the
 // page area sets it while an Agent holds the tab, so capture starts when an
@@ -49,10 +50,12 @@ public:
     // view has made its page.
     Q_INVOKABLE void attachIfReady();
     // Asks the engine for a request's body, `part` "response" or "sent", by
-    // the `body` a report carried. The answer comes as `bodyFetched` under
-    // `ticket`: `{ok: true, body: <base64>}` or a refusal with `code` and
-    // `error`.
-    Q_INVOKABLE void fetchBody(int ticket, const QVariantMap &body, const QString &part);
+    // the `body` a report carried, of a request whose report gave `size`.
+    // The answer comes as `bodyFetched` under `ticket`: `{ok: true, body:
+    // <base64>, size}` with the body's first `limit` bytes and its whole
+    // size, or a refusal with `code` and `error`.
+    Q_INVOKABLE void fetchBody(
+        int ticket, const QVariantMap &body, const QString &part, qint64 limit, qint64 size);
 
 signals:
     void viewChanged();

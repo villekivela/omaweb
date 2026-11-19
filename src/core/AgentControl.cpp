@@ -322,11 +322,16 @@ AgentControl::AgentControl(BrowserController *browser, QString configRoot, QObje
         connect(this, &AgentControl::agentTabsChanged, m_browser,
             [this] { m_browser->setAgentTabIds(agentTabIds()); });
         // A closed tab's page has gone, and with it what an Agent kept of it.
-        connect(m_browser, &BrowserController::tabClosed, this, [this](const QString &tabId) {
+        // A tab moved to another Space loads again under that Space's
+        // identity, so what was kept of it in the last one goes too: its
+        // requests were read under that Space's rules.
+        const auto pageGone = [this](const QString &tabId) {
             if (m_attached.contains(tabId)) {
                 detach(tabId);
             }
-        });
+        };
+        connect(m_browser, &BrowserController::tabClosed, this, pageGone);
+        connect(m_browser, &BrowserController::tabLeftSpace, this, pageGone);
     }
     // Only an explicit `true` lets Agents in.
     m_allowAgents = AgentsFile::read(m_configRoot, allowAgentsKey).toBool(false);
@@ -2170,6 +2175,10 @@ void AgentControl::readRequest(
     asked.insert(
         QStringLiteral("part"), sent ? QStringLiteral("sent") : QStringLiteral("response"));
     asked.insert(QStringLiteral("body"), QJsonObject::fromVariantMap(found->body));
+    // The page cuts the body before answering, so no more than is written
+    // comes back.
+    asked.insert(QStringLiteral("limit"), static_cast<double>(AgentNetwork::maximumBodyBytes));
+    asked.insert(QStringLiteral("size"), static_cast<double>(found->size));
     asked.insert(QStringLiteral("destination"), destination);
     askPage(QStringLiteral("request"), name, connection, asked, reply);
 }
@@ -2219,13 +2228,16 @@ QString AgentControl::reserveBody(
     return {};
 }
 
-// The page answers with the body as base64, and the core writes as much of it
-// as a body may take into the file it made.
+// The page answers with the body as base64, cut already, and the body's whole
+// size. The core writes as much of it as a body may take into the file it
+// made.
 QJsonObject AgentControl::writeBody(const QString &destination, const QJsonObject &answer)
 {
     const auto body
         = QByteArray::fromBase64(answer.value(QStringLiteral("body")).toString().toLatin1());
-    const auto cut = body.size() > AgentNetwork::maximumBodyBytes;
+    const auto size = std::max(static_cast<qint64>(body.size()),
+        static_cast<qint64>(answer.value(QStringLiteral("size")).toDouble()));
+    const auto cut = size > AgentNetwork::maximumBodyBytes;
     const auto kept = body.left(AgentNetwork::maximumBodyBytes);
     QFile file(destination);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate) || file.write(kept) != kept.size()) {
@@ -2235,7 +2247,7 @@ QJsonObject AgentControl::writeBody(const QString &destination, const QJsonObjec
     return success({
         {QStringLiteral("path"), destination},
         {QStringLiteral("bytes"), static_cast<double>(kept.size())},
-        {QStringLiteral("size"), static_cast<double>(body.size())},
+        {QStringLiteral("size"), static_cast<double>(size)},
         {QStringLiteral("cut"), cut},
     });
 }
@@ -2498,6 +2510,8 @@ QJsonObject AgentControl::pageArguments(
         out.insert(QStringLiteral("body"), request.value(QStringLiteral("body")).toVariant());
         out.insert(
             QStringLiteral("destination"), request.value(QStringLiteral("destination")).toString());
+        out.insert(QStringLiteral("limit"), request.value(QStringLiteral("limit")).toDouble());
+        out.insert(QStringLiteral("size"), request.value(QStringLiteral("size")).toDouble());
         return {};
     }
 

@@ -464,15 +464,18 @@ is not kept.
 `network` and `request` follow the same rules, and an adapter owes them two things, behind the
 `AgentNetwork` capability. It raises `pageNetworkRequest` with a report of each request a page held
 by an Agent makes and of what follows it, under a key of its own and a document of its own count,
-and it answers the `request` page verb with a body, as base64, by the `body` reference its reports
-carried. The Qt adapter's `QtAgentNetwork` opens the engine patch's `QWebEngineDevToolsSession` on
-the page while `agentOwned` is true, enables its Page domain, and the Network domain there and on
-each child session `Target.setAutoAttach` brings for a cross-site frame, and `QtNetworkEvents` reads
-the protocol's events into reports: a document starts when the main frame requests one or shows one
-from the back-forward cache, a redirect ends one hop and starts the next, the headers the network
-service sent replace the page's, and a WebSocket is its handshake. The session ends, and the engine
-drops the bodies it kept for it, when `agentOwned` goes false or the view goes. A Qt engine without
-the patch, the UI lab's mock and Ladybird have no session: they report the capability off and never
+and it answers the `request` page verb with a body by the `body` reference its reports carried: the
+body's first `limit` bytes as base64 and its whole `size`, or `too-large` for one the engine never
+kept. The Qt adapter's `QtAgentNetwork` opens the engine patch's `QWebEngineDevToolsSession` on the
+page while `agentOwned` is true, enables its Page domain, and the Network domain there and on each
+child session `Target.setAutoAttach` brings for a cross-site frame. It asks auto-attach for frames
+alone, since a service worker the page's session brings serves other tabs too and the session cannot
+detach it. `QtNetworkEvents` follows a document's newest 1000 requests and reads the protocol's
+events into reports: a document starts when the main frame requests one or shows one from the
+back-forward cache, a redirect ends one hop and starts the next, the headers the network service
+sent replace the page's, and a WebSocket is its handshake. The session ends, and the engine drops
+the bodies it kept for it, when `agentOwned` goes false or the view goes. A Qt engine without the
+patch, the UI lab's mock and Ladybird have no session: they report the capability off and never
 raise the signal, and the core answers both verbs `unsupported`. The build reads which from the
 engine's headers, as it does for the other patches.
 
@@ -480,11 +483,12 @@ The page area passes a report on only for an Agent tab, naming its document by t
 console's lines are, and `AgentNetwork` keeps a tab's newest 500 requests for the document on show,
 numbered as they begin, so `--since` answers the requests that began after the cursor and says when
 the buffer dropped some. A tab's requests go when it stops being an Agent tab, when Allow agents
-goes off and at once when it closes. `request` answers headers from what was kept, with the four
-credential headers redacted to a count outside an Agent Space. Its bodies are asked of the page: the
-core first makes a new file, mode 0600, in the connection's own directory under the reader's
-downloads, refuses what the page sent outside an Agent Space, and writes at most 10 MB of what comes
-back, saying when it cut a body. The activity log names the request by its id.
+goes off and at once when it closes or moves to another Space. `request` answers headers from what
+was kept, with the four credential headers redacted to a count outside an Agent Space. Its bodies
+are asked of the page: the core first makes a new file, mode 0600, in the connection's own directory
+under the reader's downloads, refuses what the page sent outside an Agent Space, and asks the page
+for at most 10 MB, writing what comes back and saying when the body was cut. The activity log names
+the request by its id.
 
 Input is Qt events sent to the item QtWebEngine draws the page in, which a page sees as trusted
 (#376). Keys go to whatever the page has focused, and `fill` focuses its field from the page, so

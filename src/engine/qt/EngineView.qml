@@ -4344,7 +4344,8 @@ Item {
         if (verb === "request") {
             const ticket = ++root.agentNextBody;
             root.agentBodies[ticket] = answer;
-            agentNetwork.fetchBody(ticket, options.body || {}, String(options.part || ""));
+            agentNetwork.fetchBody(ticket, options.body || {}, String(options.part || ""), Number(
+                                       options.limit || 0), Number(options.size || 0));
             return;
         }
         root.agentWhenReady(Date.now() + root.agentReadyMs, live, function () {

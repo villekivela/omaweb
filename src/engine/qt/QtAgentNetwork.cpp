@@ -1,5 +1,6 @@
 #include "QtAgentNetwork.h"
 
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QQmlEngine>
 
@@ -16,13 +17,6 @@ namespace {
         return static_cast<QWebEngineDevToolsSession *>(session.get());
     }
 #endif
-
-    // What the engine keeps of each body for the session to read. The engine
-    // keeps a body whole or not at all, so one far past the 10 MB the core
-    // writes is still kept to be cut, and a page's bodies together are kept
-    // to the engine's own default.
-    constexpr int keptBodyBytes = 100 * 1000 * 1000;
-    constexpr int keptBodiesBytes = 200 * 1000 * 1000;
 
     QVariantMap refusal(const QString &code, const QString &error)
     {
@@ -127,17 +121,25 @@ void QtAgentNetwork::attach()
 #endif
 }
 
-// The page's session or a child's: its requests, and the children it brings,
-// a frame from another site running in a process of its own among them.
+// The page's session or a child's: its requests, and the frames it brings, a
+// frame from another site running in a process of its own among them.
 void QtAgentNetwork::listen(const QString &session)
 {
     send(QStringLiteral("Network.enable"),
-        {{QStringLiteral("maxTotalBufferSize"), keptBodiesBytes},
-            {QStringLiteral("maxResourceBufferSize"), keptBodyBytes}},
+        // The engine keeps a body whole or not at all, so one far past the
+        // 10 MB the core writes is still kept to be cut, and a page's bodies
+        // together are kept to the engine's own default.
+        {{QStringLiteral("maxTotalBufferSize"), QtNetworkEvents::keptBodiesBytes},
+            {QStringLiteral("maxResourceBufferSize"), QtNetworkEvents::keptBodyBytes}},
         session);
+    // Frames alone. Auto-attach would also bring the service worker whose
+    // scope holds the page, which serves the profile's other tabs of that
+    // scope, and the session cannot let go of a child once it has it.
     send(QStringLiteral("Target.setAutoAttach"),
         {{QStringLiteral("autoAttach"), true}, {QStringLiteral("waitForDebuggerOnStart"), false},
-            {QStringLiteral("flatten"), true}},
+            {QStringLiteral("flatten"), true},
+            {QStringLiteral("filter"),
+                QJsonArray {QJsonObject {{QStringLiteral("type"), QStringLiteral("iframe")}}}}},
         session);
 }
 
@@ -197,10 +199,14 @@ void QtAgentNetwork::read(const QByteArray &message)
         return;
     }
     if (object.value(QStringLiteral("method")).toString() == u"Target.attachedToTarget") {
-        listen(object.value(QStringLiteral("params"))
-                .toObject()
-                .value(QStringLiteral("sessionId"))
-                .toString());
+        const auto params = object.value(QStringLiteral("params")).toObject();
+        const auto type = params.value(QStringLiteral("targetInfo"))
+                              .toObject()
+                              .value(QStringLiteral("type"))
+                              .toString();
+        if (type == u"iframe") {
+            listen(params.value(QStringLiteral("sessionId")).toString());
+        }
         return;
     }
     for (const auto &report : m_events.read(object)) {
@@ -208,7 +214,8 @@ void QtAgentNetwork::read(const QByteArray &message)
     }
 }
 
-void QtAgentNetwork::fetchBody(int ticket, const QVariantMap &body, const QString &part)
+void QtAgentNetwork::fetchBody(
+    int ticket, const QVariantMap &body, const QString &part, qint64 limit, qint64 size)
 {
     const auto requestId = body.value(QStringLiteral("requestId")).toString();
     if (requestId.isEmpty()) {
@@ -224,28 +231,12 @@ void QtAgentNetwork::fetchBody(int ticket, const QVariantMap &body, const QStrin
                 QStringLiteral("The page's session has ended, and its bodies with it.")));
         return;
     }
-    const auto sent = part == u"sent";
-    send(sent ? QStringLiteral("Network.getRequestPostData")
-              : QStringLiteral("Network.getResponseBody"),
+    send(part == u"sent" ? QStringLiteral("Network.getRequestPostData")
+                         : QStringLiteral("Network.getResponseBody"),
         {{QStringLiteral("requestId"), requestId}},
         body.value(QStringLiteral("sessionId")).toString(),
-        [this, ticket, sent](const QJsonObject &answer) {
-            const auto result = answer.value(QStringLiteral("result")).toObject();
-            if (answer.contains(QStringLiteral("error")) || result.isEmpty()) {
-                emit bodyFetched(ticket,
-                    refusal(QStringLiteral("not-found"),
-                        QStringLiteral("The engine no longer holds this body. It keeps a body "
-                                       "while its document is on show, up to 100 MB.")));
-                return;
-            }
-            const auto text
-                = result.value(sent ? QStringLiteral("postData") : QStringLiteral("body"))
-                      .toString();
-            const auto encoded = result.value(QStringLiteral("base64Encoded")).toBool();
-            emit bodyFetched(ticket,
-                {{QStringLiteral("ok"), true},
-                    {QStringLiteral("body"),
-                        encoded ? text : QString::fromLatin1(text.toUtf8().toBase64())}});
+        [this, ticket, part, limit, size](const QJsonObject &answer) {
+            emit bodyFetched(ticket, QtNetworkEvents::bodyAnswer(answer, part, limit, size));
         });
 }
 

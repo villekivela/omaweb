@@ -29,6 +29,21 @@ namespace omaweb {
 // session's Page events.
 class QtNetworkEvents final {
 public:
+    // The requests of one document followed at once. Past it the oldest is
+    // forgotten, and what more is heard of it is not reported.
+    static constexpr int maximumTracked = 1000;
+    // What the engine keeps of each body for the session to read, whole or
+    // not at all, and of a page's bodies together.
+    static constexpr int keptBodyBytes = 100 * 1000 * 1000;
+    static constexpr int keptBodiesBytes = 200 * 1000 * 1000;
+
+    // The answer to the session's `Network.getResponseBody`, or
+    // `getRequestPostData` for `part` "sent", as `fetchBody` gives it: the
+    // body's first `limit` bytes as base64 and its whole `size`, or a
+    // refusal. `size` is what the request's report said it carried.
+    static QVariantMap bodyAnswer(
+        const QJsonObject &answer, const QString &part, qint64 limit, qint64 size);
+
     // The main frame's id, from `Page.getFrameTree`. Until it is known, a
     // document request from the page's own session starts a document.
     void setMainFrame(const QString &frameId);
@@ -63,6 +78,8 @@ private:
     // nothing more.
     QString m_documentLoader;
     QHash<QString, Tracked> m_requests;
+    // The keys of `m_requests`, oldest first.
+    QList<QString> m_order;
 };
 
 } // namespace omaweb

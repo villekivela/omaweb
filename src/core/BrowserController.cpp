@@ -2322,6 +2322,7 @@ bool BrowserController::confirmTabMoveToSpace(
     unpairTab(tabId);
     m_activeTabId = sourceActiveTabId;
     m_tabs.remove(tabId);
+    emit tabLeftSpace(tabId);
     if (m_tabs.rowCount() == 0) {
         m_tabs.append(sourceTabs.constFirst());
     } else if (movingActiveTab) {
@@ -3472,6 +3473,7 @@ bool BrowserController::confirmFolderMoveToSpace(
     for (const auto &id : std::as_const(moved.tabIds)) {
         m_livePageStates.remove(id);
         m_tabs.remove(id);
+        emit tabLeftSpace(id);
     }
     if (movingActiveTab) {
         auto *replacement = m_tabs.find(sourceActiveTabId);

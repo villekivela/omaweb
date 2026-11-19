@@ -74,6 +74,9 @@ private slots:
     void keepsEachHopsHeadersInEitherOrder();
     void reportsAWebSocketAsItsOpeningRequest();
     void keepsAChildSessionsRequestsApart();
+    void forgetsTheOldestRequestsPastTheLimit();
+    void cutsABodyBeforeAnsweringWithIt();
+    void saysABodyWasTooLargeToKeep();
     void readsNothingElse();
 };
 
@@ -433,6 +436,72 @@ void QtNetworkEventsTest::keepsAChildSessionsRequestsApart()
                 ? QStringLiteral("child")
                 : QString {});
     }
+}
+
+// A document that keeps asking, such as one polling, is followed for its
+// newest requests alone, and news of an older one is not reported.
+void QtNetworkEventsTest::forgetsTheOldestRequestsPastTheLimit()
+{
+    QtNetworkEvents events;
+    events.setMainFrame(QStringLiteral("MAIN"));
+    for (int index = 0; index <= QtNetworkEvents::maximumTracked; ++index) {
+        events.read(willBeSent(QString::number(index), QStringLiteral("https://a.example/poll"),
+            QStringLiteral("Fetch")));
+    }
+    const auto finished = [&events](int index) {
+        return events.read(protocolEvent(QStringLiteral("Network.loadingFinished"),
+            {{QStringLiteral("requestId"), QString::number(index)},
+                {QStringLiteral("encodedDataLength"), 10}}));
+    };
+    QVERIFY(finished(0).isEmpty());
+    QCOMPARE(finished(1).size(), 1);
+    QCOMPARE(finished(QtNetworkEvents::maximumTracked).size(), 1);
+}
+
+void QtNetworkEventsTest::cutsABodyBeforeAnsweringWithIt()
+{
+    const auto bytes = [](const QVariantMap &answer) {
+        return QByteArray::fromBase64(answer.value(QStringLiteral("body")).toString().toLatin1());
+    };
+    auto answer = QtNetworkEvents::bodyAnswer(
+        {{QStringLiteral("result"),
+            QJsonObject {{QStringLiteral("body"), QStringLiteral("abcdef")},
+                {QStringLiteral("base64Encoded"), false}}}},
+        QStringLiteral("response"), 4, 0);
+    QVERIFY(answer.value(QStringLiteral("ok")).toBool());
+    QCOMPARE(bytes(answer), QByteArray("abcd"));
+    QCOMPARE(answer.value(QStringLiteral("size")).toLongLong(), 6);
+
+    answer = QtNetworkEvents::bodyAnswer(
+        {{QStringLiteral("result"),
+            QJsonObject {{QStringLiteral("body"), QStringLiteral("AQID")},
+                {QStringLiteral("base64Encoded"), true}}}},
+        QStringLiteral("response"), 4, 0);
+    QCOMPARE(bytes(answer), QByteArray("\x01\x02\x03"));
+    QCOMPARE(answer.value(QStringLiteral("size")).toLongLong(), 3);
+
+    answer = QtNetworkEvents::bodyAnswer(
+        {{QStringLiteral("result"),
+            QJsonObject {{QStringLiteral("postData"), QStringLiteral("a=1")}}}},
+        QStringLiteral("sent"), 10, 0);
+    QCOMPARE(bytes(answer), QByteArray("a=1"));
+}
+
+// The engine keeps a body whole or not at all, so one past what it keeps has
+// nothing left to cut.
+void QtNetworkEventsTest::saysABodyWasTooLargeToKeep()
+{
+    const QJsonObject gone {{QStringLiteral("error"),
+        QJsonObject {{QStringLiteral("code"), -32000},
+            {QStringLiteral("message"), QStringLiteral("No data found for resource")}}}};
+    const auto large = QtNetworkEvents::bodyAnswer(
+        gone, QStringLiteral("response"), 10, QtNetworkEvents::keptBodyBytes + 1);
+    QVERIFY(!large.value(QStringLiteral("ok")).toBool());
+    QCOMPARE(large.value(QStringLiteral("code")).toString(), QStringLiteral("too-large"));
+    QCOMPARE(QtNetworkEvents::bodyAnswer(gone, QStringLiteral("response"), 10, 100)
+                 .value(QStringLiteral("code"))
+                 .toString(),
+        QStringLiteral("not-found"));
 }
 
 void QtNetworkEventsTest::readsNothingElse()

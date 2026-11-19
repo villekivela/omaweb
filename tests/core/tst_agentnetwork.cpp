@@ -205,9 +205,11 @@ private slots:
     void refusesARequestBodyOutsideAnAgentSpace();
     void writesAResponseBodyToTheConnectionsDirectory();
     void cutsAResponseBodyAtTheLimit();
+    void reportsTheCutThePageMade();
     void dropsTheRequestsWhenTheAgentDetaches();
     void dropsTheRequestsWhenAllowAgentsGoesOff();
     void dropsTheRequestsWhenTheTabCloses();
+    void dropsTheRequestsWhenTheTabMovesToAnotherSpace();
     void logsNoAddressHeaderOrBody();
 };
 
@@ -713,6 +715,46 @@ void AgentNetworkTest::cutsAResponseBodyAtTheLimit()
         AgentNetwork::maximumBodyBytes);
 }
 
+// The page is asked for no more than the limit and says how large the body
+// was, so the whole body never comes back to be cut.
+void AgentNetworkTest::reportsTheCutThePageMade()
+{
+    Browser browser;
+    QTemporaryDir downloads;
+    QVERIFY(browser.browser->setDownloadDirectory(downloads.path()));
+    constexpr auto size = AgentNetwork::maximumBodyBytes + 1000;
+    QVariantMap asked;
+    connect(browser.control.get(), &AgentControl::pageRequested, this,
+        [&browser, &asked](int requestId, const QVariantMap &request) {
+            asked = request.value(QStringLiteral("arguments")).toMap();
+            browser.control->answerPage(requestId,
+                {{QStringLiteral("ok"), true},
+                    {QStringLiteral("body"),
+                        QString::fromLatin1(
+                            QByteArray(AgentNetwork::maximumBodyBytes, 'x').toBase64())},
+                    {QStringLiteral("size"), static_cast<double>(size)}});
+        });
+    const auto tabId = browser.agentTab();
+    auto report = credentialed(QStringLiteral("me"), QStringLiteral("1"));
+    report.insert(QStringLiteral("size"), 12345);
+    browser.control->recordNetworkRequest(tabId, report);
+
+    QJsonObject written;
+    browser.control->handle(
+        {{QStringLiteral("verb"), QStringLiteral("request")},
+            {QStringLiteral("name"), QStringLiteral("agent")},
+            {QStringLiteral("id"), browser.newestId()}, {QStringLiteral("body"), true}},
+        [&written](const QJsonObject &answer) { written = answer; });
+    QTRY_VERIFY(!written.isEmpty());
+    QCOMPARE(asked.value(QStringLiteral("limit")).toLongLong(), AgentNetwork::maximumBodyBytes);
+    QCOMPARE(asked.value(QStringLiteral("size")).toLongLong(), 12345);
+    QVERIFY2(written.value(QStringLiteral("ok")).toBool(), qPrintable(code(written)));
+    QVERIFY(written.value(QStringLiteral("cut")).toBool());
+    QCOMPARE(written.value(QStringLiteral("bytes")).toDouble(),
+        static_cast<double>(AgentNetwork::maximumBodyBytes));
+    QCOMPARE(written.value(QStringLiteral("size")).toDouble(), static_cast<double>(size));
+}
+
 void AgentNetworkTest::dropsTheRequestsWhenTheAgentDetaches()
 {
     Browser browser;
@@ -765,6 +807,70 @@ void AgentNetworkTest::dropsTheRequestsWhenTheTabCloses()
     QVERIFY(browser.browser->closeTabInSpace(tabId));
     QVERIFY(!browser.control->agentTabIds().contains(tabId));
     QVERIFY(browser.control->agentTabIds().contains(other));
+
+    // In the Space on show, by the tab's own close, by closing the others and
+    // by closing the last tab, which is emptied rather than removed.
+    Browser shown;
+    const auto spaceId
+        = shown.browser->createAgentSpace(QStringLiteral("Checks"), QStringLiteral("agent"));
+    QVERIFY(shown.browser->switchSpace(spaceId));
+    const auto opened = [&shown, &spaceId](const QString &url) {
+        return shown
+            .ask({{QStringLiteral("verb"), QStringLiteral("open")}, {QStringLiteral("url"), url},
+                {QStringLiteral("space"), spaceId}})
+            .value(QStringLiteral("tab"))
+            .toObject()
+            .value(QStringLiteral("id"))
+            .toString();
+    };
+    const auto first = opened(QStringLiteral("https://a.example/"));
+    const auto second = opened(QStringLiteral("https://b.example/"));
+    const auto third = opened(QStringLiteral("https://c.example/"));
+    for (const auto &id : {first, second, third}) {
+        QCOMPARE(shown.browser->findTab(id).value_or(omaweb::TabState {}).spaceId, spaceId);
+        QVERIFY2(shown.control->agentTabIds().contains(id), qPrintable(id));
+    }
+    shown.control->recordNetworkRequest(second,
+        began(QStringLiteral("a"), QStringLiteral("1"), QStringLiteral("https://b.example/kept")));
+    shown.browser->closeTab(second);
+    QVERIFY(!shown.control->agentTabIds().contains(second));
+    shown.browser->closeOtherTabs(third);
+    QVERIFY(!shown.control->agentTabIds().contains(first));
+    QVERIFY(shown.control->agentTabIds().contains(third));
+    shown.browser->closeTab(third);
+    QVERIFY(shown.browser->findTab(third));
+    QVERIFY(!shown.control->agentTabIds().contains(third));
+}
+
+// A tab moved to another Space loads again under that Space's identity, so
+// what an Agent held of its page goes, and credentials read in the reader's
+// Space are not shown in an Agent Space.
+void AgentNetworkTest::dropsTheRequestsWhenTheTabMovesToAnotherSpace()
+{
+    Browser browser;
+    const auto tabId = browser.grantedTab();
+    browser.control->recordNetworkRequest(
+        tabId, credentialed(QStringLiteral("me"), QStringLiteral("1")));
+    const auto id = browser.newestId();
+    const auto agentSpaceId
+        = browser.browser->createAgentSpace(QStringLiteral("Checks"), QStringLiteral("agent"));
+    QVERIFY(browser.browser->confirmTabMoveToSpace(tabId, agentSpaceId));
+    QVERIFY(!browser.control->agentTabIds().contains(tabId));
+    const auto answer = browser.ask({{QStringLiteral("verb"), QStringLiteral("request")},
+        {QStringLiteral("tab"), tabId}, {QStringLiteral("id"), id}});
+    QCOMPARE(code(answer), QStringLiteral("not-found"));
+    QVERIFY(!QJsonDocument(answer).toJson().contains("secret-token"));
+
+    // And a Folder moved with the tab in it.
+    Browser folders;
+    const auto folderTab = folders.grantedTab();
+    const auto folderId = folders.browser->createFolder(QStringLiteral("Work"), {folderTab});
+    QVERIFY(!folderId.isEmpty());
+    const auto work = folders.browser->createSpace(QStringLiteral("Work"));
+    QVERIFY(folders.browser->switchSpace(QStringLiteral("personal")));
+    QVERIFY(folders.control->agentTabIds().contains(folderTab));
+    QVERIFY(folders.browser->confirmFolderMoveToSpace(folderId, work));
+    QVERIFY(!folders.control->agentTabIds().contains(folderTab));
 }
 
 void AgentNetworkTest::logsNoAddressHeaderOrBody()

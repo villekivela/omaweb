@@ -18,6 +18,12 @@ namespace {
         return pairs;
     }
 
+    QVariantMap refusal(const QString &code, const QString &error)
+    {
+        return {{QStringLiteral("ok"), false}, {QStringLiteral("code"), code},
+            {QStringLiteral("error"), error}};
+    }
+
     QString failureOf(const QJsonObject &params)
     {
         const auto blocked = params.value(QStringLiteral("blockedReason")).toString();
@@ -33,6 +39,37 @@ namespace {
 } // namespace
 
 void QtNetworkEvents::setMainFrame(const QString &frameId) { m_mainFrame = frameId; }
+
+QVariantMap QtNetworkEvents::bodyAnswer(
+    const QJsonObject &answer, const QString &part, qint64 limit, qint64 size)
+{
+    const auto result = answer.value(QStringLiteral("result")).toObject();
+    if (answer.contains(QStringLiteral("error")) || result.isEmpty()) {
+        if (size > keptBodyBytes) {
+            return refusal(QStringLiteral("too-large"),
+                QStringLiteral("The body is %1 bytes. The engine keeps none of a body over 100 MB, "
+                               "so there is nothing of it to write.")
+                    .arg(size));
+        }
+        return refusal(QStringLiteral("not-found"),
+            QStringLiteral("The engine no longer holds this body. It keeps a body while its "
+                           "document is on show, up to 100 MB."));
+    }
+    const auto text
+        = result.value(part == u"sent" ? QStringLiteral("postData") : QStringLiteral("body"))
+              .toString();
+    auto body = result.value(QStringLiteral("base64Encoded")).toBool()
+        ? QByteArray::fromBase64(text.toLatin1())
+        : text.toUtf8();
+    const auto whole = body.size();
+    // Cut here, so what is not written never travels further.
+    if (body.size() > limit) {
+        body.truncate(limit);
+    }
+    return {{QStringLiteral("ok"), true},
+        {QStringLiteral("body"), QString::fromLatin1(body.toBase64())},
+        {QStringLiteral("size"), whole}};
+}
 
 QVariantMap QtNetworkEvents::report(const QString &id, const Tracked &tracked) const
 {
@@ -58,6 +95,7 @@ QList<QVariantMap> QtNetworkEvents::read(const QJsonObject &message)
         ++m_document;
         m_documentLoader = loader;
         m_requests.clear();
+        m_order.clear();
         return {{{QStringLiteral("key"), QString {}},
             {QStringLiteral("document"), QString::number(m_document)}}};
     }
@@ -71,6 +109,22 @@ QList<QVariantMap> QtNetworkEvents::read(const QJsonObject &message)
     // The engine's ids are its own per session, and a child session's are
     // kept apart by its id.
     const auto id = session + u'/' + requestId;
+    if (!m_requests.contains(id)) {
+        // Only the start of a request, or the headers the network service
+        // reports ahead of it, is a request to follow. News of one that is
+        // not followed is not reported.
+        if (method != u"Network.requestWillBeSent" && method != u"Network.webSocketCreated"
+            && !method.endsWith(u"ExtraInfo")
+            && method != u"Network.webSocketWillSendHandshakeRequest") {
+            return {};
+        }
+        // The oldest goes before the new one is made, as removing from the
+        // hash can move what it holds.
+        if (m_order.size() >= maximumTracked) {
+            m_requests.remove(m_order.takeFirst());
+        }
+        m_order.append(id);
+    }
     auto *tracked = &m_requests[id];
     const auto bodyOf = [&session, &requestId] {
         QVariantMap body {{QStringLiteral("requestId"), requestId}};
@@ -119,6 +173,7 @@ QList<QVariantMap> QtNetworkEvents::read(const QJsonObject &message)
             // are not tracked either.
             const auto current = *tracked;
             m_requests.clear();
+            m_order = {id};
             tracked = &m_requests.insert(id, current).value();
         }
         tracked->begun = true;
@@ -193,6 +248,7 @@ QList<QVariantMap> QtNetworkEvents::read(const QJsonObject &message)
 
     if (!tracked->begun) {
         m_requests.remove(id);
+        m_order.removeOne(id);
         return {};
     }
     auto update = report(id, *tracked);
