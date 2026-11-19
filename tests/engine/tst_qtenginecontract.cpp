@@ -2669,14 +2669,13 @@ void QtEngineContractTest::qtHistorySwipeNavigatesWithoutTakingPageScrolling()
     QTRY_COMPARE_WITH_TIMEOUT(queries.size(), 3, 5000);
     QTest::qWait(500);
     QCOMPARE(navigation.size(), 0);
-    // The swipes that navigate land in a custom element without shadow DOM, which only wraps the
-    // page's content, as a Polymer app such as YouTube's does (#960).
     // The view says which way the swipe went; the chrome runs what Settings
     // chose, which for a page is Back and forward until the reader says
     // otherwise. This stands in for the chrome.
     QSignalSpy swiped(shown.adapter.get(), SIGNAL(pageSwiped(int)));
     QObject::connect(
         shown.adapter.get(), SIGNAL(pageSwiped(int)), shown.adapter.get(), SLOT(goBack()));
+    // A custom element without shadow DOM that only wraps content is walked through (#960).
     gesture({350, 200}, 140);
     QTRY_COMPARE_WITH_TIMEOUT(
         shown.adapter->property("pageTitle").toString(), QStringLiteral("/first"), 15000);
@@ -2688,7 +2687,7 @@ void QtEngineContractTest::qtHistorySwipeNavigatesWithoutTakingPageScrolling()
     QObject::connect(
         shown.adapter.get(), SIGNAL(pageSwiped(int)), shown.adapter.get(), SLOT(goForward()));
     QTRY_VERIFY_WITH_TIMEOUT(shown.adapter->property("canGoForward").toBool(), 5000);
-    gesture({350, 200}, -140);
+    gesture({550, 400}, -140);
     QTRY_COMPARE_WITH_TIMEOUT(
         shown.adapter->property("pageTitle").toString(), QStringLiteral("/second"), 15000);
     QCOMPARE(navigation.size(), 2);
