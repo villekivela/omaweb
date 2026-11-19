@@ -34,6 +34,11 @@ inline int expectedQtCapabilities()
 #if OMAWEB_PAGE_CERTIFICATES
     capabilities |= EngineCapabilities::PageCertificates;
 #endif
+    // And an Agent tab's network, once it carries the patch that gives a page
+    // a debugging session of its own.
+#if OMAWEB_AGENT_NETWORK
+    capabilities |= EngineCapabilities::AgentNetwork;
+#endif
     return capabilities;
 }
 

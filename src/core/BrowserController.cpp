@@ -1413,6 +1413,7 @@ bool BrowserController::closeTabInSpace(const QString &tabId, const QString &spa
     }
     refreshRetainedTabs();
     emit awayTabDiscarded(tabId);
+    emit tabClosed(tabId);
     return true;
 }
 
@@ -2627,6 +2628,7 @@ void BrowserController::closeTab(const QString &tabId)
             emit closeWindowRequested();
             return;
         }
+        emit tabClosed(tabId);
         // The last tab is emptied rather than removed, but the page in it was
         // still closed and the reader can still ask for it back.
         rememberClosedTab(*tab);
@@ -2660,6 +2662,7 @@ void BrowserController::closeTab(const QString &tabId)
     }
 
     rememberClosedTab(*tab);
+    emit tabClosed(tabId);
     // A split ends with either of its tabs, and the survivor is an ordinary
     // row. Closing the active half shows the tab that was beside it, which is
     // the page the reader was already looking at.

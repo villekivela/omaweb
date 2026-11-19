@@ -432,6 +432,8 @@ Rectangle {
     signal agentVerbAnswered(int requestId, var answer)
     signal pageConsoleMessage(int level, string message, int lineNumber, string sourceId,
                               int document)
+    // The mock has no network to read, so it never raises this.
+    signal pageNetworkRequest(var report)
     property bool pageTakesFocus: true
     property int agentNextLabel: 1
     property bool agentOwned: false

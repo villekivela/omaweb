@@ -9,6 +9,7 @@
 #include "ContentBlocker.h"
 #include "ControlSocket.h"
 #include "QtAgentInput.h"
+#include "QtAgentNetwork.h"
 #include "QtPageScripts.h"
 #include "PageSnapshot.h"
 #include "WindowExposure.h"
@@ -396,6 +397,7 @@ int main(int argc, char *argv[])
     // it. A check of the QML is not a browser anything should reach.
     omaweb::AgentControl agentControl(&browser, configRoot());
     agentControl.setPageScale(&pageScale);
+    agentControl.setNetworkInspection(omaweb::QtAgentNetwork::sessionAvailable());
 #ifdef OMAWEB_AGENT_SKILL_FROM_BROWSER
     {
         const auto skill = QDir::cleanPath(QDir(QCoreApplication::applicationDirPath())
@@ -654,6 +656,7 @@ int main(int argc, char *argv[])
     omaweb::registerInputMethodReport(&inputMethod);
     omaweb::registerLocaleReport(&localeReport);
     omaweb::registerQtAgentInput();
+    omaweb::registerQtAgentNetwork();
     omaweb::registerQtPageScripts();
     // Fingers resting on the touchpad stop a page's glide, as in GTK 4 (#808).
     omaweb::QtPageGlide pageGlide;

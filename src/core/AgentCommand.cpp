@@ -144,6 +144,21 @@ namespace {
                 .maximumPositionals = 0,
                 .positionalField = {}};
         }
+        if (verb == u"network") {
+            return {.valued = {tab, QStringLiteral("since")},
+                .flags = {QStringLiteral("failed")},
+                .minimumPositionals = 0,
+                .maximumPositionals = 0,
+                .positionalField = {}};
+        }
+        // The id is a number, which the reading below checks.
+        if (verb == u"request") {
+            return {.valued = {tab, QStringLiteral("output")},
+                .flags = {QStringLiteral("body"), QStringLiteral("sent")},
+                .minimumPositionals = 1,
+                .maximumPositionals = 1,
+                .positionalField = {}};
+        }
         if (verb == u"commands") {
             return {.valued = {},
                 .flags = {},
@@ -547,7 +562,8 @@ namespace {
         const auto verb = request.value(QStringLiteral("verb")).toString();
         const auto timeout = pageTimeoutFor(verb, request);
         const auto reachesAPage = verb == u"look" || verb == u"read" || verb == u"do"
-            || verb == u"shot" || verb == u"eval" || verb == u"console";
+            || verb == u"shot" || verb == u"eval" || verb == u"console" || verb == u"network"
+            || verb == u"request";
         return reachesAPage ? timeout + grantAnswerTimeoutMs : timeout;
     }
 
@@ -565,6 +581,8 @@ namespace {
             QStringLiteral("shot"),
             QStringLiteral("eval"),
             QStringLiteral("console"),
+            QStringLiteral("network"),
+            QStringLiteral("request"),
             QStringLiteral("commands"),
             QStringLiteral("run"),
             QStringLiteral("focus"),
@@ -626,6 +644,8 @@ namespace {
         {"shot", "take a screenshot of the page"},
         {"eval", "run a JavaScript expression in the page"},
         {"console", "read the page's console"},
+        {"network", "list the requests the page made"},
+        {"request", "read a request's headers, or write its body to a file"},
         {"mcp", "serve the verbs to an MCP client over stdio"},
         {"dev", "open the folder it runs in as a project Space"},
         {"report", "write a Problem report to file an issue with"},
@@ -887,7 +907,7 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
             bool number = false;
             const auto cursor = value.toULongLong(&number);
             if (!number) {
-                command.error = QStringLiteral("--since is the cursor a `console` answered.");
+                command.error = QStringLiteral("--since is the cursor a `%1` answered.").arg(verb);
                 return command;
             }
             request.insert(option, static_cast<double>(cursor));
@@ -949,6 +969,21 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
         }
         request.insert(QStringLiteral("command"), positionals.constFirst());
         positionals.clear();
+    } else if (verb == u"request") {
+        bool number = false;
+        const auto id = positionals.size() == 1 ? positionals.constFirst().toULongLong(&number) : 0;
+        if (!number || id == 0) {
+            command.error = QStringLiteral("`request` takes the id `network` gave a request.");
+            return command;
+        }
+        if (request.contains(QStringLiteral("output")) && !request.contains(QStringLiteral("body"))
+            && !request.contains(QStringLiteral("sent"))) {
+            command.error = QStringLiteral(
+                "--output names the file a body is written to, so give --body or --sent too.");
+            return command;
+        }
+        request.insert(QStringLiteral("id"), static_cast<double>(id));
+        positionals.clear();
     } else if (positionals.size() < grammar.minimumPositionals
         || (grammar.maximumPositionals >= 0 && positionals.size() > grammar.maximumPositionals)) {
         command.error = verb == u"open" ? QStringLiteral("`open` takes one address.")
@@ -1002,6 +1037,89 @@ namespace {
         }
         text += QStringLiteral("cursor\t%1\n")
                     .arg(static_cast<quint64>(answer.value(QStringLiteral("cursor")).toDouble()));
+        return text;
+    }
+
+    // An address or a reason in a line of fields, with what would end the
+    // field or the line written so it cannot.
+    QString field(QString text)
+    {
+        return text.replace(u'\t', QStringLiteral("%09"))
+            .replace(u'\n', QStringLiteral("%0A"))
+            .replace(u'\r', QStringLiteral("%0D"));
+    }
+
+    // A request as `network` lists it: id, method, the status or why it
+    // failed, or `pending` while neither is known, the type, the address and
+    // the bytes it took, or `-` until that is known.
+    QString requestLine(const QJsonObject &request)
+    {
+        const auto status = request.value(QStringLiteral("status")).toInt();
+        const auto failure = request.value(QStringLiteral("failure")).toString();
+        const auto size = request.value(QStringLiteral("size")).toDouble(-1);
+        const QStringList fields {
+            QString::number(static_cast<quint64>(request.value(QStringLiteral("id")).toDouble())),
+            field(request.value(QStringLiteral("method")).toString()),
+            !failure.isEmpty() ? field(failure)
+                : status > 0   ? QString::number(status)
+                               : QStringLiteral("pending"),
+            field(request.value(QStringLiteral("type")).toString()),
+            field(request.value(QStringLiteral("url")).toString()),
+            size < 0 ? QStringLiteral("-") : QString::number(static_cast<qint64>(size)),
+        };
+        return fields.join(u'\t') + u'\n';
+    }
+
+    QString formatNetwork(const QJsonObject &answer)
+    {
+        QString text;
+        if (answer.value(QStringLiteral("truncated")).toBool()) {
+            text += QStringLiteral("truncated\tolder requests were dropped before this call\n");
+        }
+        for (const auto &value : answer.value(QStringLiteral("requests")).toArray()) {
+            text += requestLine(value.toObject());
+        }
+        text += QStringLiteral("cursor\t%1\n")
+                    .arg(static_cast<quint64>(answer.value(QStringLiteral("cursor")).toDouble()));
+        return text;
+    }
+
+    // A request's line, then its headers as HTTP writes them, one value to a
+    // line, under `request` and `response`.
+    QString formatRequest(const QJsonObject &answer)
+    {
+        if (answer.contains(QStringLiteral("path"))) {
+            auto text = answer.value(QStringLiteral("path")).toString() + u'\n';
+            if (answer.value(QStringLiteral("cut")).toBool()) {
+                text += QStringLiteral("cut\tthe body is %1 bytes, and the first %2 were written\n")
+                            .arg(static_cast<qint64>(
+                                answer.value(QStringLiteral("size")).toDouble()))
+                            .arg(static_cast<qint64>(
+                                answer.value(QStringLiteral("bytes")).toDouble()));
+            }
+            return text;
+        }
+        const auto request = answer.value(QStringLiteral("request")).toObject();
+        const auto headers = [](const QJsonArray &pairs) {
+            QString lines;
+            for (const auto &value : pairs) {
+                const auto pair = value.toArray();
+                const auto name = field(pair.at(0).toString());
+                for (const auto &one : pair.at(1).toString().split(u'\n')) {
+                    lines += QStringLiteral("  %1: %2\n").arg(name, field(one));
+                }
+            }
+            return lines;
+        };
+        auto text = requestLine(request) + QStringLiteral("request\n")
+            + headers(request.value(QStringLiteral("requestHeaders")).toArray());
+        const auto status = request.value(QStringLiteral("status")).toInt();
+        if (status > 0) {
+            const auto statusText = request.value(QStringLiteral("statusText")).toString();
+            text += QStringLiteral("response %1").arg(status)
+                + (statusText.isEmpty() ? QString {} : u' ' + field(statusText)) + u'\n'
+                + headers(request.value(QStringLiteral("responseHeaders")).toArray());
+        }
         return text;
     }
 
@@ -1116,6 +1234,12 @@ QString formatAgentAnswer(const QString &verb, const QJsonObject &answer)
     }
     if (verb == u"console") {
         return formatConsole(answer);
+    }
+    if (verb == u"network") {
+        return formatNetwork(answer);
+    }
+    if (verb == u"request") {
+        return formatRequest(answer);
     }
     if (verb == u"eval") {
         const auto value = answer.value(QStringLiteral("value"));

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AgentConsole.h"
+#include "AgentNetwork.h"
 #include "AgentSetup.h"
 #include "TabListModel.h"
 
@@ -200,6 +201,17 @@ public:
     // `recordConsoleMessage`, whether or not it says anything.
     Q_INVOKABLE void startConsoleDocument(const QString &tabId, const QString &document);
 
+    // Whether the engine can give an Agent tab's network, which needs a
+    // debugging session of one page (ADR 0051). Without it `network` and
+    // `request` are refused as unsupported.
+    void setNetworkInspection(bool available);
+    // What the adapter learnt of a request an Agent tab's page made, for
+    // `network` and `request`: the report `AgentNetwork::record` reads, its
+    // `document` named as for `recordConsoleMessage`. A tab that is not an
+    // Agent tab is not listened to, and a tab's requests are forgotten when
+    // it stops being one.
+    Q_INVOKABLE void recordNetworkRequest(const QString &tabId, const QVariantMap &report);
+
     QStringList agentTabIds() const;
     QVariantMap agentActivity() const;
     // What the interface needs to build an Agent tab's page: `tabId`,
@@ -347,7 +359,8 @@ private:
         // What was asked, so the answer can be told as the Agent's last act.
         QString verb;
         QVariantList steps;
-        // The file made for a `shot`, which is the page's to draw into.
+        // The file made for a `shot`, which is the page's to draw into, or for
+        // a `request` body, which the core writes once the page answers.
         QString shot;
     };
 
@@ -386,6 +399,19 @@ private:
     // else the Agent may do there.
     QJsonObject refuseUpload(const Connection &connection, const QJsonObject &request) const;
     QJsonObject readConsole(Connection &connection, const QJsonObject &request);
+    // The tab `network` or `request` reads, once the engine is known to offer
+    // the session, made the connection's current tab and an Agent tab.
+    QJsonObject networkTab(Connection &connection, const QJsonObject &request,
+        std::optional<TabState> &tab, QString &target, const QString &act);
+    QJsonObject readNetwork(Connection &connection, const QJsonObject &request);
+    void readRequest(const QString &name, Connection &connection, const QJsonObject &request,
+        const Reply &reply);
+    // The file a body is written to: `output`, or a name of its own, made new
+    // in the connection's directory. Empty, with `refused` saying why, when it
+    // cannot be.
+    QString reserveBody(
+        const QString &name, const QString &output, quint64 id, QJsonObject &refused) const;
+    static QJsonObject writeBody(const QString &destination, const QJsonObject &answer);
     QJsonObject askWindow(const QString &verb, const QJsonObject &request);
     QJsonObject switchToSpace(const QJsonObject &request);
     QJsonObject focusTab(const QJsonObject &request);
@@ -494,6 +520,8 @@ private:
     QElapsedTimer m_clock;
     QTimer m_idleCheck;
     AgentConsole m_console;
+    AgentNetwork m_network;
+    bool m_networkInspection = false;
     int m_attachmentIdleMs = defaultAttachmentIdleMs;
     // The connection that last used each Agent tab. The tab's downloads go to
     // that connection's directory.

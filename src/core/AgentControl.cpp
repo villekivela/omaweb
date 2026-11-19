@@ -276,11 +276,22 @@ namespace {
             .left(maximumAddressLength);
     }
 
-    // Whether a verb is about one tab's page: a page verb, or `console`, which
-    // the core answers from what that page has logged.
+    // Whether a verb is about one tab's page: a page verb, or `console`,
+    // `network` or `request`, which the core answers from what that page has
+    // logged or asked for.
     bool readsTab(const QString &verb)
     {
-        return AgentControl::pageVerb(verb) || verb == u"console";
+        return AgentControl::pageVerb(verb) || verb == u"console" || verb == u"network"
+            || verb == u"request";
+    }
+
+    QJsonArray headerPairs(const QVector<AgentNetwork::Header> &headers)
+    {
+        QJsonArray pairs;
+        for (const auto &header : headers) {
+            pairs.append(QJsonArray {header.name, header.value});
+        }
+        return pairs;
     }
 
 } // namespace
@@ -310,6 +321,12 @@ AgentControl::AgentControl(BrowserController *browser, QString configRoot, QObje
         // puts one away as unused while an Agent is attached.
         connect(this, &AgentControl::agentTabsChanged, m_browser,
             [this] { m_browser->setAgentTabIds(agentTabIds()); });
+        // A closed tab's page has gone, and with it what an Agent kept of it.
+        connect(m_browser, &BrowserController::tabClosed, this, [this](const QString &tabId) {
+            if (m_attached.contains(tabId)) {
+                detach(tabId);
+            }
+        });
     }
     // Only an explicit `true` lets Agents in.
     m_allowAgents = AgentsFile::read(m_configRoot, allowAgentsKey).toBool(false);
@@ -565,6 +582,7 @@ void AgentControl::apply(bool allowed)
             connection.currentTabId.clear();
         }
         m_console.forgetAll();
+        m_network.forgetAll();
         m_tabConnections.clear();
         m_newWindows.clear();
         if (!m_windows.isEmpty()) {
@@ -813,7 +831,7 @@ QString AgentControl::spaceNeedingGrant(
         if (m_openedTabIds.contains(tabId)) {
             return {};
         }
-    } else if (pageVerb(verb) || verb == u"console") {
+    } else if (readsTab(verb)) {
         tabId = openerOf(targetId(connection, request));
     }
     if (tabId.isEmpty()) {
@@ -999,6 +1017,7 @@ bool AgentControl::forgetWindow(const QString &windowId)
         return false;
     }
     m_console.forget(windowId);
+    m_network.forget(windowId);
     m_newWindows[window.openerTabId].removeAll(windowId);
     for (auto &connection : m_connections) {
         if (connection.currentTabId == windowId) {
@@ -1144,6 +1163,7 @@ void AgentControl::stopAgent(const QString &tabId)
 void AgentControl::detach(const QString &tabId)
 {
     m_console.forget(tabId);
+    m_network.forget(tabId);
     m_tabConnections.remove(tabId);
     m_newWindows.remove(tabId);
     releaseWindowsOf(tabId);
@@ -1181,6 +1201,7 @@ void AgentControl::detachIdle()
         m_tabConnections.remove(tabId);
         m_newWindows.remove(tabId);
         m_console.forget(tabId);
+        m_network.forget(tabId);
         releaseWindowsOf(tabId);
     }
     if (m_attached.isEmpty()) {
@@ -1207,6 +1228,8 @@ QJsonObject AgentControl::gate(const QString &verb) const
         QStringLiteral("shot"),
         QStringLiteral("eval"),
         QStringLiteral("console"),
+        QStringLiteral("network"),
+        QStringLiteral("request"),
         QStringLiteral("commands"),
         QStringLiteral("run"),
         QStringLiteral("space"),
@@ -1371,6 +1394,14 @@ void AgentControl::handle(const QJsonObject &request, const Reply &reply, quint6
         logged(readConsole(connection, request));
         return;
     }
+    if (verb == u"network") {
+        logged(readNetwork(connection, request));
+        return;
+    }
+    if (verb == u"request") {
+        readRequest(name, connection, request, logged);
+        return;
+    }
     logged(answerBrowserCommand(verb, name, connection, request, socketConnection));
 }
 
@@ -1403,6 +1434,14 @@ QString AgentControl::activityTarget(const QString &verb, const QJsonObject &req
     }
     if (verb == u"shot" && request.value(QStringLiteral("full")).toBool()) {
         return QStringLiteral("full page");
+    }
+    // A request by its id alone: its address can carry a token, and its
+    // headers and body the reader's credentials and data.
+    if (verb == u"request") {
+        const auto id = request.value(QStringLiteral("id"));
+        return id.isDouble() && id.toDouble() >= 1
+            ? QString::number(static_cast<quint64>(id.toDouble()))
+            : QString {};
     }
     if (verb != u"do") {
         return {};
@@ -1977,6 +2016,230 @@ void AgentControl::recordConsoleMessage(const QString &tabId, const QString &doc
     m_console.record(tabId, document, level, message, source, line);
 }
 
+void AgentControl::setNetworkInspection(bool available) { m_networkInspection = available; }
+
+void AgentControl::recordNetworkRequest(const QString &tabId, const QVariantMap &report)
+{
+    // Only an Agent tab is listened to, as for its console.
+    if (!m_allowAgents || (!m_attached.contains(tabId) && !m_windows.contains(tabId))) {
+        return;
+    }
+    m_network.record(tabId, report);
+}
+
+QJsonObject AgentControl::networkTab(Connection &connection, const QJsonObject &request,
+    std::optional<TabState> &tab, QString &target, const QString &act)
+{
+    if (!m_networkInspection) {
+        return refusal(QStringLiteral("unsupported"),
+            QStringLiteral("This browser's engine cannot read a page's network."));
+    }
+    if (const auto refused = pageTab(connection, request, tab, target); !refused.isEmpty()) {
+        return refused;
+    }
+    connection.currentTabId = target;
+    connection.currentSpaceId = tab->spaceId;
+    attach(tab->id, tab->spaceId, request.value(QStringLiteral("name")).toString(), act);
+    return {};
+}
+
+// Answered from what the tab's page has asked for, so it needs no page to
+// ask. Reading a tab's network makes it the connection's, and an Agent tab
+// from here on, so what its page asks for next is kept.
+QJsonObject AgentControl::readNetwork(Connection &connection, const QJsonObject &request)
+{
+    const auto sinceValue = request.value(QStringLiteral("since"));
+    if (!sinceValue.isUndefined() && (!sinceValue.isDouble() || sinceValue.toDouble() < 0)) {
+        return refusal(QStringLiteral("bad-request"),
+            QStringLiteral("--since is the cursor a `network` answered."));
+    }
+    std::optional<TabState> tab;
+    QString target;
+    if (const auto refused
+        = networkTab(connection, request, tab, target, QStringLiteral("read the network"));
+        !refused.isEmpty()) {
+        return refused;
+    }
+    const auto reading = m_network.read(target, request.value(QStringLiteral("failed")).toBool(),
+        static_cast<quint64>(sinceValue.toDouble(0)));
+    QJsonArray requests;
+    for (const auto &seen : reading.requests) {
+        requests.append(QJsonObject {
+            {QStringLiteral("id"), static_cast<double>(seen.id)},
+            {QStringLiteral("method"), seen.method},
+            {QStringLiteral("status"), seen.status},
+            {QStringLiteral("failure"), seen.failure},
+            {QStringLiteral("type"), seen.type},
+            {QStringLiteral("url"), seen.url},
+            {QStringLiteral("size"), static_cast<double>(seen.size)},
+        });
+    }
+    return success({
+        {QStringLiteral("tab"), target},
+        {QStringLiteral("requests"), requests},
+        {QStringLiteral("cursor"), static_cast<double>(reading.cursor)},
+        {QStringLiteral("truncated"), reading.truncated},
+    });
+}
+
+// A request's headers are answered from what was kept of it. Its bodies are
+// still in the engine, so asking for one asks the page, and the core writes
+// what comes back. In a Space the reader granted the identity is theirs, so
+// their credentials are left out and what the page sent is refused, as an
+// upload is. In an Agent Space both are the Agent's own.
+void AgentControl::readRequest(
+    const QString &name, Connection &connection, const QJsonObject &request, const Reply &reply)
+{
+    const auto idValue = request.value(QStringLiteral("id"));
+    const auto sent = request.value(QStringLiteral("sent")).toBool();
+    const auto body = sent || request.value(QStringLiteral("body")).toBool();
+    if (!idValue.isDouble() || idValue.toDouble() < 1) {
+        reply(refusal(QStringLiteral("bad-request"),
+            QStringLiteral("Name a request by the id `network` gave it.")));
+        return;
+    }
+    const auto output = request.value(QStringLiteral("output")).toString();
+    if (!output.isEmpty() && !body) {
+        reply(refusal(QStringLiteral("bad-request"),
+            QStringLiteral("--output names the file a body is written to, so give --body too.")));
+        return;
+    }
+    std::optional<TabState> tab;
+    QString target;
+    if (const auto refused = networkTab(connection, request, tab, target,
+            body ? QStringLiteral("read a request's body") : QStringLiteral("read a request"));
+        !refused.isEmpty()) {
+        reply(refused);
+        return;
+    }
+    const auto id = static_cast<quint64>(idValue.toDouble());
+    const auto found = m_network.find(target, id);
+    if (!found) {
+        reply(refusal(QStringLiteral("not-found"),
+            QStringLiteral("This tab has no request %1. Its requests start again with each page, "
+                           "and it keeps the newest %2.")
+                .arg(id)
+                .arg(AgentNetwork::maximumRequests)));
+        return;
+    }
+    const auto agentSpace = m_browser->agentSpace(tab->spaceId);
+    if (!body) {
+        reply(success({
+            {QStringLiteral("tab"), target},
+            {QStringLiteral("request"),
+                QJsonObject {
+                    {QStringLiteral("id"), static_cast<double>(found->id)},
+                    {QStringLiteral("method"), found->method},
+                    {QStringLiteral("url"), found->url},
+                    {QStringLiteral("type"), found->type},
+                    {QStringLiteral("status"), found->status},
+                    {QStringLiteral("statusText"), found->statusText},
+                    {QStringLiteral("failure"), found->failure},
+                    {QStringLiteral("size"), static_cast<double>(found->size)},
+                    {QStringLiteral("sentBody"), found->sentBody},
+                    {QStringLiteral("requestHeaders"),
+                        headerPairs(agentSpace ? found->requestHeaders
+                                               : AgentNetwork::redacted(found->requestHeaders))},
+                    {QStringLiteral("responseHeaders"),
+                        headerPairs(agentSpace ? found->responseHeaders
+                                               : AgentNetwork::redacted(found->responseHeaders))},
+                }},
+            {QStringLiteral("redacted"), !agentSpace},
+        }));
+        return;
+    }
+    if (sent && !agentSpace) {
+        reply(refusal(QStringLiteral("refused"),
+            QStringLiteral("What the page sent is read only in an Agent Space. In the reader's own "
+                           "Space it is theirs.")));
+        return;
+    }
+    if (sent && !found->sentBody) {
+        reply(refusal(
+            QStringLiteral("not-found"), QStringLiteral("Request %1 sent no body.").arg(id)));
+        return;
+    }
+    QJsonObject refused;
+    const auto destination = reserveBody(name, output, id, refused);
+    if (destination.isEmpty()) {
+        reply(refused);
+        return;
+    }
+    QJsonObject asked = request;
+    asked.insert(
+        QStringLiteral("part"), sent ? QStringLiteral("sent") : QStringLiteral("response"));
+    asked.insert(QStringLiteral("body"), QJsonObject::fromVariantMap(found->body));
+    asked.insert(QStringLiteral("destination"), destination);
+    askPage(QStringLiteral("request"), name, connection, asked, reply);
+}
+
+// A body is written in the connection's own directory, under the reader's
+// downloads, as its downloads are, under a name that is new there.
+QString AgentControl::reserveBody(
+    const QString &name, const QString &output, quint64 id, QJsonObject &refused) const
+{
+    if (!output.isEmpty()
+        && (output.contains(u'/') || output.contains(u'\\') || output == u"." || output == u".."
+            || output.startsWith(u'.'))) {
+        refused = refusal(QStringLiteral("bad-request"),
+            QStringLiteral("Name the body's file alone, such as response.json. Omaweb writes it "
+                           "in the connection's own directory."));
+        return {};
+    }
+    const auto directory = downloadDirectoryFor(name);
+    if (directory.isEmpty() || !QDir().mkpath(directory)) {
+        refused = refusal(
+            QStringLiteral("failed"), QStringLiteral("There is nowhere to write the body."));
+        return {};
+    }
+    for (int attempt = 0; attempt < 16; ++attempt) {
+        const auto file = !output.isEmpty()
+            ? output
+            : QStringLiteral("request-%1-%2.body")
+                  .arg(id)
+                  .arg(QUuid::createUuid().toString(QUuid::Id128).left(8));
+        const auto path = QDir(directory).filePath(file);
+        const auto made = ::open(QFile::encodeName(path).constData(),
+            O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, S_IRUSR | S_IWUSR);
+        if (made >= 0) {
+            ::close(made);
+            return path;
+        }
+        if (errno == EEXIST && !output.isEmpty()) {
+            refused = refusal(QStringLiteral("bad-request"),
+                QStringLiteral("There is a file called %1 already. Name another.").arg(output));
+            return {};
+        }
+        if (errno != EEXIST) {
+            break;
+        }
+    }
+    refused
+        = refusal(QStringLiteral("failed"), QStringLiteral("The body's file could not be made."));
+    return {};
+}
+
+// The page answers with the body as base64, and the core writes as much of it
+// as a body may take into the file it made.
+QJsonObject AgentControl::writeBody(const QString &destination, const QJsonObject &answer)
+{
+    const auto body
+        = QByteArray::fromBase64(answer.value(QStringLiteral("body")).toString().toLatin1());
+    const auto cut = body.size() > AgentNetwork::maximumBodyBytes;
+    const auto kept = body.left(AgentNetwork::maximumBodyBytes);
+    QFile file(destination);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate) || file.write(kept) != kept.size()) {
+        QFile::remove(destination);
+        return refusal(QStringLiteral("failed"), QStringLiteral("The body could not be written."));
+    }
+    return success({
+        {QStringLiteral("path"), destination},
+        {QStringLiteral("bytes"), static_cast<double>(kept.size())},
+        {QStringLiteral("size"), static_cast<double>(body.size())},
+        {QStringLiteral("cut"), cut},
+    });
+}
+
 void AgentControl::startConsoleDocument(const QString &tabId, const QString &document)
 {
     m_console.start(tabId, document);
@@ -2091,6 +2354,9 @@ void AgentControl::answerPage(int requestId, const QVariantMap &answer)
     auto result = QJsonObject::fromVariantMap(answer);
     if (!result.value(QStringLiteral("ok")).isBool()) {
         result = refusal(QStringLiteral("failed"), QStringLiteral("The page gave no answer."));
+    }
+    if (pending.verb == u"request" && result.value(QStringLiteral("ok")).toBool()) {
+        result = writeBody(pending.shot, result);
     }
     if (!result.value(QStringLiteral("ok")).toBool()) {
         removeUntakenShot(pending);
@@ -2224,6 +2490,14 @@ QJsonObject AgentControl::pageArguments(
             return refused;
         }
         out.insert(QStringLiteral("destination"), destination);
+        return {};
+    }
+    // What the core checked and made for a body in `readRequest`.
+    if (verb == u"request") {
+        out.insert(QStringLiteral("part"), request.value(QStringLiteral("part")).toString());
+        out.insert(QStringLiteral("body"), request.value(QStringLiteral("body")).toVariant());
+        out.insert(
+            QStringLiteral("destination"), request.value(QStringLiteral("destination")).toString());
         return {};
     }
 

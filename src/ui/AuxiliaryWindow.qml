@@ -265,6 +265,10 @@ ApplicationWindow {
                 auxiliary.agentControl.startConsoleDocument(auxiliary.agentWindowId, String(
                                                                 engineLoader.item.pageGeneration));
         }
+        function onPageNetworkRequest(report) {
+            if (auxiliary.agentDriven)
+                auxiliary.agentControl.recordNetworkRequest(auxiliary.agentWindowId, report);
+        }
     }
 
     Connections {

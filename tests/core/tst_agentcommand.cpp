@@ -135,6 +135,31 @@ void AgentCommandTest::readsEachVerbIntoARequest_data()
         << base(QStringLiteral("console"),
                {{QStringLiteral("level"), QStringLiteral("error")}, {QStringLiteral("since"), 12}})
         << true;
+    QTest::newRow("network") << QStringList {QStringLiteral("network")}
+                             << base(QStringLiteral("network")) << false;
+    QTest::newRow("failed requests since a cursor")
+        << QStringList {QStringLiteral("network"), QStringLiteral("--failed"),
+               QStringLiteral("--since=12"), QStringLiteral("--tab"), QStringLiteral("t1")}
+        << base(QStringLiteral("network"),
+               {{QStringLiteral("failed"), true}, {QStringLiteral("since"), 12},
+                   {QStringLiteral("tab"), QStringLiteral("t1")}})
+        << false;
+    QTest::newRow("a request's headers")
+        << QStringList {QStringLiteral("request"), QStringLiteral("42")}
+        << base(QStringLiteral("request"), {{QStringLiteral("id"), 42}}) << false;
+    QTest::newRow("a response body to a file")
+        << QStringList {QStringLiteral("request"), QStringLiteral("42"), QStringLiteral("--body"),
+               QStringLiteral("--output"), QStringLiteral("page.html")}
+        << base(QStringLiteral("request"),
+               {{QStringLiteral("id"), 42}, {QStringLiteral("body"), true},
+                   {QStringLiteral("output"), QStringLiteral("page.html")}})
+        << false;
+    QTest::newRow("what the page sent")
+        << QStringList {QStringLiteral("request"), QStringLiteral("42"), QStringLiteral("--sent"),
+               QStringLiteral("--json")}
+        << base(QStringLiteral("request"),
+               {{QStringLiteral("id"), 42}, {QStringLiteral("sent"), true}})
+        << true;
     QTest::newRow("space delete") << QStringList {QStringLiteral("space"), QStringLiteral("delete"),
         QStringLiteral("s1")}
                                   << base(QStringLiteral("space delete"),
@@ -442,6 +467,19 @@ void AgentCommandTest::refusesAMalformedCommand_data()
         QStringLiteral("console"), QStringLiteral("--since"), QStringLiteral("soon")};
     QTest::newRow("console takes no argument")
         << QStringList {QStringLiteral("console"), QStringLiteral("errors")};
+    QTest::newRow("network takes no argument")
+        << QStringList {QStringLiteral("network"), QStringLiteral("failed")};
+    QTest::newRow("a network cursor that is not one") << QStringList {
+        QStringLiteral("network"), QStringLiteral("--since"), QStringLiteral("soon")};
+    QTest::newRow("request without an id") << QStringList {QStringLiteral("request")};
+    QTest::newRow("an id that is not one")
+        << QStringList {QStringLiteral("request"), QStringLiteral("first")};
+    QTest::newRow("an id of nothing")
+        << QStringList {QStringLiteral("request"), QStringLiteral("0")};
+    QTest::newRow("two ids") << QStringList {
+        QStringLiteral("request"), QStringLiteral("1"), QStringLiteral("2")};
+    QTest::newRow("an output without a body") << QStringList {QStringLiteral("request"),
+        QStringLiteral("1"), QStringLiteral("--output"), QStringLiteral("a.txt")};
     QTest::newRow("two addresses") << QStringList {
         QStringLiteral("open"), QStringLiteral("a.example"), QStringLiteral("b.example")};
     QTest::newRow("do without a step") << QStringList {QStringLiteral("do")};
@@ -589,6 +627,87 @@ void AgentCommandTest::printsOneLinePerRowForAScript()
                        "error\thttp://localhost/app.js:42\tboom\\nat app.js\\r\\tcol 3\n"
                        "info\t\thi\n"
                        "cursor\t17\n"));
+
+    // One request to a line: id, method, status or why it failed, type,
+    // address and size.
+    const QJsonObject network {
+        {QStringLiteral("ok"), true},
+        {QStringLiteral("requests"),
+            QJsonArray {
+                QJsonObject {{QStringLiteral("id"), 3},
+                    {QStringLiteral("method"), QStringLiteral("GET")},
+                    {QStringLiteral("status"), 200}, {QStringLiteral("failure"), QString {}},
+                    {QStringLiteral("type"), QStringLiteral("Document")},
+                    {QStringLiteral("url"), QStringLiteral("http://localhost:3000/")},
+                    {QStringLiteral("size"), 5120}},
+                QJsonObject {{QStringLiteral("id"), 4},
+                    {QStringLiteral("method"), QStringLiteral("POST")},
+                    {QStringLiteral("status"), 0},
+                    {QStringLiteral("failure"), QStringLiteral("net::ERR_CONNECTION_REFUSED")},
+                    {QStringLiteral("type"), QStringLiteral("Fetch")},
+                    {QStringLiteral("url"), QStringLiteral("http://localhost:4000/api")},
+                    {QStringLiteral("size"), -1}},
+                QJsonObject {{QStringLiteral("id"), 5},
+                    {QStringLiteral("method"), QStringLiteral("GET")},
+                    {QStringLiteral("status"), 0}, {QStringLiteral("failure"), QString {}},
+                    {QStringLiteral("type"), QStringLiteral("Image")},
+                    {QStringLiteral("url"), QStringLiteral("http://localhost:3000/a\tb.png")},
+                    {QStringLiteral("size"), -1}},
+            }},
+        {QStringLiteral("cursor"), 5},
+        {QStringLiteral("truncated"), true},
+    };
+    QCOMPARE(formatAgentAnswer(QStringLiteral("network"), network),
+        QStringLiteral("truncated\tolder requests were dropped before this call\n"
+                       "3\tGET\t200\tDocument\thttp://localhost:3000/\t5120\n"
+                       "4\tPOST\tnet::ERR_CONNECTION_REFUSED\tFetch\thttp://localhost:4000/api\t-\n"
+                       "5\tGET\tpending\tImage\thttp://localhost:3000/a%09b.png\t-\n"
+                       "cursor\t5\n"));
+
+    // A request's headers, a line each, under the line `network` gave it.
+    const QJsonObject request {
+        {QStringLiteral("ok"), true},
+        {QStringLiteral("request"),
+            QJsonObject {{QStringLiteral("id"), 3},
+                {QStringLiteral("method"), QStringLiteral("GET")}, {QStringLiteral("status"), 200},
+                {QStringLiteral("statusText"), QStringLiteral("OK")},
+                {QStringLiteral("failure"), QString {}},
+                {QStringLiteral("type"), QStringLiteral("Document")},
+                {QStringLiteral("url"), QStringLiteral("http://localhost:3000/")},
+                {QStringLiteral("size"), 5120}, {QStringLiteral("sentBody"), false},
+                {QStringLiteral("requestHeaders"),
+                    QJsonArray {QJsonArray {
+                        QStringLiteral("Cookie"), QStringLiteral("<redacted, 3 values>")}}},
+                {QStringLiteral("responseHeaders"),
+                    QJsonArray {
+                        QJsonArray {QStringLiteral("Set-Cookie"), QStringLiteral("a=1\nb=2")},
+                        QJsonArray {
+                            QStringLiteral("Content-Type"), QStringLiteral("text/html")}}}}},
+        {QStringLiteral("redacted"), true},
+    };
+    QCOMPARE(formatAgentAnswer(QStringLiteral("request"), request),
+        QStringLiteral("3\tGET\t200\tDocument\thttp://localhost:3000/\t5120\n"
+                       "request\n"
+                       "  Cookie: <redacted, 3 values>\n"
+                       "response 200 OK\n"
+                       "  Set-Cookie: a=1\n"
+                       "  Set-Cookie: b=2\n"
+                       "  Content-Type: text/html\n"));
+
+    // A body is a file, and the answer says where and whether it was cut.
+    QCOMPARE(
+        formatAgentAnswer(QStringLiteral("request"),
+            {{QStringLiteral("ok"), true}, {QStringLiteral("path"), QStringLiteral("/d/r.body")},
+                {QStringLiteral("bytes"), 10000000}, {QStringLiteral("size"), 12000000},
+                {QStringLiteral("cut"), true}}),
+        QStringLiteral(
+            "/d/r.body\ncut\tthe body is 12000000 bytes, and the first 10000000 were written\n"));
+    QCOMPARE(
+        formatAgentAnswer(QStringLiteral("request"),
+            {{QStringLiteral("ok"), true}, {QStringLiteral("path"), QStringLiteral("/d/r.body")},
+                {QStringLiteral("bytes"), 7}, {QStringLiteral("size"), 7},
+                {QStringLiteral("cut"), false}}),
+        QStringLiteral("/d/r.body\n"));
 }
 
 // Each argument is a step, or several separated by `;`, and a quoted run is
@@ -773,7 +892,8 @@ void AgentCommandTest::waitsForTheReaderToGrantASpace()
         return agentAnswerTimeoutMs({{QStringLiteral("verb"), verb}});
     };
     for (const auto &verb : {QStringLiteral("look"), QStringLiteral("read"), QStringLiteral("shot"),
-             QStringLiteral("eval"), QStringLiteral("console")}) {
+             QStringLiteral("eval"), QStringLiteral("console"), QStringLiteral("network"),
+             QStringLiteral("request")}) {
         QVERIFY2(wait(verb) >= 60000 + 10000, qPrintable(verb));
     }
     QVERIFY(agentAnswerTimeoutMs({{QStringLiteral("verb"), QStringLiteral("do")},

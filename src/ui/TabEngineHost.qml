@@ -1064,6 +1064,15 @@ Item {
                     root.agentControl.startConsoleDocument(tabId, engineSerial + ":"
                                                            + engine.pageGeneration);
             });
+            // A request is the page's as a console line is, and its document
+            // is named the same way.
+            if (engine.pageNetworkRequest) {
+                engine.pageNetworkRequest.connect(function (report) {
+                    if (root.agentControl && root.agentAttached(tabId))
+                        root.agentControl.recordNetworkRequest(tabId, root.networkReport(report,
+                                                                                         engineSerial));
+                });
+            }
         }
         if (engine.agentVerbAnswered) {
             engine.agentVerbAnswered.connect(function (requestId, answer) {
@@ -1414,6 +1423,13 @@ Item {
         engine.agentOwned = attached;
         engine.agentDownloadDirectory = attached ? String(root.agentControl.agentTab(
                                                               tabId).downloadDirectory || "") : "";
+    }
+
+    // A request's report with its document named by the engine as well.
+    function networkReport(report, engineSerial) {
+        const named = Object.assign({}, report);
+        named.document = engineSerial + ":" + report.document;
+        return named;
     }
 
     function syncAgentTabs() {
