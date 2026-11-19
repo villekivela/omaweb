@@ -111,6 +111,14 @@ test("frames, canvas, native inputs and opaque components keep their gestures", 
   }
 });
 
+test("a custom element that only wraps light-DOM content permits either direction", () => {
+  const f = fixture();
+  const app = f.element({ localName: "my-app", tagName: "MY-APP", parentElement: f.root });
+  f.over(f.element({ parentElement: app }));
+  assert.equal(f.allowed(-1), true);
+  assert.equal(f.allowed(1), true);
+});
+
 test("open shadow roots expose their own scroll chain", () => {
   const f = fixture();
   const host = f.element({ localName: "x-pane", parentElement: f.root });

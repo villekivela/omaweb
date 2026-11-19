@@ -13,14 +13,17 @@ globalThis.__omawebHistorySwipeCanStart = (x, y, direction) => {
     }
     break;
   }
+  const hit = element;
   for (; element; element = element.parentElement || element.getRootNode().host) {
     // Frames have their own scroll chain. A canvas or a closed component can implement scrolling
-    // without a DOM scroll container, so leave their gestures to them rather than guessing.
+    // without a DOM scroll container, so leave their gestures to them rather than guessing. A
+    // closed shadow root's content is hit as its host, so only the hit element can be one; a
+    // custom element further up wraps light-DOM content, as YouTube's do (#960).
     if (
       ["IFRAME", "FRAME", "EMBED", "OBJECT", "CANVAS", "INPUT", "TEXTAREA"].includes(
         element.tagName,
       ) ||
-      (element.localName.includes("-") && !element.shadowRoot)
+      (element === hit && element.localName.includes("-") && !element.shadowRoot)
     )
       return false;
     const style = getComputedStyle(element);

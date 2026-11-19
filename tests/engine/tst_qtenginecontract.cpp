@@ -2605,7 +2605,12 @@ void QtEngineContractTest::qtHistorySwipeNavigatesWithoutTakingPageScrolling()
     PageServer server(R"HTML(<!doctype html><html><body style="margin:0">
         <div id="scroll" style="position:absolute;left:0;top:0;width:100px;height:100px;overflow-x:scroll"><div style="width:400px;height:50px"></div></div>
         <iframe style="position:absolute;left:150px;top:0;width:100px;height:100px" srcdoc="frame"></iframe>
-        <script>document.getElementById('scroll').scrollLeft = 100; document.title = location.pathname;</script>
+        <x-closed id="closed" style="position:absolute;left:0;top:150px;width:100px;height:100px;display:block"></x-closed>
+        <my-app style="position:absolute;left:300px;top:150px;width:200px;height:100px;display:block"><div style="height:100px"></div></my-app>
+        <script>
+            document.getElementById('closed').attachShadow({mode: 'closed'}).innerHTML = '<div style="height:100px"></div>';
+            document.getElementById('scroll').scrollLeft = 100; document.title = location.pathname;
+        </script>
     </body></html>)HTML");
     QVERIFY(server.listen(QHostAddress::LocalHost));
     const auto url = [&server](const QString &path) {
@@ -2659,6 +2664,13 @@ void QtEngineContractTest::qtHistorySwipeNavigatesWithoutTakingPageScrolling()
     QTRY_COMPARE_WITH_TIMEOUT(queries.size(), 2, 5000);
     QTest::qWait(500);
     QCOMPARE(navigation.size(), 0);
+    // A component with a closed shadow root may scroll without a DOM scroll container.
+    gesture({30, 180}, 140);
+    QTRY_COMPARE_WITH_TIMEOUT(queries.size(), 3, 5000);
+    QTest::qWait(500);
+    QCOMPARE(navigation.size(), 0);
+    // The swipes that navigate land in a custom element without shadow DOM, which only wraps the
+    // page's content, as a Polymer app such as YouTube's does (#960).
     // The view says which way the swipe went; the chrome runs what Settings
     // chose, which for a page is Back and forward until the reader says
     // otherwise. This stands in for the chrome.
