@@ -64,6 +64,11 @@ public:
         // it reports this off and ignores `darkenPage`, and Settings says the
         // engine cannot while Site information offers no row for a site.
         PageDarkening = 1 << 18,
+        // Whether `network` and `request` can read an Agent tab's network. The
+        // Qt engine can through a debugging session of one page, which the
+        // patched engine offers (ADR 0051); a stock Qt engine, the UI lab's
+        // mock and Ladybird cannot, and both verbs answer unsupported.
+        AgentNetwork = 1 << 19,
     };
     Q_DECLARE_FLAGS(Capabilities, Capability)
     Q_FLAG(Capabilities)

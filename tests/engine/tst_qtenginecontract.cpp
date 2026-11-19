@@ -15,6 +15,7 @@
 #include "GlobalPrivacyControl.h"
 #include "HttpsOnly.h"
 #include "QtAgentInput.h"
+#include "QtAgentNetwork.h"
 #include "QtPageScripts.h"
 #include "QtCertificates.h"
 #include "QtContentBlocker.h"
@@ -414,6 +415,8 @@ private slots:
     void qtAgentAnswersThePagesDialogs();
     void qtAgentUploadsOnlyTheFilesItNames();
     void qtAgentDownloadsIntoItsOwnDirectory();
+    void qtReadsAnAgentTabsNetwork();
+    void qtLeavesAServiceWorkersRequestsOut();
     void qtReportsOnlyThePagesOwnConsole();
     void qtSeparatesReloadBypassingCacheFromReloadAndStop();
     void qtRendersAPageForPrintingAndDrawsPdfsInline();
@@ -10704,16 +10707,35 @@ for (const id of ["report", "photos"])
         page("/downloads.html", R"HTML(<!doctype html><title>Downloads</title>
 <a href="notes.txt" download>Notes</a> <a href="install.sh" download>Installer</a>)HTML");
         page("/notes.txt", "Some notes.");
+        page("/network.html", R"HTML(<!doctype html><title>Network</title>
+<script>fetch("data.json").then(r => r.text()).then(t => document.title = "Fetched " + t);</script>)HTML");
+        page("/data.json", R"({"n":1})");
+        // A service worker serves every tab of its scope, so what it fetches
+        // is no one tab's.
+        page("/worker.html", R"HTML(<!doctype html><title>Worker</title>
+<script>
+navigator.serviceWorker.onmessage = e => document.title = "Worker fetched " + e.data;
+// Asked a moment after it is ready, by when a session given the worker has
+// had time to listen to it.
+fetch("data.json").then(() => navigator.serviceWorker.register("sw.js"))
+  .then(() => navigator.serviceWorker.ready)
+  .then(r => setTimeout(() => r.active.postMessage("go"), 1500));
+</script>)HTML");
+        page("/sw.js", R"(self.onmessage = e =>
+  fetch("worker.json").then(r => r.text()).then(t => e.source.postMessage(t));)");
+        page("/worker.json", R"({"w":1})");
         page("/install.sh", "echo hi");
         connect(this, &QTcpServer::newConnection, this, [this] {
             auto *socket = nextPendingConnection();
             connect(socket, &QTcpSocket::readyRead, socket, [this, socket] {
                 const auto path = socket->readAll().split(' ').value(1).split('?').value(0);
                 const auto body = m_pages.value(path);
-                const auto respond = [socket, body] {
+                const auto respond = [socket, body, path] {
                     socket->write((body.isEmpty() ? "HTTP/1.1 404 Not Found" : "HTTP/1.1 200 OK")
-                        + QByteArray("\r\nContent-Type: text/html\r\nContent-Length: ")
-                        + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
+                        + QByteArray("\r\nContent-Type: ")
+                        + (path.endsWith(".js") ? "text/javascript" : "text/html")
+                        + QByteArray("\r\nContent-Length: ") + QByteArray::number(body.size())
+                        + "\r\nConnection: close\r\n\r\n" + body);
                     socket->flush();
                     socket->disconnectFromHost();
                 };
@@ -11326,6 +11348,160 @@ void QtEngineContractTest::qtAgentStopsWhatIsUnderWayWhenCalledOff()
         QVERIFY2(!QFileInfo::exists(path), qPrintable(path));
     }
     QCOMPARE(answered.count(), before);
+}
+
+// What an Agent reads with `network` and `request`: the page's requests from
+// the moment an Agent holds it, through a session of that page alone, and a
+// body read back from the engine. On an engine without the session nothing is
+// reported and a body is refused.
+void QtEngineContractTest::qtReadsAnAgentTabsNetwork()
+{
+    AgentSite site;
+    AgentPage page;
+    page.adapterProperties.insert(QStringLiteral("agentOwned"), true);
+    QVERIFY(page.load(site.url(QStringLiteral("network.html"))));
+    QSignalSpy reported(page.adapter.get(), SIGNAL(pageNetworkRequest(QVariant)));
+    QTRY_COMPARE(
+        page.look().value(QStringLiteral("title")).toString(), QStringLiteral("Fetched {\"n\":1}"));
+    const auto reports = [&reported] {
+        QHash<QString, QVariantMap> requests;
+        for (const auto &arguments : std::as_const(reported)) {
+            auto report = arguments.at(0);
+            if (report.canConvert<QJSValue>()) {
+                report = report.value<QJSValue>().toVariant();
+            }
+            const auto map = report.toMap();
+            requests[map.value(QStringLiteral("key")).toString()].insert(map);
+        }
+        return requests;
+    };
+
+    // A load once the session is open is seen whole, its document first.
+    reported.clear();
+    const auto again = site.url(QStringLiteral("network.html?again"));
+    QVERIFY(QMetaObject::invokeMethod(
+        page.adapter.get(), [&page, again] { page.adapter->setProperty("currentUrl", again); }));
+#if OMAWEB_AGENT_NETWORK
+    QVariantMap data;
+    QTRY_VERIFY_WITH_TIMEOUT(
+        [&] {
+            for (const auto &request : reports()) {
+                if (request.value(QStringLiteral("url")).toString().endsWith(u"/data.json")
+                    && request.value(QStringLiteral("size")).toLongLong() > 0) {
+                    data = request;
+                    return true;
+                }
+            }
+            return false;
+        }(),
+        15000);
+    QCOMPARE(data.value(QStringLiteral("method")).toString(), QStringLiteral("GET"));
+    QCOMPARE(data.value(QStringLiteral("status")).toInt(), 200);
+    QCOMPARE(data.value(QStringLiteral("type")).toString(), QStringLiteral("Fetch"));
+    QVERIFY(!data.value(QStringLiteral("requestHeaders")).toList().isEmpty());
+    QStringList documents;
+    for (const auto &request : reports()) {
+        if (request.value(QStringLiteral("type")).toString() == u"Document"
+            && request.value(QStringLiteral("url")).toString() == again.toString()) {
+            documents.append(request.value(QStringLiteral("document")).toString());
+        }
+    }
+    QCOMPARE(documents.size(), 1);
+    QCOMPARE(data.value(QStringLiteral("document")).toString(), documents.constFirst());
+
+    const auto body = page.ask(QStringLiteral("request"),
+        {{QStringLiteral("body"), data.value(QStringLiteral("body"))},
+            {QStringLiteral("part"), QStringLiteral("response")}, {QStringLiteral("limit"), 100},
+            {QStringLiteral("size"), data.value(QStringLiteral("size"))}});
+    QVERIFY2(body.value(QStringLiteral("ok")).toBool(),
+        qPrintable(body.value(QStringLiteral("error")).toString()));
+    QCOMPARE(QByteArray::fromBase64(body.value(QStringLiteral("body")).toString().toLatin1()),
+        QByteArray(R"({"n":1})"));
+    QCOMPARE(body.value(QStringLiteral("size")).toInt(), 7);
+    // The adapter cuts a body to the core's limit before answering.
+    const auto cut = page.ask(QStringLiteral("request"),
+        {{QStringLiteral("body"), data.value(QStringLiteral("body"))},
+            {QStringLiteral("part"), QStringLiteral("response")}, {QStringLiteral("limit"), 3}});
+    QCOMPARE(QByteArray::fromBase64(cut.value(QStringLiteral("body")).toString().toLatin1()),
+        QByteArray(R"({"n)"));
+    QCOMPARE(cut.value(QStringLiteral("size")).toInt(), 7);
+
+    // The Agent letting go ends the session, and nothing more is reported.
+    QVERIFY(page.adapter->setProperty("agentOwned", false));
+    const auto before = reported.count();
+    QVERIFY(QMetaObject::invokeMethod(page.adapter.get(), [&page, &site] {
+        page.adapter->setProperty("currentUrl", site.url(QStringLiteral("network.html?gone")));
+    }));
+    QTRY_COMPARE(
+        page.look().value(QStringLiteral("title")).toString(), QStringLiteral("Fetched {\"n\":1}"));
+    QTest::qWait(500);
+    QCOMPARE(reported.count(), before);
+    QCOMPARE(page.ask(QStringLiteral("request"),
+                     {{QStringLiteral("body"), data.value(QStringLiteral("body"))},
+                         {QStringLiteral("part"), QStringLiteral("response")}})
+                 .value(QStringLiteral("code"))
+                 .toString(),
+        QStringLiteral("not-found"));
+#else
+    QTRY_COMPARE(page.look().value(QStringLiteral("url")).toString(), again.toString());
+    QTest::qWait(500);
+    QVERIFY(reports().isEmpty());
+    QCOMPARE(page.ask(QStringLiteral("request"),
+                     {{QStringLiteral("body"),
+                          QVariantMap {{QStringLiteral("requestId"), QStringLiteral("1")}}},
+                         {QStringLiteral("part"), QStringLiteral("response")}})
+                 .value(QStringLiteral("code"))
+                 .toString(),
+        QStringLiteral("not-found"));
+#endif
+}
+
+// The page's session reaches the service worker whose scope holds the page,
+// and the adapter leaves it out: the worker's fetches are for every tab it
+// serves, not this one's.
+void QtEngineContractTest::qtLeavesAServiceWorkersRequestsOut()
+{
+#if OMAWEB_AGENT_NETWORK
+    AgentSite site;
+    AgentPage page;
+    page.adapterProperties.insert(QStringLiteral("agentOwned"), true);
+    QVERIFY(page.load(site.url(QStringLiteral("worker.html"))));
+    QSignalSpy reported(page.adapter.get(), SIGNAL(pageNetworkRequest(QVariant)));
+    const auto fetched = QStringLiteral("Worker fetched {\"w\":1}");
+    QTRY_COMPARE_WITH_TIMEOUT(
+        page.look().value(QStringLiteral("title")).toString(), fetched, 15000);
+    const auto urls = [&reported] {
+        QStringList seen;
+        for (const auto &arguments : std::as_const(reported)) {
+            auto report = arguments.at(0);
+            if (report.canConvert<QJSValue>()) {
+                report = report.value<QJSValue>().toVariant();
+            }
+            seen.append(report.toMap().value(QStringLiteral("url")).toString());
+        }
+        return seen;
+    };
+
+    // The worker is running when the session opens, and is in scope of the
+    // document loaded next.
+    reported.clear();
+    const auto again = site.url(QStringLiteral("worker.html?again"));
+    QVERIFY(QMetaObject::invokeMethod(
+        page.adapter.get(), [&page, again] { page.adapter->setProperty("currentUrl", again); }));
+    QTRY_VERIFY_WITH_TIMEOUT(page.look().value(QStringLiteral("url")).toString() == again.toString()
+            && page.look().value(QStringLiteral("title")).toString() == fetched,
+        15000);
+    QTest::qWait(500);
+    const auto seen = urls();
+    QVERIFY2(
+        std::ranges::any_of(seen, [](const QString &url) { return url.endsWith(u"/data.json"); }),
+        qPrintable(seen.join(u' ')));
+    QVERIFY2(std::ranges::none_of(
+                 seen, [](const QString &url) { return url.endsWith(u"/worker.json"); }),
+        qPrintable(seen.join(u' ')));
+#else
+    QSKIP("This build's engine has no page session.");
+#endif
 }
 
 // What an Agent reads with `console`: the page's own lines, in order, with
@@ -14013,6 +14189,7 @@ int main(int argc, char *argv[])
     omaweb::registerEngineBuild();
     omaweb::registerQtCertificates();
     omaweb::registerQtAgentInput();
+    omaweb::registerQtAgentNetwork();
     omaweb::registerQtPageScripts();
     omaweb::QtPageGlide pageGlide;
     omaweb::QtHistorySwipeDispatcher historySwipeDispatcher;

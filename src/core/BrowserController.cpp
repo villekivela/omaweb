@@ -1413,6 +1413,7 @@ bool BrowserController::closeTabInSpace(const QString &tabId, const QString &spa
     }
     refreshRetainedTabs();
     emit awayTabDiscarded(tabId);
+    emit tabClosed(tabId);
     return true;
 }
 
@@ -2321,6 +2322,7 @@ bool BrowserController::confirmTabMoveToSpace(
     unpairTab(tabId);
     m_activeTabId = sourceActiveTabId;
     m_tabs.remove(tabId);
+    emit tabLeftSpace(tabId);
     if (m_tabs.rowCount() == 0) {
         m_tabs.append(sourceTabs.constFirst());
     } else if (movingActiveTab) {
@@ -2627,6 +2629,7 @@ void BrowserController::closeTab(const QString &tabId)
             emit closeWindowRequested();
             return;
         }
+        emit tabClosed(tabId);
         // The last tab is emptied rather than removed, but the page in it was
         // still closed and the reader can still ask for it back.
         rememberClosedTab(*tab);
@@ -2660,6 +2663,7 @@ void BrowserController::closeTab(const QString &tabId)
     }
 
     rememberClosedTab(*tab);
+    emit tabClosed(tabId);
     // A split ends with either of its tabs, and the survivor is an ordinary
     // row. Closing the active half shows the tab that was beside it, which is
     // the page the reader was already looking at.
@@ -3469,6 +3473,7 @@ bool BrowserController::confirmFolderMoveToSpace(
     for (const auto &id : std::as_const(moved.tabIds)) {
         m_livePageStates.remove(id);
         m_tabs.remove(id);
+        emit tabLeftSpace(id);
     }
     if (movingActiveTab) {
         auto *replacement = m_tabs.find(sourceActiveTabId);

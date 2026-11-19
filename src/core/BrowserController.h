@@ -873,6 +873,13 @@ signals:
     // These tabs keep their rows and lose their pages, which load again when
     // the tabs next come on show.
     void tabPagesReleased(const QStringList &tabIds);
+    // The reader or an Agent closed this tab, in any Space. The last tab of
+    // the Space on show is emptied rather than removed, and is reported too,
+    // since the page it held has gone.
+    void tabClosed(const QString &tabId);
+    // This tab moved to another Space, alone or in its Folder, and loads
+    // there again under that Space's identity.
+    void tabLeftSpace(const QString &tabId);
     // Recovery clears core-owned failure state, then asks the active engine to
     // load its page again. Ordinary reloads go straight to the engine host.
     void rendererRecoveryReloadRequested();

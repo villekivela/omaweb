@@ -39,7 +39,8 @@ namespace {
     // registered in, so it says what the tool list cannot: where the page
     // tools work and the loop that uses the fewest calls.
     const auto instructions = QStringLiteral(
-        "Omaweb, the reader's browser. The page tools (look, read, do, shot, eval, console) need "
+        "Omaweb, the reader's browser. The page tools (look, read, do, shot, eval, console, "
+        "network, request) need "
         "Allow agents on and a tab in an Agent Space: space_new, then open with that space. In "
         "the reader's own Spaces they first ask the reader, once per Space. They "
         "work on the current tab, which open sets, or on tab. Loop: open, look, do several steps "
@@ -196,6 +197,24 @@ namespace {
                     .properties = {tab, property(QStringLiteral("level"), Kind::Level),
                         property(QStringLiteral("since"), integer)},
                     .required = {}},
+                {.name = QStringLiteral("network"),
+                    .verb = QStringLiteral("network"),
+                    .description = QStringLiteral("Requests since the document loaded, one a line: "
+                                                  "id, method, status, type, address, size; then "
+                                                  "a cursor to pass as since."),
+                    .properties = {tab, property(QStringLiteral("failed"), boolean),
+                        property(QStringLiteral("since"), integer)},
+                    .required = {}},
+                {.name = QStringLiteral("request"),
+                    .verb = QStringLiteral("request"),
+                    .description = QStringLiteral(
+                        "A request's headers by its network id. body: write the response body "
+                        "to a file; sent: what the page sent (Agent Spaces only)."),
+                    .properties = {property(QStringLiteral("id"), integer), tab,
+                        property(QStringLiteral("body"), boolean),
+                        property(QStringLiteral("sent"), boolean),
+                        property(QStringLiteral("output"), string)},
+                    .required = {QStringLiteral("id")}},
                 {.name = QStringLiteral("report"),
                     .verb = QStringLiteral("report"),
                     .description = QStringLiteral("A Problem report: versions, settings, Sync, "

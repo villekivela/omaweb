@@ -92,6 +92,8 @@ add_library(omaweb-agent-client STATIC
     src/core/AgentCommand.h
     src/core/AgentConsole.cpp
     src/core/AgentConsole.h
+    src/core/AgentNetwork.cpp
+    src/core/AgentNetwork.h
     src/core/AgentMcp.cpp
     src/core/AgentMcp.h
     src/core/AgentPick.cpp
@@ -306,6 +308,7 @@ set(QT_NO_PRIVATE_MODULE_WARNING OFF)
 set(OMAWEB_CNAME_UNCLOAKING OFF)
 set(OMAWEB_PAGE_CERTIFICATES OFF)
 set(OMAWEB_EXTENSION_WINDOW_GEOMETRY OFF)
+set(OMAWEB_AGENT_NETWORK OFF)
 if(OMAWEB_BUILD_BROWSER)
     include(CheckCXXSourceCompiles)
     # The same Qt the adapter links, in the same order, so the probe reads the
@@ -349,6 +352,18 @@ if(OMAWEB_BUILD_BROWSER)
             return answer ? 0 : 1;
         }
     ]=] OMAWEB_ENGINE_OFFERS_WINDOW_GEOMETRY)
+    # An Agent reads a tab's network through a debugging session of that page
+    # alone, which another patch in the series gives Qt (#373). Without it,
+    # `network` and `request` are refused as unsupported.
+    check_cxx_source_compiles([=[
+        #include <QtWebEngineCore/qwebenginedevtoolssession.h>
+        int main()
+        {
+            bool (QWebEngineDevToolsSession::*attach)(const QString &)
+                = &QWebEngineDevToolsSession::attach;
+            return attach ? 0 : 1;
+        }
+    ]=] OMAWEB_ENGINE_OFFERS_DEVTOOLS_SESSION)
     unset(CMAKE_REQUIRED_LIBRARIES)
     if(OMAWEB_ENGINE_OFFERS_DNS_ALIASES)
         set(OMAWEB_CNAME_UNCLOAKING ON)
@@ -358,6 +373,9 @@ if(OMAWEB_BUILD_BROWSER)
     endif()
     if(OMAWEB_ENGINE_OFFERS_WINDOW_GEOMETRY)
         set(OMAWEB_EXTENSION_WINDOW_GEOMETRY ON)
+    endif()
+    if(OMAWEB_ENGINE_OFFERS_DEVTOOLS_SESSION)
+        set(OMAWEB_AGENT_NETWORK ON)
     endif()
 endif()
 
@@ -748,7 +766,8 @@ target_compile_definitions(omaweb-engine-api PUBLIC
     OMAWEB_KNOWN_EXTENSIONS=$<BOOL:${OMAWEB_KNOWN_EXTENSIONS}>
     OMAWEB_CNAME_UNCLOAKING=$<BOOL:${OMAWEB_CNAME_UNCLOAKING}>
     OMAWEB_PAGE_CERTIFICATES=$<BOOL:${OMAWEB_PAGE_CERTIFICATES}>
-    OMAWEB_EXTENSION_WINDOW_GEOMETRY=$<BOOL:${OMAWEB_EXTENSION_WINDOW_GEOMETRY}>)
+    OMAWEB_EXTENSION_WINDOW_GEOMETRY=$<BOOL:${OMAWEB_EXTENSION_WINDOW_GEOMETRY}>
+    OMAWEB_AGENT_NETWORK=$<BOOL:${OMAWEB_AGENT_NETWORK}>)
 omaweb_strict_target(omaweb-engine-api)
 
 if(OMAWEB_BUILD_BROWSER)
@@ -759,10 +778,14 @@ if(OMAWEB_BUILD_BROWSER)
         src/engine/qt/QtHistorySwipe.h
         src/engine/qt/QtAgentInput.cpp
         src/engine/qt/QtAgentInput.h
+        src/engine/qt/QtAgentNetwork.cpp
+        src/engine/qt/QtAgentNetwork.h
         src/engine/qt/QtPageScripts.cpp
         src/engine/qt/QtPageScripts.h
         src/engine/qt/QtCertificates.cpp
         src/engine/qt/QtCertificates.h
+        src/engine/qt/QtNetworkEvents.cpp
+        src/engine/qt/QtNetworkEvents.h
         src/engine/qt/QtContentBlocker.cpp
         src/engine/qt/QtContentBlocker.h
         src/engine/qt/QtCookiePolicy.cpp
@@ -1814,6 +1837,16 @@ if(BUILD_TESTING)
     omaweb_declarative_fixture_target(omaweb-agent-console-tests)
     add_test(NAME omaweb-agent-console COMMAND omaweb-agent-console-tests)
 
+    qt_add_executable(omaweb-agent-network-tests
+        "tests/core/SessionFixture.cpp"
+        "tests/core/SessionFixture.h"
+        "tests/core/tst_agentnetwork.cpp"
+    )
+    target_link_libraries(omaweb-agent-network-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-agent-network-tests)
+    omaweb_declarative_fixture_target(omaweb-agent-network-tests)
+    add_test(NAME omaweb-agent-network COMMAND omaweb-agent-network-tests)
+
     qt_add_executable(omaweb-agent-activity-log-tests
         "tests/core/SessionFixture.cpp"
         "tests/core/SessionFixture.h"
@@ -2619,6 +2652,13 @@ if(BUILD_TESTING)
     endif()
 
     if(OMAWEB_BUILD_BROWSER)
+        qt_add_executable(omaweb-qt-network-events-tests
+            tests/engine/tst_qtnetworkevents.cpp
+        )
+        target_link_libraries(omaweb-qt-network-events-tests PRIVATE omaweb-engine-qt Qt6::Test)
+        omaweb_strict_target(omaweb-qt-network-events-tests)
+        add_test(NAME omaweb-qt-network-events COMMAND omaweb-qt-network-events-tests)
+
         qt_add_executable(omaweb-qt-engine-contract-tests
             tests/engine/tst_qtenginecontract.cpp
         )

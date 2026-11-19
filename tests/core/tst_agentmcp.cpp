@@ -178,6 +178,7 @@ private slots:
     void startsABrowserThatNeverAnswersOnlyOnce();
     void setsAsideAnAnswerThatCameTooLate();
     void theSkillTeachesEveryVerb();
+    void theSkillSaysWhatTheNetworkCannotSee();
     void theSkillLoopUsesATemporarySpace();
     void spaceNewSteersAgentsToATemporarySpace();
     void offersTheLevelsTheSocketReads();
@@ -202,7 +203,8 @@ void AgentMcpTest::servesEachVerbAsOneTool()
             QStringLiteral("commands"), QStringLiteral("run"), QStringLiteral("space_new"),
             QStringLiteral("space_delete"), QStringLiteral("look"), QStringLiteral("read"),
             QStringLiteral("do"), QStringLiteral("shot"), QStringLiteral("eval"),
-            QStringLiteral("console"), QStringLiteral("report")}));
+            QStringLiteral("console"), QStringLiteral("network"), QStringLiteral("request"),
+            QStringLiteral("report")}));
 }
 
 // Every conversation the server is registered in pays for the list, and #383
@@ -363,6 +365,21 @@ void AgentMcpTest::readsEachToolIntoARequest_data()
         << QStringList {QStringLiteral("console"), QStringLiteral("--level"),
                QStringLiteral("error"), QStringLiteral("--since"), QStringLiteral("12")};
 
+    row("failed requests since a cursor", QStringLiteral("network"))
+        << QJsonObject {{QStringLiteral("failed"), true}, {QStringLiteral("since"), 12}}
+        << base(QStringLiteral("network"),
+               {{QStringLiteral("failed"), true}, {QStringLiteral("since"), 12}})
+        << QStringList {QStringLiteral("network"), QStringLiteral("--failed"),
+               QStringLiteral("--since"), QStringLiteral("12")};
+    row("a response body to a file", QStringLiteral("request"))
+        << QJsonObject {{QStringLiteral("id"), 42}, {QStringLiteral("body"), true},
+               {QStringLiteral("output"), QStringLiteral("page.html")}}
+        << base(QStringLiteral("request"),
+               {{QStringLiteral("id"), 42}, {QStringLiteral("body"), true},
+                   {QStringLiteral("output"), QStringLiteral("page.html")}})
+        << QStringList {QStringLiteral("request"), QStringLiteral("42"), QStringLiteral("--body"),
+               QStringLiteral("--output"), QStringLiteral("page.html")};
+
     row("report", QStringLiteral("report")) << QJsonObject {} << base(QStringLiteral("report"))
                                             << QStringList {QStringLiteral("report")};
 
@@ -426,6 +443,9 @@ void AgentMcpTest::refusesAMalformedCall_data()
         << QStringLiteral("console")
         << QJsonObject {{QStringLiteral("level"), QStringLiteral("info")}}
         << QStringLiteral("level is error, warning or all.");
+    QTest::newRow("a request without its id")
+        << QStringLiteral("request") << QJsonObject {{QStringLiteral("body"), true}}
+        << QStringLiteral("request needs id.");
 }
 
 void AgentMcpTest::refusesAMalformedCall()
@@ -790,6 +810,19 @@ void AgentMcpTest::theSkillTeachesEveryVerb()
     }
     QVERIFY(text.contains(QStringLiteral("omaweb space new [name] [--temporary]")));
     QVERIFY(text.contains(QStringLiteral("--name")));
+}
+
+// What `network` cannot see is what an Agent would otherwise go looking for.
+void AgentMcpTest::theSkillSaysWhatTheNetworkCannotSee()
+{
+    QFile skill(QStringLiteral(OMAWEB_AGENT_SKILL_PATH));
+    QVERIFY(skill.open(QIODevice::ReadOnly));
+    const auto text = QString::fromUtf8(skill.readAll()).simplified();
+    QVERIFY(text.contains(QStringLiteral("service worker")));
+    QVERIFY(text.contains(QStringLiteral("WebSocket")));
+    QVERIFY(text.contains(QStringLiteral("10 MB")));
+    QVERIFY(text.contains(QStringLiteral("500")));
+    QVERIFY(text.contains(QStringLiteral("redacted")));
 }
 
 // A forgotten cleanup must leave nothing behind, so the loop an Agent copies

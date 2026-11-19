@@ -310,6 +310,11 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // page's own lines, never what Omaweb's scripts report to the adapter,
         // because an Agent reads this as what the page said (ADR 0051).
         {"pageConsoleMessage", true, 5, QMetaType::Int},
+        // What the page's own debugging session learnt of one request, as
+        // `AgentControl::recordNetworkRequest` takes it (ADR 0051). An engine
+        // that cannot read a page's network never raises it, and reports
+        // AgentNetwork off.
+        {"pageNetworkRequest", true, 1},
         // What a Problem recording keeps (ADR 0068): the kind of event, the
         // address it is about and a detail, for a navigation, a redirect, a
         // failed load, a hand-off to another application and a permission

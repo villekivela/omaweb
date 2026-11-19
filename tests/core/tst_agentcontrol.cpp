@@ -1280,10 +1280,10 @@ void AgentControlTest::answersAHelloWithItsProtocol()
     QCOMPARE(hello.value(QStringLiteral("protocol")).toInt(), omaweb::agentProtocolVersion);
     QCOMPARE(hello.value(QStringLiteral("version")).toString(), QStringLiteral("0.11.0"));
 
-    const auto unknown = ask(control, QStringLiteral("agent"), QStringLiteral("network"));
+    const auto unknown = ask(control, QStringLiteral("agent"), QStringLiteral("cookies"));
     QCOMPARE(failure(unknown), QStringLiteral("unknown-verb"));
     QCOMPARE(unknown.value(QStringLiteral("error")).toString(),
-        QStringLiteral("Omaweb has no verb \"network\"."));
+        QStringLiteral("Omaweb has no verb \"cookies\"."));
 }
 
 void AgentControlTest::putsTheSocketInTheUsersRuntimeDirectory()

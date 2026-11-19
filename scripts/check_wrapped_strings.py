@@ -95,6 +95,8 @@ CPP_NOT_CHROME = (
     "HistoryQuery",
     "HistorySearch",
     "EngineCapabilities",
+    "QtAgentNetwork",
+    "QtNetworkEvents",
 )
 
 # Prose-looking literals that stay English by design, as {file: {literal: reason}}.

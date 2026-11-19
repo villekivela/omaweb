@@ -3,7 +3,7 @@ name: omaweb
 description:
   Drive the reader's Omaweb browser with the `omaweb` CLI. Use when a task needs a real browser,
   such as checking a page the project serves, filling a form, reading a site, taking a screenshot,
-  or finding a page's console errors.
+  or finding a page's console errors or failed requests.
 ---
 
 # Omaweb
@@ -90,6 +90,8 @@ omaweb do <step>... [--settle <ms>] [--timeout <ms>]
 omaweb shot [--full] [--output <file>]
 omaweb eval <expression>
 omaweb console [--level error|warning|all] [--since <cursor>]
+omaweb network [--failed] [--since <cursor>]
+omaweb request <id> [--body | --sent] [--output <file>]
 omaweb report
 ```
 
@@ -117,6 +119,21 @@ omaweb report
   says one is running, ask the reader to run "Report a problem" in the browser to take it in.
 - `console` prints level, source and text, one message a line, then `cursor <n>`. Pass that number
   as `--since` to get only newer messages.
+- `network` prints the requests the page made since its document loaded, one a line: id, method,
+  status (or why it failed, or `pending`), type, address and size in bytes, then `cursor <n>`. Pass
+  that number as `--since` to get only newer requests, and `--failed` for failures and error
+  statuses only. A tab keeps its newest 500 requests from the time you first used it, and starts
+  again with each new document.
+- `request <id>` prints that request's headers and its response's. In one of the reader's own
+  Spaces, `Cookie`, `Set-Cookie`, `Authorization` and `Proxy-Authorization` are redacted to a count,
+  such as `<redacted, 3 values>`. `--body` writes the response body to a file in a directory of your
+  own and prints its path; a body past 10 MB is cut there, and the answer says so. `--sent` writes
+  what the page sent, in an Agent Space only. A body can be read while its document is on show. The
+  engine keeps none of a body past 100 MB. When the request carried more than that, `--body` answers
+  `too-large`; a compressed one that grew past it answers `not-found`.
+- `network` sees the page and its frames. It does not see a service worker's requests or a dedicated
+  worker's, and a WebSocket shows as its opening request without its messages. A browser whose
+  engine cannot inspect a page answers `unsupported`.
 - `eval` runs JavaScript in an isolated world: it sees the DOM, not the page's own variables.
 - `space`, `focus` and `run` change what the reader sees: another Space, another tab, or a browser
   command such as `toggle-sidebar`. Use them only when the reader asks for that. `commands` lists

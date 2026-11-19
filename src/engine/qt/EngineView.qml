@@ -192,7 +192,9 @@ Item {
                                             EngineBuild.proceduralCosmeticFiltering
                                             ? EngineCapabilities.ProceduralCosmeticFiltering : 0) | (
                                             QtCertificates.arrivedChainReported
-                                            ? EngineCapabilities.PageCertificates : 0)
+                                            ? EngineCapabilities.PageCertificates : 0) | (
+                                            agentNetwork.available
+                                            ? EngineCapabilities.AgentNetwork : 0)
                                         | EngineCapabilities.PageDarkening
     // Which Space's browsing identity these pages belong to. Handed down with
     // the profile, because it is the profile that decides it: Content blocking
@@ -4041,6 +4043,11 @@ Item {
     // read above and never reach this.
     signal pageConsoleMessage(int level, string message, int lineNumber, string sourceId,
                               int document)
+    // What the page's own debugging session learnt of one request while an
+    // Agent holds the page, for `network` and `request`: the report
+    // `AgentControl.recordNetworkRequest` takes, with `document` this view's
+    // own count. Nothing comes on an engine without the session.
+    signal pageNetworkRequest(var report)
     // Whether the view takes the keyboard when it is made, which a page made
     // for an Agent while the reader is looking at another must not.
     property bool pageTakesFocus: true
@@ -4062,6 +4069,39 @@ Item {
     // dialog answers at once, since the page will not until it has gone.
     property var agentWaiting: ({})
     property int agentNextRun: 0
+    // The `request` bodies asked of the engine and not yet answered.
+    property var agentBodies: ({})
+    property int agentNextBody: 0
+
+    // The page's network while an Agent holds it. The session opens when the
+    // Agent attaches and closes, with every body the engine kept for it, when
+    // it detaches or the view goes.
+    QtAgentNetwork {
+        id: agentNetwork
+
+        view: webView
+        active: root.agentOwned
+        onRequestReported: function (report) {
+            root.pageNetworkRequest(report);
+        }
+        onBodyFetched: function (ticket, answer) {
+            const waiting = root.agentBodies[ticket];
+            if (!waiting)
+                return;
+            delete root.agentBodies[ticket];
+            waiting(answer);
+        }
+        onAttachedChanged: {
+            if (attached)
+                return;
+            // Nobody will answer what was asked of the session that ended.
+            const waiting = root.agentBodies;
+            root.agentBodies = ({});
+            for (const ticket in waiting)
+                waiting[ticket](root.agentFailure("not-found",
+                                                  "The page's session has ended, and its bodies with it."));
+        }
+    }
     onAgentOwnedChanged: {
         if (root.agentOwned)
             return;
@@ -4299,6 +4339,15 @@ Item {
             if (live())
                 root.agentVerbAnswered(requestId, result);
         };
+        // A body is the engine's, kept from a load already done, so it needs no
+        // page to be ready.
+        if (verb === "request") {
+            const ticket = ++root.agentNextBody;
+            root.agentBodies[ticket] = answer;
+            agentNetwork.fetchBody(ticket, options.body || {}, String(options.part || ""), Number(
+                                       options.limit || 0), Number(options.size || 0));
+            return;
+        }
         root.agentWhenReady(Date.now() + root.agentReadyMs, live, function () {
             if (verb === "look") {
                 root.agentLook(options.all === true, function (look) {
@@ -5092,6 +5141,8 @@ Item {
         onRecentlyAudibleChanged: root.refreshMediaHeard()
         onLoadingChanged: function (loadRequest) {
             root.refreshRenderProcessPid();
+            // A view made for an Agent has its page from its first load.
+            agentNetwork.attachIfReady();
             if (loadRequest.status === WebEngineView.LoadStartedStatus) {
                 historySwipe.cancel();
                 // A new document leaves behind what the last one reported.
