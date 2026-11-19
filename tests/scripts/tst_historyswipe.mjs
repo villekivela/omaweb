@@ -17,6 +17,7 @@ function fixture() {
       clientWidth: 500,
       scrollLeft: 0,
       parentElement: null,
+      childNodes: [],
       style: { overflowX: "visible", overscrollBehaviorX: "auto", direction: "ltr" },
       getRootNode: () => ({ host: null }),
       ...options,
@@ -29,8 +30,15 @@ function fixture() {
     scrollingElement: root,
     documentElement: root,
     elementFromPoint: () => target,
+    createRange: () => {
+      let contents = null;
+      return {
+        selectNodeContents: (node) => (contents = node),
+        getClientRects: () => contents.rects,
+      };
+    },
   };
-  const context = { document, getComputedStyle: (node) => node.style };
+  const context = { document, getComputedStyle: (node) => node.style, Node: { TEXT_NODE: 3 } };
   runInNewContext(source, context);
   return {
     element,
@@ -117,6 +125,38 @@ test("a custom element that only wraps light-DOM content permits either directio
   f.over(f.element({ parentElement: app }));
   assert.equal(f.allowed(-1), true);
   assert.equal(f.allowed(1), true);
+});
+
+test("the text of a custom element's own light DOM permits either direction", () => {
+  const f = fixture();
+  const text = { nodeType: 3, rects: [{ left: 20, top: 30, right: 120, bottom: 50 }] };
+  f.over(
+    f.element({
+      localName: "my-title",
+      tagName: "MY-TITLE",
+      parentElement: f.root,
+      childNodes: [text],
+    }),
+  );
+  assert.equal(f.allowed(-1), true);
+  assert.equal(f.allowed(1), true);
+});
+
+test("a component's light-DOM text that is not drawn under the point keeps the gesture", () => {
+  for (const rects of [[], [{ left: 60, top: 30, right: 120, bottom: 50 }]]) {
+    const f = fixture();
+    const text = { nodeType: 3, rects };
+    f.over(
+      f.element({
+        localName: "x-pane",
+        tagName: "X-PANE",
+        parentElement: f.root,
+        childNodes: [text],
+      }),
+    );
+    assert.equal(f.allowed(-1), false);
+    assert.equal(f.allowed(1), false);
+  }
 });
 
 test("open shadow roots expose their own scroll chain", () => {
