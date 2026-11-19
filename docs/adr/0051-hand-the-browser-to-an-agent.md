@@ -130,10 +130,12 @@ What the engine keeps bounds what an Agent can read. A tab keeps its newest 500 
 is read from the engine while its document is on show: the engine keeps each body up to 100 MB for
 the session, and `request --body` writes at most 10 MB of one, in the connection's own directory,
 saying when it cut one. The page cuts it before answering, so no more than that crosses into the
-core. A body past 100 MB is not kept at all, so there is nothing of it to cut, and `request --body`
-answers `too-large`. A WebSocket is its opening request and the response to it; its messages are not
-kept. A frame from another site comes over a child session that the page's session brings with it,
-and a request that was redirected is a request for each hop, since only the last hop's body is kept.
+core. A body past 100 MB is not kept at all, so there is nothing of it to cut. `request --body`
+answers `too-large` when the request's transfer was past 100 MB, and `not-found`, naming the limit,
+for a compressed body that grew past it. A WebSocket is its opening request and the response to it;
+its messages are not kept. A frame from another site comes over a child session that the page's
+session brings with it, and a request that was redirected is a request for each hop, since only the
+last hop's body is kept.
 
 The session is a capability of the engine, not of the verbs. An engine without it, a stock
 QtWebEngine or, today, Ladybird, reports the capability off and both verbs refuse with
