@@ -2475,6 +2475,15 @@ Item {
         if (extensions && typeof extensions.setPageIsTab === "function")
             extensions.setPageIsTab(webView);
     }
+    // The engine answers an extension asking for the active tab with this page
+    // from now on, rather than with the last page on show, which in a split or
+    // a second window may be another (#961). Looked for when called, as
+    // setPageIsTab is. Without it, the engine goes on guessing.
+    function showAsActiveTab() {
+        const extensions = webView.profile ? webView.profile.extensionManager : null;
+        if (extensions && typeof extensions.setSelectedPage === "function")
+            extensions.setSelectedPage(webView);
+    }
     function isAuxiliaryDestination(destination) {
         return destination === WebEngineNewWindowRequest.InNewDialog;
     }

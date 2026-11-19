@@ -228,6 +228,10 @@ QStringList validateEngineViewContract(const QObject &adapter)
         // passes it on: a page an extension opened as a window of its own, then
         // shown as a tab, joins the browser's window (#694).
         {"showAsTab", false, 0},
+        // The page the view holds is the active tab. An engine
+        // that answers extensions asking for the active tab answers with it
+        // from now on, rather than with whichever page is on show (#961).
+        {"showAsActiveTab", false, 0},
         {"configureKeyboardNavigation", false, 1},
         // The media key the desktop sent, given to the page that is sounding.
         {"invokeMediaAction", false, 1},

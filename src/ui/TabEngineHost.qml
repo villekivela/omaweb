@@ -197,6 +197,18 @@ Item {
     readonly property real leftPaneDrawnWidth: DevicePixels.snap(root.leftPaneWidth,
                                                                  root.pixelRatio)
     readonly property real dividerWidth: DevicePixels.snap(1, root.pixelRatio)
+    // The engine is told which tab is active, so an extension asking for the
+    // active tab is answered with it rather than with whichever page is on
+    // show (#961). A split shows two pages, and two windows show one
+    // each: only the window the reader is in says, and it says again when the
+    // reader comes back to it.
+    readonly property bool windowActive: Window.window ? Window.window.active : false
+    onActiveEngineChanged: root.showAsActiveTab()
+    onWindowActiveChanged: root.showAsActiveTab()
+    function showAsActiveTab() {
+        if (root.windowActive && root.activeEngine)
+            root.activeEngine.showAsActiveTab();
+    }
     onSplitLeftTabIdChanged: root.restoreDivider()
     onSplitRightTabIdChanged: root.restoreDivider()
     function splitKey() {

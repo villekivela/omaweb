@@ -287,6 +287,7 @@ private slots:
     void qtShowsAnSvgFaviconOverARasterBesideIt();
     void qtSpaceProfilesAreBuiltInTheirOwnDirectories();
     void qtHostsAKnownExtensionThatMakesAnOffscreenDocument();
+    void qtLooksUpTheActiveTabCallWhenItIsMade();
     void qtTellsAPageWhatItsPasskeysCanReach();
     void qtGivesAPageTheWindowAHiddenViewTakesAtOnce();
     void qtRunsAKnownExtensionsMainWorldScriptInAPage_data();
@@ -2602,6 +2603,20 @@ struct ViewInWindow {
 };
 
 } // namespace
+
+// The engine is told which tab is active through a call Omaweb's own engine
+// adds (#961). An engine without the call hears nothing, and the view
+// says nothing either: it looks the call up rather than failing on it.
+void QtEngineContractTest::qtLooksUpTheActiveTabCallWhenItIsMade()
+{
+    QTest::failOnWarning(QRegularExpression(QStringLiteral("setSelectedPage|showAsActiveTab")));
+    ViewInWindow shown;
+    QVERIFY(shown.create(QUrl(QStringLiteral("about:blank"))));
+    auto *profile = shown.webView->property("profile").value<QObject *>();
+    QVERIFY(profile);
+    QVERIFY(profile->property("extensionManager").value<QObject *>());
+    QVERIFY(QMetaObject::invokeMethod(shown.adapter.get(), "showAsActiveTab"));
+}
 
 void QtEngineContractTest::qtHistorySwipeNavigatesWithoutTakingPageScrolling()
 {

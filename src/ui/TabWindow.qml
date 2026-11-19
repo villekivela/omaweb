@@ -329,8 +329,20 @@ Window {
     readonly property real drawnZoom: root.engineHost.drawnZoom(root.tabZoom)
     onDrawnZoomChanged: if (root.engine)
                             root.engine.setZoomFactor(root.drawnZoom)
-    onEngineChanged: if (root.engine)
-                         root.engine.setZoomFactor(root.drawnZoom)
+    onEngineChanged: {
+        if (root.engine)
+            root.engine.setZoomFactor(root.drawnZoom);
+        root.showAsActiveTab();
+    }
+
+    // The engine is told this window's tab is the active one whenever the
+    // reader is in this window (#961). Only the tab's own page is: a Glance
+    // over it is not a tab, and the extension's answer stays the page beneath.
+    onActiveChanged: root.showAsActiveTab()
+    function showAsActiveTab() {
+        if (root.active && root.engine)
+            root.engine.showAsActiveTab();
+    }
 
     function focusPage() {
         if (root.engine)
