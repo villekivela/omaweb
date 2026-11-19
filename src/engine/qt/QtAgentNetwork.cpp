@@ -17,10 +17,11 @@ namespace {
     }
 #endif
 
-    // What the engine keeps of each body for the session to read. A body is
-    // written cut at 10 MB, so one up to twice that is still kept to be cut,
-    // and a page's bodies together are kept to the engine's own default.
-    constexpr int keptBodyBytes = 20 * 1000 * 1000;
+    // What the engine keeps of each body for the session to read. The engine
+    // keeps a body whole or not at all, so one far past the 10 MB the core
+    // writes is still kept to be cut, and a page's bodies together are kept
+    // to the engine's own default.
+    constexpr int keptBodyBytes = 100 * 1000 * 1000;
     constexpr int keptBodiesBytes = 200 * 1000 * 1000;
 
     QVariantMap refusal(const QString &code, const QString &error)
@@ -100,7 +101,8 @@ void QtAgentNetwork::attach()
     if (!session->attach(id)) {
         return;
     }
-    // The page closing ends the session, and what it held goes with it.
+    // The page closing ends the session, and what it held goes with it. The
+    // ended session is kept until the next attach or detach deletes it.
     connect(session.get(), &QWebEngineDevToolsSession::detached, this, [this] {
         m_waiting.clear();
         emit attachedChanged();
@@ -117,16 +119,26 @@ void QtAgentNetwork::attach()
                 .value(QStringLiteral("id"))
                 .toString());
     });
-    const QJsonObject buffers {{QStringLiteral("maxTotalBufferSize"), keptBodiesBytes},
-        {QStringLiteral("maxResourceBufferSize"), keptBodyBytes}};
-    send(QStringLiteral("Network.enable"), buffers);
-    // A frame from another site runs in a process of its own, and its
-    // requests come over a child session the page's brings with it.
-    send(QStringLiteral("Target.setAutoAttach"),
-        {{QStringLiteral("autoAttach"), true}, {QStringLiteral("waitForDebuggerOnStart"), false},
-            {QStringLiteral("flatten"), true}});
+    // A document shown without a request, from the back-forward cache, is
+    // known by the main frame's navigation alone.
+    send(QStringLiteral("Page.enable"), {});
+    listen({});
     emit attachedChanged();
 #endif
+}
+
+// The page's session or a child's: its requests, and the children it brings,
+// a frame from another site running in a process of its own among them.
+void QtAgentNetwork::listen(const QString &session)
+{
+    send(QStringLiteral("Network.enable"),
+        {{QStringLiteral("maxTotalBufferSize"), keptBodiesBytes},
+            {QStringLiteral("maxResourceBufferSize"), keptBodyBytes}},
+        session);
+    send(QStringLiteral("Target.setAutoAttach"),
+        {{QStringLiteral("autoAttach"), true}, {QStringLiteral("waitForDebuggerOnStart"), false},
+            {QStringLiteral("flatten"), true}},
+        session);
 }
 
 void QtAgentNetwork::detach()
@@ -136,7 +148,8 @@ void QtAgentNetwork::detach()
     }
     const auto wasAttached = attached();
     // Deleting the session ends it, and the engine lets go of the bodies it
-    // kept for it.
+    // kept for it. What was asked of it is dropped before attachedChanged,
+    // which the page answers by refusing every body still waiting.
     m_session.reset();
     m_waiting.clear();
     if (wasAttached) {
@@ -184,17 +197,10 @@ void QtAgentNetwork::read(const QByteArray &message)
         return;
     }
     if (object.value(QStringLiteral("method")).toString() == u"Target.attachedToTarget") {
-        const auto params = object.value(QStringLiteral("params")).toObject();
-        const auto child = params.value(QStringLiteral("sessionId")).toString();
-        send(QStringLiteral("Network.enable"),
-            {{QStringLiteral("maxTotalBufferSize"), keptBodiesBytes},
-                {QStringLiteral("maxResourceBufferSize"), keptBodyBytes}},
-            child);
-        send(QStringLiteral("Target.setAutoAttach"),
-            {{QStringLiteral("autoAttach"), true},
-                {QStringLiteral("waitForDebuggerOnStart"), false},
-                {QStringLiteral("flatten"), true}},
-            child);
+        listen(object.value(QStringLiteral("params"))
+                .toObject()
+                .value(QStringLiteral("sessionId"))
+                .toString());
         return;
     }
     for (const auto &report : m_events.read(object)) {
@@ -229,7 +235,7 @@ void QtAgentNetwork::fetchBody(int ticket, const QVariantMap &body, const QStrin
                 emit bodyFetched(ticket,
                     refusal(QStringLiteral("not-found"),
                         QStringLiteral("The engine no longer holds this body. It keeps a body "
-                                       "while its document is on show, up to 20 MB.")));
+                                       "while its document is on show, up to 100 MB.")));
                 return;
             }
             const auto text

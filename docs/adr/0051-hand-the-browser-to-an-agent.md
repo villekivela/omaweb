@@ -124,7 +124,7 @@ session reaches the page and its frames. A service worker is a target of its own
 session cannot attach to, so its requests are not seen.
 
 What the engine keeps bounds what an Agent can read. A tab keeps its newest 500 requests, and a body
-is read from the engine while its document is on show: the engine keeps each body up to 20 MB for
+is read from the engine while its document is on show: the engine keeps each body up to 100 MB for
 the session, and `request --body` writes at most 10 MB of one, in the connection's own directory,
 saying when it cut one. A WebSocket is its opening request and the response to it; its messages are
 not kept. A frame from another site comes over a child session that the page's session brings with
@@ -132,8 +132,9 @@ it, and a request that was redirected is a request for each hop, since only the 
 kept.
 
 The session is a capability of the engine, not of the verbs. An engine without it, a stock
-QtWebEngine as Ladybird today, reports the capability off and both verbs refuse with `unsupported`,
-so an Agent learns that the browser cannot answer rather than that the page made no requests.
+QtWebEngine or, today, Ladybird, reports the capability off and both verbs refuse with
+`unsupported`, so an Agent learns that the browser cannot answer rather than that the page made no
+requests.
 
 ## Agent tabs keep running
 

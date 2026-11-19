@@ -1,5 +1,7 @@
 #include "QtNetworkEvents.h"
 
+#include <utility>
+
 namespace omaweb {
 namespace {
 
@@ -43,11 +45,25 @@ QVariantMap QtNetworkEvents::report(const QString &id, const Tracked &tracked) c
 QList<QVariantMap> QtNetworkEvents::read(const QJsonObject &message)
 {
     const auto method = message.value(QStringLiteral("method")).toString();
+    const auto session = message.value(QStringLiteral("sessionId")).toString();
+    const auto params = message.value(QStringLiteral("params")).toObject();
+    if (method == u"Page.frameNavigated" && session.isEmpty()) {
+        const auto frame = params.value(QStringLiteral("frame")).toObject();
+        const auto loader = frame.value(QStringLiteral("loaderId")).toString();
+        if (frame.contains(QStringLiteral("parentId")) || loader == m_documentLoader
+            || (!m_mainFrame.isEmpty()
+                && frame.value(QStringLiteral("id")).toString() != m_mainFrame)) {
+            return {};
+        }
+        ++m_document;
+        m_documentLoader = loader;
+        m_requests.clear();
+        return {{{QStringLiteral("key"), QString {}},
+            {QStringLiteral("document"), QString::number(m_document)}}};
+    }
     if (!method.startsWith(u"Network.")) {
         return {};
     }
-    const auto session = message.value(QStringLiteral("sessionId")).toString();
-    const auto params = message.value(QStringLiteral("params")).toObject();
     const auto requestId = params.value(QStringLiteral("requestId")).toString();
     if (requestId.isEmpty()) {
         return {};
@@ -76,16 +92,21 @@ QList<QVariantMap> QtNetworkEvents::read(const QJsonObject &message)
                 QStringLiteral("status"), redirect.value(QStringLiteral("status")).toInt());
             ended.insert(QStringLiteral("statusText"),
                 redirect.value(QStringLiteral("statusText")).toString());
-            ended.insert(QStringLiteral("responseHeaders"),
-                headerPairs(redirect.value(QStringLiteral("headers"))));
+            if (!tracked->receivedFromService) {
+                ended.insert(QStringLiteral("responseHeaders"),
+                    headerPairs(redirect.value(QStringLiteral("headers"))));
+            }
             if (redirect.contains(QStringLiteral("encodedDataLength"))) {
                 ended.insert(QStringLiteral("size"),
                     redirect.value(QStringLiteral("encodedDataLength")).toInteger());
             }
             ended.insert(QStringLiteral("body"), QVariantMap {});
             reports.append(ended);
+            tracked->redirectStatus = redirect.value(QStringLiteral("status")).toInt();
+            tracked->redirectFromService = tracked->receivedFromService;
             ++tracked->hop;
-            tracked->sentHeaders.clear();
+            tracked->sentHeaders = std::exchange(tracked->nextSentHeaders, {});
+            tracked->sentFromService = !tracked->sentHeaders.isEmpty();
             tracked->receivedHeaders.clear();
             tracked->receivedFromService = false;
         } else if (session.isEmpty() && redirect.isEmpty()
@@ -93,6 +114,7 @@ QList<QVariantMap> QtNetworkEvents::read(const QJsonObject &message)
             && (m_mainFrame.isEmpty()
                 || params.value(QStringLiteral("frameId")).toString() == m_mainFrame)) {
             ++m_document;
+            m_documentLoader = params.value(QStringLiteral("loaderId")).toString();
             // The last document's requests are not reported again, so they
             // are not tracked either.
             const auto current = *tracked;
@@ -130,7 +152,14 @@ QList<QVariantMap> QtNetworkEvents::read(const QJsonObject &message)
                       .toObject()
                       .value(QStringLiteral("headers"))
                 : params.value(QStringLiteral("headers")));
+        // A hop's are reported once, so a second account before the hop ends
+        // is the next hop's, sent before the redirect that starts it.
+        if (tracked->begun && tracked->sentFromService) {
+            tracked->nextSentHeaders = headers;
+            return {};
+        }
         tracked->sentHeaders = headers;
+        tracked->sentFromService = true;
         if (!tracked->begun) {
             return {};
         }
@@ -140,7 +169,19 @@ QList<QVariantMap> QtNetworkEvents::read(const QJsonObject &message)
     }
 
     if (method == u"Network.responseReceivedExtraInfo") {
-        tracked->receivedHeaders = headerPairs(params.value(QStringLiteral("headers")));
+        const auto headers = headerPairs(params.value(QStringLiteral("headers")));
+        // The redirect's own response, reported after the hop it ended.
+        if (tracked->begun && tracked->hop > 0 && !tracked->redirectFromService
+            && !tracked->receivedFromService
+            && params.value(QStringLiteral("statusCode")).toInt() == tracked->redirectStatus) {
+            tracked->redirectFromService = true;
+            Tracked ended = *tracked;
+            --ended.hop;
+            auto update = report(id, ended);
+            update.insert(QStringLiteral("responseHeaders"), headers);
+            return {update};
+        }
+        tracked->receivedHeaders = headers;
         tracked->receivedFromService = true;
         if (!tracked->begun) {
             return {};

@@ -2101,7 +2101,8 @@ void AgentControl::readRequest(
     const auto output = request.value(QStringLiteral("output")).toString();
     if (!output.isEmpty() && !body) {
         reply(refusal(QStringLiteral("bad-request"),
-            QStringLiteral("--output names the file a body is written to, so give --body too.")));
+            QStringLiteral(
+                "--output names the file a body is written to, so give --body or --sent too.")));
         return;
     }
     std::optional<TabState> tab;
@@ -2179,8 +2180,7 @@ QString AgentControl::reserveBody(
     const QString &name, const QString &output, quint64 id, QJsonObject &refused) const
 {
     if (!output.isEmpty()
-        && (output.contains(u'/') || output.contains(u'\\') || output == u"." || output == u".."
-            || output.startsWith(u'.'))) {
+        && (output.contains(u'/') || output.contains(u'\\') || output.startsWith(u'.'))) {
         refused = refusal(QStringLiteral("bad-request"),
             QStringLiteral("Name the body's file alone, such as response.json. Omaweb writes it "
                            "in the connection's own directory."));

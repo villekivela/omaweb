@@ -186,6 +186,7 @@ private slots:
     void numbersARequestOnceAndAddsWhatFollows();
     void answersOnlyRequestsThatBeganAfterTheCursor();
     void startsAgainWithEachDocument();
+    void startsAgainWithADocumentThatAskedForNothing();
     void keepsOnlyTheNewestRequests();
     void listsTheFailedOnesWhenAsked();
     void redactsEachCredentialHeader_data();
@@ -295,6 +296,26 @@ void AgentNetworkTest::startsAgainWithEachDocument()
             {QStringLiteral("document"), QStringLiteral("1")}, {QStringLiteral("status"), 200}});
     QCOMPARE(urls(network.read(QStringLiteral("t"), false, 0).requests),
         QStringList {QStringLiteral("https://a.example/new")});
+}
+
+void AgentNetworkTest::startsAgainWithADocumentThatAskedForNothing()
+{
+    AgentNetwork network;
+    network.record(QStringLiteral("t"),
+        began(QStringLiteral("a"), QStringLiteral("1"), QStringLiteral("https://a.example/old")));
+    const QVariantMap restored {
+        {QStringLiteral("key"), QString {}}, {QStringLiteral("document"), QStringLiteral("2")}};
+    network.record(QStringLiteral("t"), restored);
+    QVERIFY(network.read(QStringLiteral("t"), false, 0).requests.isEmpty());
+    network.record(QStringLiteral("t"),
+        began(QStringLiteral("b"), QStringLiteral("2"), QStringLiteral("https://a.example/new")));
+    // Saying so again changes nothing, and nor does saying it of a tab with
+    // nothing kept.
+    network.record(QStringLiteral("t"), restored);
+    network.record(QStringLiteral("other"), restored);
+    QCOMPARE(urls(network.read(QStringLiteral("t"), false, 0).requests),
+        QStringList {QStringLiteral("https://a.example/new")});
+    QVERIFY(network.read(QStringLiteral("other"), false, 0).requests.isEmpty());
 }
 
 void AgentNetworkTest::keepsOnlyTheNewestRequests()

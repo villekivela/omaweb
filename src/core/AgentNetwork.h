@@ -77,7 +77,8 @@ public:
     // `statusText`, `failure`, `size`, `requestHeaders`, `responseHeaders`
     // and `sentBody` it has learnt. Headers are a list of `[name, value]`
     // pairs. A key not seen before in the document is a new request. Anything
-    // left out keeps what was known.
+    // left out keeps what was known. An empty key says only that the tab's
+    // page has gone on to `document`.
     void record(const QString &tabId, const QVariantMap &report);
     // Requests newer than `since`, all of them or only those that failed or
     // were answered with an error.

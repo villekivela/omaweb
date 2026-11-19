@@ -466,14 +466,15 @@ is not kept.
 by an Agent makes and of what follows it, under a key of its own and a document of its own count,
 and it answers the `request` page verb with a body, as base64, by the `body` reference its reports
 carried. The Qt adapter's `QtAgentNetwork` opens the engine patch's `QWebEngineDevToolsSession` on
-the page while `agentOwned` is true, enables the Network domain there and on each child session
-`Target.setAutoAttach` brings for a cross-site frame, and `QtNetworkEvents` reads the protocol's
-events into reports: a document starts when the main frame requests one, a redirect ends one hop and
-starts the next, the headers the network service sent replace the page's, and a WebSocket is its
-handshake. The session ends, and the engine drops the bodies it kept for it, when `agentOwned` goes
-false or the view goes. A Qt engine without the patch, the UI lab's mock and Ladybird have no
-session: they report the capability off and never raise the signal, and the core answers both verbs
-`unsupported`. The build reads which from the engine's headers, as it does for the other patches.
+the page while `agentOwned` is true, enables its Page domain, and the Network domain there and on
+each child session `Target.setAutoAttach` brings for a cross-site frame, and `QtNetworkEvents` reads
+the protocol's events into reports: a document starts when the main frame requests one or shows one
+from the back-forward cache, a redirect ends one hop and starts the next, the headers the network
+service sent replace the page's, and a WebSocket is its handshake. The session ends, and the engine
+drops the bodies it kept for it, when `agentOwned` goes false or the view goes. A Qt engine without
+the patch, the UI lab's mock and Ladybird have no session: they report the capability off and never
+raise the signal, and the core answers both verbs `unsupported`. The build reads which from the
+engine's headers, as it does for the other patches.
 
 The page area passes a report on only for an Agent tab, naming its document by the engine as the
 console's lines are, and `AgentNetwork` keeps a tab's newest 500 requests for the document on show,

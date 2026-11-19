@@ -70,6 +70,8 @@ private slots:
     void prefersTheHeadersTheNetworkCarried();
     void endsAHopAtEachRedirect();
     void startsADocumentWithTheMainFrame();
+    void startsADocumentThatMadeNoRequest();
+    void keepsEachHopsHeadersInEitherOrder();
     void reportsAWebSocketAsItsOpeningRequest();
     void keepsAChildSessionsRequestsApart();
     void readsNothingElse();
@@ -279,6 +281,95 @@ void QtNetworkEventsTest::startsADocumentWithTheMainFrame()
         QStringLiteral("https://a.example/landed"), QStringLiteral("Document"),
         {{QStringLiteral("redirectResponse"), QJsonObject {{QStringLiteral("status"), 302}}}})));
     QCOMPARE(redirected, second);
+}
+
+// A document the main frame shows without asking the network, as one from the
+// back-forward cache is, starts a document all the same.
+void QtNetworkEventsTest::startsADocumentThatMadeNoRequest()
+{
+    QtNetworkEvents events;
+    events.setMainFrame(QStringLiteral("MAIN"));
+    const auto first = events
+                           .read(willBeSent(QStringLiteral("d1"),
+                               QStringLiteral("https://a.example/"), QStringLiteral("Document")))
+                           .constFirst()
+                           .value(QStringLiteral("document"));
+    const auto navigated = [](const QString &loader, const QString &parent = {}) {
+        QJsonObject frame {{QStringLiteral("id"),
+                               parent.isEmpty() ? QStringLiteral("MAIN") : QStringLiteral("CHILD")},
+            {QStringLiteral("loaderId"), loader}};
+        if (!parent.isEmpty()) {
+            frame.insert(QStringLiteral("parentId"), parent);
+        }
+        return protocolEvent(
+            QStringLiteral("Page.frameNavigated"), {{QStringLiteral("frame"), frame}});
+    };
+    // The document whose request was seen commits, and nothing starts.
+    QVERIFY(events.read(navigated(QStringLiteral("d1"))).isEmpty());
+    QVERIFY(events.read(navigated(QStringLiteral("f1"), QStringLiteral("MAIN"))).isEmpty());
+
+    const auto restored = events.read(navigated(QStringLiteral("cached")));
+    QCOMPARE(restored.size(), 1);
+    QCOMPARE(restored.constFirst().value(QStringLiteral("key")).toString(), QString());
+    QVERIFY(restored.constFirst().value(QStringLiteral("document")) != first);
+    // What it asks for next is the restored document's.
+    QCOMPARE(events
+                 .read(willBeSent(QStringLiteral("s2"), QStringLiteral("https://a.example/a.js"),
+                     QStringLiteral("Script")))
+                 .constFirst()
+                 .value(QStringLiteral("document")),
+        restored.constFirst().value(QStringLiteral("document")));
+}
+
+// The network service's account of a hop can arrive after the page has moved
+// on to the next, or before the hop it belongs to has begun.
+void QtNetworkEventsTest::keepsEachHopsHeadersInEitherOrder()
+{
+    QtNetworkEvents events;
+    QList<QVariantMap> reports;
+    const auto sentExtra = [](const QString &cookie) {
+        return protocolEvent(QStringLiteral("Network.requestWillBeSentExtraInfo"),
+            {{QStringLiteral("requestId"), QStringLiteral("4")},
+                {QStringLiteral("headers"), QJsonObject {{QStringLiteral("Cookie"), cookie}}}});
+    };
+    reports += events.read(willBeSent(
+        QStringLiteral("4"), QStringLiteral("http://a.example/"), QStringLiteral("Script")));
+    reports += events.read(sentExtra(QStringLiteral("a=1")));
+    // The next hop's, before its request.
+    reports += events.read(sentExtra(QStringLiteral("b=2")));
+    reports += events.read(willBeSent(QStringLiteral("4"), QStringLiteral("https://a.example/"),
+        QStringLiteral("Script"),
+        {{QStringLiteral("redirectResponse"),
+            QJsonObject {{QStringLiteral("status"), 301},
+                {QStringLiteral("headers"),
+                    QJsonObject {
+                        {QStringLiteral("Location"), QStringLiteral("https://a.example/")}}}}}}));
+    // The first hop's response, after the next hop began.
+    reports += events.read(protocolEvent(QStringLiteral("Network.responseReceivedExtraInfo"),
+        {{QStringLiteral("requestId"), QStringLiteral("4")}, {QStringLiteral("statusCode"), 301},
+            {QStringLiteral("headers"),
+                QJsonObject {{QStringLiteral("Location"), QStringLiteral("https://a.example/")},
+                    {QStringLiteral("Set-Cookie"), QStringLiteral("s=1")}}}}));
+    reports += events.read(protocolEvent(QStringLiteral("Network.responseReceivedExtraInfo"),
+        {{QStringLiteral("requestId"), QStringLiteral("4")}, {QStringLiteral("statusCode"), 200},
+            {QStringLiteral("headers"),
+                QJsonObject {{QStringLiteral("Set-Cookie"), QStringLiteral("t=2")}}}}));
+
+    QVariantMap first;
+    QVariantMap second;
+    for (const auto &request : merged(reports)) {
+        (request.value(QStringLiteral("url")).toString().startsWith(u"http:") ? first : second)
+            = request;
+    }
+    QCOMPARE(first.value(QStringLiteral("requestHeaders")).toList(),
+        pairs({{QStringLiteral("Cookie"), QStringLiteral("a=1")}}));
+    QCOMPARE(first.value(QStringLiteral("responseHeaders")).toList(),
+        pairs({{QStringLiteral("Location"), QStringLiteral("https://a.example/")},
+            {QStringLiteral("Set-Cookie"), QStringLiteral("s=1")}}));
+    QCOMPARE(second.value(QStringLiteral("requestHeaders")).toList(),
+        pairs({{QStringLiteral("Cookie"), QStringLiteral("b=2")}}));
+    QCOMPARE(second.value(QStringLiteral("responseHeaders")).toList(),
+        pairs({{QStringLiteral("Set-Cookie"), QStringLiteral("t=2")}}));
 }
 
 void QtNetworkEventsTest::reportsAWebSocketAsItsOpeningRequest()

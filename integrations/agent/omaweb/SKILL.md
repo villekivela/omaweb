@@ -128,7 +128,8 @@ omaweb report
   Spaces, `Cookie`, `Set-Cookie`, `Authorization` and `Proxy-Authorization` are redacted to a count,
   such as `<redacted, 3 values>`. `--body` writes the response body to a file in a directory of your
   own and prints its path; a body past 10 MB is cut there, and the answer says so. `--sent` writes
-  what the page sent, in an Agent Space only. A body can be read while its document is on show.
+  what the page sent, in an Agent Space only. A body can be read while its document is on show, and
+  the engine keeps none past 100 MB.
 - `network` sees the page and its frames. It does not see a service worker's requests, and a
   WebSocket shows as its opening request without its messages. A browser whose engine cannot inspect
   a page answers `unsupported`.

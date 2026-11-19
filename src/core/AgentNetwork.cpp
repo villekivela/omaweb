@@ -52,6 +52,13 @@ void AgentNetwork::record(const QString &tabId, const QVariantMap &report)
     const auto key = report.value(QStringLiteral("key")).toString();
     const auto document = report.value(QStringLiteral("document")).toString();
     if (key.isEmpty()) {
+        // A document that asked for nothing on its way in, as one from the
+        // back-forward cache, still leaves the last one's requests behind.
+        const auto found = m_buffers.find(tabId);
+        if (found != m_buffers.end() && found->document != document) {
+            *found = {};
+            found->document = document;
+        }
         return;
     }
     auto &buffer = m_buffers[tabId];

@@ -67,6 +67,7 @@ signals:
 private:
     void attach();
     void detach();
+    void listen(const QString &session);
     void read(const QByteArray &message);
     void send(const QString &method, const QJsonObject &params, const QString &session = {},
         std::function<void(const QJsonObject &)> answered = {});
