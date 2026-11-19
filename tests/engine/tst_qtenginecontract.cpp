@@ -2605,7 +2605,13 @@ void QtEngineContractTest::qtHistorySwipeNavigatesWithoutTakingPageScrolling()
     PageServer server(R"HTML(<!doctype html><html><body style="margin:0">
         <div id="scroll" style="position:absolute;left:0;top:0;width:100px;height:100px;overflow-x:scroll"><div style="width:400px;height:50px"></div></div>
         <iframe style="position:absolute;left:150px;top:0;width:100px;height:100px" srcdoc="frame"></iframe>
-        <script>document.getElementById('scroll').scrollLeft = 100; document.title = location.pathname;</script>
+        <x-closed id="closed" style="position:absolute;left:0;top:150px;width:100px;height:100px;display:block;font:40px/1 sans-serif">unslotted</x-closed>
+        <my-app style="position:absolute;left:300px;top:150px;width:200px;height:100px;display:block"><div style="height:100px"></div></my-app>
+        <my-title style="position:absolute;left:300px;top:300px;width:300px;height:60px;display:block;font:40px/1 sans-serif">Title</my-title>
+        <script>
+            document.getElementById('closed').attachShadow({mode: 'closed'}).innerHTML = '<div style="height:100px"></div>';
+            document.getElementById('scroll').scrollLeft = 100; document.title = location.pathname;
+        </script>
     </body></html>)HTML");
     QVERIFY(server.listen(QHostAddress::LocalHost));
     const auto url = [&server](const QString &path) {
@@ -2659,12 +2665,19 @@ void QtEngineContractTest::qtHistorySwipeNavigatesWithoutTakingPageScrolling()
     QTRY_COMPARE_WITH_TIMEOUT(queries.size(), 2, 5000);
     QTest::qWait(500);
     QCOMPARE(navigation.size(), 0);
+    // A component with a closed shadow root may scroll without a DOM scroll container, even when
+    // it has light-DOM text that it does not draw.
+    gesture({30, 165}, 140);
+    QTRY_COMPARE_WITH_TIMEOUT(queries.size(), 3, 5000);
+    QTest::qWait(500);
+    QCOMPARE(navigation.size(), 0);
     // The view says which way the swipe went; the chrome runs what Settings
     // chose, which for a page is Back and forward until the reader says
     // otherwise. This stands in for the chrome.
     QSignalSpy swiped(shown.adapter.get(), SIGNAL(pageSwiped(int)));
     QObject::connect(
         shown.adapter.get(), SIGNAL(pageSwiped(int)), shown.adapter.get(), SLOT(goBack()));
+    // A custom element without shadow DOM that only wraps content is walked through (#960).
     gesture({350, 200}, 140);
     QTRY_COMPARE_WITH_TIMEOUT(
         shown.adapter->property("pageTitle").toString(), QStringLiteral("/first"), 15000);
@@ -2676,7 +2689,8 @@ void QtEngineContractTest::qtHistorySwipeNavigatesWithoutTakingPageScrolling()
     QObject::connect(
         shown.adapter.get(), SIGNAL(pageSwiped(int)), shown.adapter.get(), SLOT(goForward()));
     QTRY_VERIFY_WITH_TIMEOUT(shown.adapter->property("canGoForward").toBool(), 5000);
-    gesture({350, 200}, -140);
+    // A swipe that starts on the text of a custom element's own light DOM is walked through too.
+    gesture({320, 315}, -140);
     QTRY_COMPARE_WITH_TIMEOUT(
         shown.adapter->property("pageTitle").toString(), QStringLiteral("/second"), 15000);
     QCOMPARE(navigation.size(), 2);
@@ -2688,7 +2702,7 @@ void QtEngineContractTest::qtHistorySwipeNavigatesWithoutTakingPageScrolling()
     // that way still goes.
     QVERIFY(!shown.adapter->property("canGoForward").toBool());
     QVERIFY(shown.adapter->setProperty("swipeAction", QStringLiteral("switch-tab")));
-    gesture({350, 200}, -140);
+    gesture({550, 420}, -140);
     QTRY_COMPARE_WITH_TIMEOUT(swiped.size(), 3, 5000);
     QCOMPARE(swiped.at(2).first().toInt(), 1);
 
