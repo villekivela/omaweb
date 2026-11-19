@@ -179,6 +179,8 @@ QString headerShown(const QJsonObject &answer, const QString &name)
 
 } // namespace
 
+Q_DECLARE_METATYPE(AgentNetwork::Header)
+
 class AgentNetworkTest final : public QObject {
     Q_OBJECT
 
@@ -683,9 +685,9 @@ void AgentNetworkTest::cutsAResponseBodyAtTheLimit()
     Browser browser;
     QTemporaryDir downloads;
     QVERIFY(browser.browser->setDownloadDirectory(downloads.path()));
-    const auto size = AgentNetwork::maximumBodyBytes + 1000;
+    constexpr auto size = AgentNetwork::maximumBodyBytes + 1000;
     connect(browser.control.get(), &AgentControl::pageRequested, this,
-        [&browser, size](int requestId, const QVariantMap &) {
+        [&browser](int requestId, const QVariantMap &) {
             browser.control->answerPage(requestId,
                 {{QStringLiteral("ok"), true},
                     {QStringLiteral("body"),
@@ -811,8 +813,6 @@ void AgentNetworkTest::logsNoAddressHeaderOrBody()
     QVERIFY(verbs.contains(QStringLiteral("network")));
     QCOMPARE(verbs.count(QStringLiteral("request")), 2);
 }
-
-Q_DECLARE_METATYPE(AgentNetwork::Header)
 
 QTEST_GUILESS_MAIN(AgentNetworkTest)
 #include "tst_agentnetwork.moc"
