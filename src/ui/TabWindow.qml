@@ -336,12 +336,14 @@ Window {
     }
 
     // The engine is told this window's tab is the active one whenever the
-    // reader is in this window (#961). Only the tab's own page is: a Glance
-    // over it is not a tab, and the extension's answer stays the page beneath.
+    // reader is in this window (#961), or the Glance over it while one is
+    // open, as the main window's engine host does.
     onActiveChanged: root.showAsActiveTab()
+    onGlanceEngineChanged: root.showAsActiveTab()
     function showAsActiveTab() {
-        if (root.active && root.engine)
-            root.engine.showAsActiveTab();
+        const page = root.glanceEngine || root.engine;
+        if (root.active && page)
+            page.showAsActiveTab();
     }
 
     function focusPage() {

@@ -201,13 +201,18 @@ Item {
     // active tab is answered with it rather than with whichever page is on
     // show (#961). A split shows two pages, and two windows show one
     // each: only the window the reader is in says, and it says again when the
-    // reader comes back to it.
+    // reader comes back to it. A Glance the window holds over the tab is the
+    // page the reader is using, a sign-in page as often as not, so it is the
+    // one told while it is open.
+    property var glanceEngine: null
     readonly property bool windowActive: Window.window ? Window.window.active : false
     onActiveEngineChanged: root.showAsActiveTab()
+    onGlanceEngineChanged: root.showAsActiveTab()
     onWindowActiveChanged: root.showAsActiveTab()
     function showAsActiveTab() {
-        if (root.windowActive && root.activeEngine)
-            root.activeEngine.showAsActiveTab();
+        const page = root.glanceEngine || root.activeEngine;
+        if (root.windowActive && page)
+            page.showAsActiveTab();
     }
     onSplitLeftTabIdChanged: root.restoreDivider()
     onSplitRightTabIdChanged: root.restoreDivider()

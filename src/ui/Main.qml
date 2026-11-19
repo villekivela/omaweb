@@ -4530,6 +4530,7 @@ ApplicationWindow {
 
                 TabEngineHost {
                     id: engineLoader
+                    glanceEngine: window.glanceEngine
                     scale: glance.beneathScale
                     pageSwipeAction: window.pageSwipeAction
                     swipeDistance: window.swipeDistance

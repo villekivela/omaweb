@@ -13759,6 +13759,28 @@ TestCase {
         return glance;
     }
 
+    // A Glance is over its tab and is the page the reader is using, a sign-in
+    // page as often as not, so the engine is told it is the active tab while
+    // it is open and the tab is again once it closes (#961).
+    function test_aGlanceIsTheActiveTabWhileItIsOpen() {
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        const opener = openPage("https://glance-opener.example/");
+        const openerUnder = opener.timesShownAsActiveTab;
+        openGlance("https://glance-sign-in.example/");
+        const glanced = window.glanceEngine;
+        tryCompare(glanced, "timesShownAsActiveTab", 1);
+        compare(opener.timesShownAsActiveTab, openerUnder);
+
+        window.closeGlance();
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+        tryCompare(opener, "timesShownAsActiveTab", openerUnder + 1);
+    }
+
     function test_aPagesNewTabRequestOpensAGlanceOverThePage() {
         const engineLoader = findChild(window.contentItem, "engineLoader");
         const opener = openPage("https://opener.example");
@@ -23434,6 +23456,26 @@ TestCase {
             return window.active;
         });
         tryCompare(reading, "timesShownAsActiveTab", readingAway + 1);
+
+        // A Glance over the Tab window's page is the active tab while it is
+        // open, and the page is again once it closes.
+        window.setGlanceEnabled(true);
+        tabWindow.requestActivate();
+        tryVerify(function () {
+            return tabWindow.active;
+        });
+        const poppedUnder = popped.timesShownAsActiveTab;
+        popped.simulateNewWindowRequest("https://selected-glanced.example/", false);
+        tryVerify(function () {
+            return tabWindow.glanceEngine !== null;
+        });
+        tryCompare(tabWindow.glanceEngine, "timesShownAsActiveTab", 1);
+        compare(popped.timesShownAsActiveTab, poppedUnder);
+        tabWindow.closeGlance();
+        tryVerify(function () {
+            return tabWindow.glanceEngine === null;
+        });
+        tryCompare(popped, "timesShownAsActiveTab", poppedUnder + 1);
 
         tabWindow.close();
         tryVerify(function () {

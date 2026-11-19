@@ -1221,9 +1221,10 @@ the routes to what the reader saw.
   the query answered the second. Patch 0032 of the series rebased onto 6.140.0, not the 0032 of the
   6.11 series that ADR 0069 names, lets Omaweb say which tab is active, and the query answers it.
   Omaweb says so on every tab switch, as focus crosses a split, and when the reader comes to a
-  window, from the window the reader is in. On an engine without the patch the engine goes on
-  answering the last page on show. `tabs.onActivated` is still not raised, so an extension that
-  keeps the active tab from that event rather than asking is not told of a switch.
+  window, from the window the reader is in. A Glance open over the tab is the active tab until it
+  closes, since a sign-in page is often opened in one. On an engine without the patch the engine
+  goes on answering the last page on show. `tabs.onActivated` is still not raised, so an extension
+  that keeps the active tab from that event rather than asking is not told of a switch.
   [Issue #961](https://github.com/villekivela/omaweb/issues/961).
 
 1Password's own flow past the page script was not run: no 1Password account or desktop application
