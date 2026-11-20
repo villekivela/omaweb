@@ -88,7 +88,7 @@ omaweb look [--all]
 omaweb read [selector]
 omaweb do <step>... [--settle <ms>] [--timeout <ms>]
 omaweb shot [--full] [--output <file>]
-omaweb eval <expression>
+omaweb eval [--main-world] <expression>
 omaweb console [--level error|warning|all] [--since <cursor>]
 omaweb network [--failed] [--since <cursor>]
 omaweb request <id> [--body | --sent] [--output <file>]
@@ -135,6 +135,9 @@ omaweb report
   worker's, and a WebSocket shows as its opening request without its messages. A browser whose
   engine cannot inspect a page answers `unsupported`.
 - `eval` runs JavaScript in an isolated world: it sees the DOM, not the page's own variables.
+  `--main-world` runs it in the page's own world, where its globals, functions and framework state
+  are, in an Agent Space only. Elsewhere it is refused, because there the page is signed in as the
+  reader. A browser whose engine cannot inspect a page answers `unsupported`.
 - `space`, `focus` and `run` change what the reader sees: another Space, another tab, or a browser
   command such as `toggle-sidebar`. Use them only when the reader asks for that. `commands` lists
   what `run` can run now. `run pop-out-tab <tab id>` puts a tab in a window of its own, and

@@ -44,6 +44,17 @@ public:
     static QVariantMap bodyAnswer(
         const QJsonObject &answer, const QString &part, qint64 limit, qint64 size);
 
+    // The most JSON an evaluated value may come to, as in the isolated world.
+    static constexpr int maximumValueCharacters = 1024 * 1024;
+
+    // What `Runtime.evaluate` runs for `eval --main-world`: the expression,
+    // its promise awaited, made JSON in the page's own world.
+    static QString evaluationSource(const QString &expression);
+    // The session's answer to that `Runtime.evaluate`, as the isolated world
+    // answers `eval`: `{ok: true, value}`, or a refusal with `code` threw,
+    // not-json, too-large or failed and its `error`.
+    static QVariantMap evaluationAnswer(const QJsonObject &answer);
+
     // The main frame's id, from `Page.getFrameTree`. Until it is known, a
     // document request from the page's own session starts a document.
     void setMainFrame(const QString &frameId);

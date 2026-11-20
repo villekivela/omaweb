@@ -13,12 +13,12 @@
 
 namespace omaweb {
 
-// An Agent tab's network, read through a debugging session of its page alone
-// (ADR 0051). The session is the engine patch's `QWebEngineDevToolsSession`,
-// whose client Chromium does not trust, so it reaches no other page or the
-// browser. Of the children its auto-attach can bring, frames alone are asked
-// for, as a service worker serves other tabs too. An engine without the patch
-// has no session, and this reports nothing.
+// An Agent tab's network, and its page's own world, read through a debugging
+// session of its page alone (ADR 0051). The session is the engine patch's
+// `QWebEngineDevToolsSession`, whose client Chromium does not trust, so it
+// reaches no other page or the browser. Of the children its auto-attach can
+// bring, frames alone are asked for, as a service worker serves other tabs
+// too. An engine without the patch has no session, and this reports nothing.
 //
 // The session is open while `active` is true and the view has a page: the
 // page area sets it while an Agent holds the tab, so capture starts when an
@@ -56,6 +56,10 @@ public:
     // size, or a refusal with `code` and `error`.
     Q_INVOKABLE void fetchBody(
         int ticket, const QVariantMap &body, const QString &part, qint64 limit, qint64 size);
+    // Evaluates `expression` in the main frame's own world, for `eval
+    // --main-world`. The answer comes as `evaluated` under `ticket`, as
+    // `QtNetworkEvents::evaluationAnswer` reads it.
+    Q_INVOKABLE void evaluate(int ticket, const QString &expression);
 
 signals:
     void viewChanged();
@@ -66,6 +70,7 @@ signals:
     // adapter's own count.
     void requestReported(const QVariantMap &report);
     void bodyFetched(int ticket, const QVariantMap &answer);
+    void evaluated(int ticket, const QVariantMap &answer);
 
 private:
     void attach();

@@ -258,6 +258,15 @@ go to the Agent, its downloads to a directory of the connection's own, its file 
 files the Agent names in an Agent Space, and an Auxiliary window it opens is the Agent's too.
 _Avoid_: Automated tab, bot tab, controlled tab
 
+**Main world**: A page's own JavaScript world, where its globals, functions and framework state are.
+Besides Omaweb's vendored scriptlets, only an Agent reaches it, with `eval --main-world` in an Agent
+Space through the engine's per-page inspection session. A Web extension never does. _Avoid_: Page
+context, top world, unsafe eval
+
+**Isolated world**: The JavaScript world plain `eval` runs in. It shares the page's document but not
+the Main world's globals, and the page cannot see into it. _Avoid_: Application world, sandbox,
+content-script world
+
 **Web extension**: A third-party browser package that can modify pages or add browser behavior
 through a supported WebExtensions contract. _Avoid_: Feature module, plugin
 

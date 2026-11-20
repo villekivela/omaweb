@@ -240,6 +240,26 @@ void QtAgentNetwork::fetchBody(
         });
 }
 
+void QtAgentNetwork::evaluate(int ticket, const QString &expression)
+{
+    attachIfReady();
+    if (!attached()) {
+        emit evaluated(ticket,
+            refusal(QStringLiteral("failed"),
+                QStringLiteral("The page's session is not open, so its own world cannot be "
+                               "reached.")));
+        return;
+    }
+    // Without a context, the main frame's main world. An expression that
+    // never settles is answered by EngineView's deadline for a promise.
+    send(QStringLiteral("Runtime.evaluate"),
+        {{QStringLiteral("expression"), QtNetworkEvents::evaluationSource(expression)},
+            {QStringLiteral("returnByValue"), true}, {QStringLiteral("awaitPromise"), true}},
+        {}, [this, ticket](const QJsonObject &answer) {
+            emit evaluated(ticket, QtNetworkEvents::evaluationAnswer(answer));
+        });
+}
+
 void registerQtAgentNetwork()
 {
     qmlRegisterType<QtAgentNetwork>("Omaweb.Engine", 1, 0, "QtAgentNetwork");

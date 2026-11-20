@@ -100,6 +100,15 @@ struct Browser {
         return control->answer(fields);
     }
 
+    // A page verb's answer, or nothing while the page is asked.
+    QJsonObject handled(QJsonObject fields)
+    {
+        fields.insert(QStringLiteral("name"), QStringLiteral("agent"));
+        QJsonObject answered;
+        control->handle(fields, [&answered](const QJsonObject &answer) { answered = answer; });
+        return answered;
+    }
+
     // A tab of a new Agent Space, made the connection's current tab.
     QString agentTab(const QString &url = QStringLiteral("http://localhost:3000/"))
     {
@@ -195,6 +204,7 @@ private slots:
     void redactsEachCredentialHeader();
     void leavesOtherHeadersAsTheyAre();
     void refusesOnAnEngineWithoutTheSession();
+    void evaluatesInTheMainWorldOnlyInAnAgentSpace();
     void answersAnAgentTabsNetwork();
     void listensOnlyToAgentTabs();
     void waitsForAllowAgentsAndAGrant();
@@ -415,6 +425,65 @@ void AgentNetworkTest::refusesOnAnEngineWithoutTheSession()
     QCOMPARE(code(without.ask(
                  {{QStringLiteral("verb"), QStringLiteral("request")}, {QStringLiteral("id"), 1}})),
         QStringLiteral("unsupported"));
+    // The page's own world is reached through the same session. Plain `eval`
+    // runs in the isolated world and needs none.
+    QSignalSpy requested(without.control.get(), &AgentControl::pageRequested);
+    connect(without.control.get(), &AgentControl::pageRequested, this, [] { });
+    QCOMPARE(code(without.handled({{QStringLiteral("verb"), QStringLiteral("eval")},
+                 {QStringLiteral("expression"), QStringLiteral("app")},
+                 {QStringLiteral("mainWorld"), true}})),
+        QStringLiteral("unsupported"));
+    QCOMPARE(requested.count(), 0);
+    QVERIFY(without
+            .handled({{QStringLiteral("verb"), QStringLiteral("eval")},
+                {QStringLiteral("expression"), QStringLiteral("app")}})
+            .isEmpty());
+    QCOMPARE(requested.count(), 1);
+}
+
+// A granted Space's page is signed in as the reader, and its own script is
+// what a prompt injection would reach, so the main world is an Agent Space's
+// alone (ADR 0051).
+void AgentNetworkTest::evaluatesInTheMainWorldOnlyInAnAgentSpace()
+{
+    Browser browser;
+    QSignalSpy requested(browser.control.get(), &AgentControl::pageRequested);
+    connect(browser.control.get(), &AgentControl::pageRequested, this, [] { });
+    const QJsonObject mainWorld {{QStringLiteral("verb"), QStringLiteral("eval")},
+        {QStringLiteral("expression"), QStringLiteral("app")}, {QStringLiteral("mainWorld"), true}};
+
+    // Refused before the reader is asked, since no grant would let it through.
+    QSignalSpy grantAsked(browser.control.get(), &AgentControl::grantRequestChanged);
+    auto ungranted = mainWorld;
+    ungranted.insert(QStringLiteral("tab"), QStringLiteral("personal-tab"));
+    QCOMPARE(code(browser.handled(ungranted)), QStringLiteral("refused"));
+    QCOMPARE(grantAsked.count(), 0);
+    QCOMPARE(requested.count(), 0);
+
+    browser.grantedTab();
+    QCOMPARE(code(browser.handled(mainWorld)), QStringLiteral("refused"));
+    QCOMPARE(requested.count(), 0);
+    QVERIFY(browser
+            .handled({{QStringLiteral("verb"), QStringLiteral("eval")},
+                {QStringLiteral("expression"), QStringLiteral("app")}})
+            .isEmpty());
+    QCOMPARE(requested.count(), 1);
+    QVERIFY(!requested.takeFirst()
+            .at(1)
+            .toMap()
+            .value(QStringLiteral("arguments"))
+            .toMap()
+            .value(QStringLiteral("mainWorld"))
+            .toBool());
+
+    const auto tabId = browser.agentTab();
+    QVERIFY(browser.handled(mainWorld).isEmpty());
+    QCOMPARE(requested.count(), 1);
+    const auto asked = requested.takeFirst().at(1).toMap();
+    QCOMPARE(asked.value(QStringLiteral("tabId")).toString(), tabId);
+    const auto arguments = asked.value(QStringLiteral("arguments")).toMap();
+    QCOMPARE(arguments.value(QStringLiteral("expression")).toString(), QStringLiteral("app"));
+    QVERIFY(arguments.value(QStringLiteral("mainWorld")).toBool());
 }
 
 void AgentNetworkTest::answersAnAgentTabsNetwork()
@@ -885,7 +954,8 @@ void AgentNetworkTest::logsNoAddressHeaderOrBody()
             browser.control->answerPage(requestId,
                 {{QStringLiteral("ok"), true},
                     {QStringLiteral("body"),
-                        QString::fromLatin1(QByteArray("body-text").toBase64())}});
+                        QString::fromLatin1(QByteArray("body-text").toBase64())},
+                    {QStringLiteral("value"), QStringLiteral("page-secret")}});
         });
     const auto tabId = browser.agentTab();
     browser.control->recordNetworkRequest(
@@ -901,6 +971,16 @@ void AgentNetworkTest::logsNoAddressHeaderOrBody()
                                 {QStringLiteral("output"), QStringLiteral("named.json")}},
         [&written](const QJsonObject &answer) { written = answer; });
     QTRY_VERIFY(!written.isEmpty());
+    // The page's own world is logged as `eval` is: neither the expression nor
+    // what it came to.
+    QJsonObject evaluated;
+    browser.control->handle({{QStringLiteral("verb"), QStringLiteral("eval")},
+                                {QStringLiteral("name"), QStringLiteral("agent")},
+                                {QStringLiteral("expression"), QStringLiteral("window.appToken")},
+                                {QStringLiteral("mainWorld"), true}},
+        [&evaluated](const QJsonObject &answer) { evaluated = answer; });
+    QTRY_VERIFY(!evaluated.isEmpty());
+    QCOMPARE(evaluated.value(QStringLiteral("value")).toString(), QStringLiteral("page-secret"));
 
     QStringList verbs;
     for (const auto &entry : activity.entries()) {
@@ -910,7 +990,7 @@ void AgentNetworkTest::logsNoAddressHeaderOrBody()
         }
         for (const auto &field : {entry.target, entry.outcome, entry.agent, entry.space}) {
             for (const auto *secret : {"api.example", "/me", "secret-token", "a=1", "s=1",
-                     "application/json", "body-text", "named.json"}) {
+                     "application/json", "body-text", "named.json", "appToken", "page-secret"}) {
                 QVERIFY2(!field.contains(QLatin1StringView(secret)),
                     qPrintable(QStringLiteral("%1 logged %2").arg(entry.verb, field)));
             }
@@ -918,6 +998,7 @@ void AgentNetworkTest::logsNoAddressHeaderOrBody()
     }
     QVERIFY(verbs.contains(QStringLiteral("network")));
     QCOMPARE(verbs.count(QStringLiteral("request")), 2);
+    QCOMPARE(verbs.count(QStringLiteral("eval")), 1);
 }
 
 QTEST_GUILESS_MAIN(AgentNetworkTest)

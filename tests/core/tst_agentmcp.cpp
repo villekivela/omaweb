@@ -179,6 +179,7 @@ private slots:
     void setsAsideAnAnswerThatCameTooLate();
     void theSkillTeachesEveryVerb();
     void theSkillSaysWhatTheNetworkCannotSee();
+    void theSkillSaysWhereTheMainWorldIsReached();
     void theSkillLoopUsesATemporarySpace();
     void spaceNewSteersAgentsToATemporarySpace();
     void offersTheLevelsTheSocketReads();
@@ -352,6 +353,14 @@ void AgentMcpTest::readsEachToolIntoARequest_data()
                    {QStringLiteral("tab"), QStringLiteral("t1")}})
         << QStringList {QStringLiteral("eval"), QStringLiteral("--tab"), QStringLiteral("t1"),
                QStringLiteral("--"), QStringLiteral("--x")};
+    row("eval in the page's own world", QStringLiteral("eval"))
+        << QJsonObject {{QStringLiteral("expression"), QStringLiteral("app.state")},
+               {QStringLiteral("mainWorld"), true}}
+        << base(QStringLiteral("eval"),
+               {{QStringLiteral("expression"), QStringLiteral("app.state")},
+                   {QStringLiteral("mainWorld"), true}})
+        << QStringList {
+               QStringLiteral("eval"), QStringLiteral("--main-world"), QStringLiteral("app.state")};
     row("console at every level", QStringLiteral("console"))
         << QJsonObject {{QStringLiteral("level"), QStringLiteral("all")}}
         << base(QStringLiteral("console"), {{QStringLiteral("level"), QStringLiteral("all")}})
@@ -823,6 +832,17 @@ void AgentMcpTest::theSkillSaysWhatTheNetworkCannotSee()
     QVERIFY(text.contains(QStringLiteral("10 MB")));
     QVERIFY(text.contains(QStringLiteral("500")));
     QVERIFY(text.contains(QStringLiteral("redacted")));
+}
+
+void AgentMcpTest::theSkillSaysWhereTheMainWorldIsReached()
+{
+    QFile skill(QStringLiteral(OMAWEB_AGENT_SKILL_PATH));
+    QVERIFY(skill.open(QIODevice::ReadOnly));
+    const auto text = QString::fromUtf8(skill.readAll());
+    QVERIFY(text.contains(QStringLiteral("\nomaweb eval [--main-world] <expression>")));
+    const auto simplified = text.simplified();
+    QVERIFY(simplified.contains(QStringLiteral("`--main-world` runs it in the page's own world")));
+    QVERIFY(simplified.contains(QStringLiteral("in an Agent Space only")));
 }
 
 // A forgotten cleanup must leave nothing behind, so the loop an Agent copies

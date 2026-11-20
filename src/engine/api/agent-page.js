@@ -543,7 +543,8 @@
   };
 
   // What an expression came to, as JSON the adapter can carry back. A promise
-  // is kept until it settles and collected by its number.
+  // is kept until it settles and collected by its number. The main world's
+  // `eval` answers the same way, from QtNetworkEvents::evaluationSource.
   const pending = new Map();
   let nextPending = 1;
   const settle = (value) => {

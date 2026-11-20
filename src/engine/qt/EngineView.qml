@@ -4085,6 +4085,10 @@ Item {
     // The `request` bodies asked of the engine and not yet answered.
     property var agentBodies: ({})
     property int agentNextBody: 0
+    // The `eval --main-world` expressions sent to the page's session and not
+    // yet answered.
+    property var agentEvaluations: ({})
+    property int agentNextEvaluation: 0
 
     // The page's network while an Agent holds it. The session opens when the
     // Agent attaches and closes, with every body the engine kept for it, when
@@ -4104,6 +4108,9 @@ Item {
             delete root.agentBodies[ticket];
             waiting(answer);
         }
+        onEvaluated: function (ticket, answer) {
+            root.answerAgentEvaluation(ticket, answer);
+        }
         onAttachedChanged: {
             if (attached)
                 return;
@@ -4113,6 +4120,8 @@ Item {
             for (const ticket in waiting)
                 waiting[ticket](root.agentFailure("not-found",
                                                   "The page's session has ended, and its bodies with it."));
+            root.answerAgentEvaluations(root.agentFailure("failed",
+                                                          "The page's session has ended."));
         }
     }
     onAgentOwnedChanged: {
@@ -4175,6 +4184,7 @@ Item {
         root.agentWaiting = ({});
         for (const run in waiting)
             waiting[run](root.agentDialogShown());
+        root.answerAgentEvaluations(root.agentDialogShown());
     }
 
     function forgetAgentDialog() {
@@ -4371,6 +4381,8 @@ Item {
                 });
             } else if (verb === "read") {
                 root.agentRead(String(options.selector || ""), answer);
+            } else if (verb === "eval" && options.mainWorld === true) {
+                root.agentEvalInMainWorld(String(options.expression || ""), answer);
             } else if (verb === "eval") {
                 root.agentEval(String(options.expression || ""), live, answer);
             } else if (verb === "shot") {
@@ -4473,6 +4485,44 @@ Item {
             }
         };
         root.agentRun(source, settled);
+    }
+
+    // The page's own world, through its session. The core lets this through
+    // in an Agent Space only. A page stopped on a dialog runs nothing until
+    // it is answered, so the dialog answers at once instead, as it does for
+    // the isolated world.
+    function agentEvalInMainWorld(expression, answer) {
+        if (!agentNetwork.available) {
+            answer(root.agentFailure("unsupported",
+                                     "This browser's engine cannot reach a page's own world."));
+            return;
+        }
+        if (root.agentDialog) {
+            answer(root.agentDialogShown());
+            return;
+        }
+        const ticket = ++root.agentNextEvaluation;
+        root.agentEvaluations[ticket] = answer;
+        root.agentAfter(root.agentPromiseMs, function () {
+            root.answerAgentEvaluation(ticket, root.agentFailure("timeout",
+                                                                 "The promise did not settle in time."));
+        });
+        agentNetwork.evaluate(ticket, expression);
+    }
+
+    function answerAgentEvaluation(ticket, answer) {
+        const waiting = root.agentEvaluations[ticket];
+        if (!waiting)
+            return;
+        delete root.agentEvaluations[ticket];
+        waiting(answer);
+    }
+
+    function answerAgentEvaluations(answer) {
+        const waiting = root.agentEvaluations;
+        root.agentEvaluations = ({});
+        for (const ticket in waiting)
+            waiting[ticket](answer);
     }
 
     function agentShot(destination, full, live, answer) {

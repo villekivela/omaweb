@@ -449,7 +449,7 @@ omaweb look [--all]
 omaweb read [selector]
 omaweb do <step>... [--settle <ms>] [--timeout <ms>]
 omaweb shot [--full] [--output <file>]
-omaweb eval <expression>
+omaweb eval [--main-world] <expression>
 omaweb console [--level error|warning|all] [--since <cursor>]
 omaweb network [--failed] [--since <cursor>]
 omaweb request <id> [--body | --sent] [--output <file>]

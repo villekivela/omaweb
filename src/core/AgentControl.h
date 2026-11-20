@@ -202,8 +202,9 @@ public:
     Q_INVOKABLE void startConsoleDocument(const QString &tabId, const QString &document);
 
     // Whether the engine can give an Agent tab's network, which needs a
-    // debugging session of one page (ADR 0051). Without it `network` and
-    // `request` are refused as unsupported.
+    // debugging session of one page (ADR 0051). Without it `network`,
+    // `request` and `eval --main-world`, which reaches the page's own world
+    // through the same session, are refused as unsupported.
     void setNetworkInspection(bool available);
     // What the adapter learnt of a request an Agent tab's page made, for
     // `network` and `request`: the report `AgentNetwork::record` reads, its
@@ -399,6 +400,10 @@ private:
     // else the Agent may do there.
     QJsonObject refuseUpload(const Connection &connection, const QJsonObject &request) const;
     QJsonObject readConsole(Connection &connection, const QJsonObject &request);
+    // Why `eval --main-world` may not reach the page the request names, or
+    // nothing.
+    QJsonObject mainWorldRefusal(
+        const QString &verb, const Connection &connection, const QJsonObject &request) const;
     // The tab `network` or `request` reads, once the engine is known to offer
     // the session, made the connection's current tab and an Agent tab.
     QJsonObject networkTab(Connection &connection, const QJsonObject &request,
