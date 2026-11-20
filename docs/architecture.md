@@ -481,12 +481,13 @@ raise the signal, and the core answers both verbs `unsupported`. The build reads
 engine's headers, as it does for the other patches.
 
 The same session answers `eval --main-world`. The core refuses it `unsupported` without the
-capability and `refused` outside an Agent Space, before any page is asked. `QtAgentNetwork` sends
-`Runtime.evaluate` with no context, which is the main frame's main world, awaiting the promise the
-expression comes to and returning it by value. `QtNetworkEvents::evaluationSource` makes the value
-JSON in the page, as the isolated world does, so an answer has the same shape and the same size
-limit in either world. A dialog the page shows answers the expression at once, and the session
-ending answers it `failed`.
+capability and `refused` outside an Agent Space, before any page or the reader is asked, since no
+Space grant would let it through. `QtAgentNetwork` sends `Runtime.evaluate` with no context, which
+is the main frame's main world, awaiting the promise the expression comes to and returning it by
+value. `QtNetworkEvents::evaluationSource` makes the value JSON and measures it in the page, as the
+isolated world does, so an answer has the same shape and the same size limit in either world, and a
+value over the limit never crosses the session. A dialog the page shows answers the expression at
+once, and the session ending answers it `failed`.
 
 The page area passes a report on only for an Agent tab, naming its document by the engine as the
 console's lines are, and `AgentNetwork` keeps a tab's newest 500 requests for the document on show,

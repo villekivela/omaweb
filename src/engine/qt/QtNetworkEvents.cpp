@@ -39,12 +39,12 @@ namespace {
         return params.value(QStringLiteral("errorText")).toString();
     }
 
-    // What an expression threw, cut to a length an answer can carry, as
-    // `threw` in agent-page.js cuts it for the isolated world.
-    QString thrownAnswer(const QString &thrown)
+    // What the page said went wrong, cut to a length an answer can carry, as
+    // `threw` in agent-page.js cuts a throw for the isolated world.
+    QString pageError(const QString &said)
     {
         constexpr int errorCharacters = 2000;
-        const auto text = thrown.simplified();
+        const auto text = said.simplified();
         return text.size() > errorCharacters ? text.left(errorCharacters - 1) + u'…' : text;
     }
 
@@ -64,7 +64,7 @@ namespace {
         if (text.isEmpty()) {
             text = details.value(QStringLiteral("text")).toString();
         }
-        return thrownAnswer(text);
+        return pageError(text);
     }
 
 } // namespace
@@ -73,17 +73,20 @@ QString QtNetworkEvents::evaluationSource(const QString &expression)
 {
     // Run where the page's own script runs, outside any function, so the
     // expression sees its globals and nothing of Omaweb's. The value is made
-    // JSON there, with the page's own toJSON, as `settle` in agent-page.js
-    // makes it for the isolated world. A rejection is caught there too, as
+    // JSON there, with the page's own toJSON, and measured there, as `settle`
+    // in agent-page.js does for the isolated world, so a value too large to
+    // answer never crosses the session. A rejection is caught there too, as
     // `threw` reads it, since one awaited by the session comes back as the
     // rejected value made JSON, without an error's message.
     return QStringLiteral("Promise.resolve((\n") + expression
         + QStringLiteral(
             "\n)).then((value) => { try { const json = JSON.stringify(value === undefined ? null "
-            ": value); return json === undefined ? \"null\" : json; } catch (error) { return { "
-            "notJson: String(error && error.message) }; } }, (error) => { try { return { threw: "
-            "String((error && error.message) || error) }; } catch (failure) { return { threw: "
-            "\"An error that cannot be written out.\" }; } })");
+            ": value); if (json === undefined) return \"null\"; return json.length > %1 ? { "
+            "tooLarge: json.length } : json; } catch (error) { return { notJson: String(error && "
+            "error.message) }; } }, (error) => { try { return { threw: String((error && "
+            "error.message) || error) }; } catch (failure) { return { threw: \"An error that "
+            "cannot be written out.\" }; } })")
+              .arg(maximumValueCharacters);
 }
 
 QVariantMap QtNetworkEvents::evaluationAnswer(const QJsonObject &answer)
@@ -105,18 +108,19 @@ QVariantMap QtNetworkEvents::evaluationAnswer(const QJsonObject &answer)
         = result.value(QStringLiteral("result")).toObject().value(QStringLiteral("value"));
     if (value.toObject().contains(QStringLiteral("threw"))) {
         return refusal(QStringLiteral("threw"),
-            thrownAnswer(value.toObject().value(QStringLiteral("threw")).toString()));
+            pageError(value.toObject().value(QStringLiteral("threw")).toString()));
+    }
+    if (value.toObject().contains(QStringLiteral("tooLarge"))) {
+        return refusal(QStringLiteral("too-large"),
+            QStringLiteral("The value is %1 characters of JSON.")
+                .arg(value.toObject().value(QStringLiteral("tooLarge")).toInteger()));
     }
     if (value.isObject()) {
         return refusal(QStringLiteral("not-json"),
             QStringLiteral("The value is not JSON: %1")
-                .arg(value.toObject().value(QStringLiteral("notJson")).toString()));
+                .arg(pageError(value.toObject().value(QStringLiteral("notJson")).toString())));
     }
     const auto json = value.toString();
-    if (json.size() > maximumValueCharacters) {
-        return refusal(QStringLiteral("too-large"),
-            QStringLiteral("The value is %1 characters of JSON.").arg(json.size()));
-    }
     // A bare value is not a JSON document, so it is read inside an array.
     QJsonParseError error {};
     const auto read

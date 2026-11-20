@@ -1,5 +1,6 @@
 #include "QtNetworkEvents.h"
 
+#include <QJSEngine>
 #include <QJsonArray>
 #include <QTest>
 
@@ -78,6 +79,7 @@ private slots:
     void cutsABodyBeforeAnsweringWithIt();
     void saysABodyWasTooLargeToKeep();
     void readsWhatTheMainWorldCameTo();
+    void measuresTheMainWorldsValueInThePage();
     void readsWhatTheMainWorldThrew();
     void readsNothingElse();
 };
@@ -524,6 +526,27 @@ QJsonObject text(const QString &value)
     return {{QStringLiteral("type"), QStringLiteral("string")}, {QStringLiteral("value"), value}};
 }
 
+// The remote object the main world's source for `expression` sends across the
+// session, run by a JavaScript engine as the page's own would run it.
+QJsonObject sentByAPage(const QString &expression)
+{
+    QJSEngine engine;
+    auto settled = engine.newObject();
+    engine
+        .evaluate(QStringLiteral("(function (promise, settled) { promise.then((value) => { "
+                                 "settled.value = value; settled.done = true; }); })"))
+        .call({engine.evaluate(QtNetworkEvents::evaluationSource(expression)), settled});
+    if (!QTest::qWaitFor(
+            [&settled] { return settled.property(QStringLiteral("done")).toBool(); })) {
+        return {};
+    }
+    const auto value
+        = QJsonValue::fromVariant(settled.property(QStringLiteral("value")).toVariant());
+    return {{QStringLiteral("type"),
+                value.isString() ? QStringLiteral("string") : QStringLiteral("object")},
+        {QStringLiteral("value"), value}};
+}
+
 } // namespace
 
 // The main world answers as the isolated one does: the value as JSON, read
@@ -555,14 +578,39 @@ void QtNetworkEventsTest::readsWhatTheMainWorldCameTo()
     QCOMPARE(answer.value(QStringLiteral("code")).toString(), QStringLiteral("not-json"));
     QVERIFY(answer.value(QStringLiteral("error")).toString().contains(u"circular structure"));
 
+    // A toJSON that throws is the page's to word, and is cut as a throw is.
     answer = QtNetworkEvents::evaluationAnswer(
-        evaluatedTo(text(u'"' + QString(QtNetworkEvents::maximumValueCharacters, u'x') + u'"')));
-    QCOMPARE(answer.value(QStringLiteral("code")).toString(), QStringLiteral("too-large"));
+        evaluatedTo({{QStringLiteral("type"), QStringLiteral("object")},
+            {QStringLiteral("value"),
+                QJsonObject {{QStringLiteral("notJson"), QString(5000, u'x')}}}}));
+    QCOMPARE(answer.value(QStringLiteral("code")).toString(), QStringLiteral("not-json"));
+    QVERIFY(answer.value(QStringLiteral("error")).toString().size() < 2100);
+    QVERIFY(answer.value(QStringLiteral("error")).toString().endsWith(u'…'));
 
     // A session that ended answers nothing.
     answer = QtNetworkEvents::evaluationAnswer({});
     QVERIFY(!answer.value(QStringLiteral("ok")).toBool());
     QCOMPARE(answer.value(QStringLiteral("code")).toString(), QStringLiteral("failed"));
+}
+
+// The page measures the JSON, so a value too large to answer never crosses
+// the session.
+void QtNetworkEventsTest::measuresTheMainWorldsValueInThePage()
+{
+    auto sent = sentByAPage(QStringLiteral("Promise.resolve(6 * 7)"));
+    QCOMPARE(sent.value(QStringLiteral("value")).toString(), QStringLiteral("42"));
+    auto answer = QtNetworkEvents::evaluationAnswer(evaluatedTo(sent));
+    QVERIFY(answer.value(QStringLiteral("ok")).toBool());
+    QCOMPARE(answer.value(QStringLiteral("value")).toInt(), 42);
+
+    sent = sentByAPage(
+        QStringLiteral("'x'.repeat(%1)").arg(QtNetworkEvents::maximumValueCharacters));
+    QCOMPARE(sent.value(QStringLiteral("type")).toString(), QStringLiteral("object"));
+    answer = QtNetworkEvents::evaluationAnswer(evaluatedTo(sent));
+    QCOMPARE(answer.value(QStringLiteral("code")).toString(), QStringLiteral("too-large"));
+    QCOMPARE(answer.value(QStringLiteral("error")).toString(),
+        QStringLiteral("The value is %1 characters of JSON.")
+            .arg(QtNetworkEvents::maximumValueCharacters + 2));
 }
 
 // An error by its message, as `eval` gives it, and anything else thrown as
