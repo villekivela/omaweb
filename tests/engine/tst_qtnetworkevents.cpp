@@ -77,6 +77,8 @@ private slots:
     void forgetsTheOldestRequestsPastTheLimit();
     void cutsABodyBeforeAnsweringWithIt();
     void saysABodyWasTooLargeToKeep();
+    void readsWhatTheMainWorldCameTo();
+    void readsWhatTheMainWorldThrew();
     void readsNothingElse();
 };
 
@@ -502,6 +504,105 @@ void QtNetworkEventsTest::saysABodyWasTooLargeToKeep()
                  .value(QStringLiteral("code"))
                  .toString(),
         QStringLiteral("not-found"));
+}
+
+namespace {
+
+// The session's answer to `Runtime.evaluate`, whose result is the
+// remote object `evaluationSource` settles to.
+QJsonObject evaluatedTo(const QJsonObject &remote, const QJsonObject &exception = {})
+{
+    QJsonObject result {{QStringLiteral("result"), remote}};
+    if (!exception.isEmpty()) {
+        result.insert(QStringLiteral("exceptionDetails"), exception);
+    }
+    return {{QStringLiteral("id"), 7}, {QStringLiteral("result"), result}};
+}
+
+QJsonObject text(const QString &value)
+{
+    return {{QStringLiteral("type"), QStringLiteral("string")}, {QStringLiteral("value"), value}};
+}
+
+} // namespace
+
+// The main world answers as the isolated one does: the value as JSON, read
+// back, and a refusal for what JSON cannot carry or is too large to.
+void QtNetworkEventsTest::readsWhatTheMainWorldCameTo()
+{
+    auto answer = QtNetworkEvents::evaluationAnswer(
+        evaluatedTo(text(QStringLiteral(R"({"user":"ada","items":[1,2]})"))));
+    QVERIFY(answer.value(QStringLiteral("ok")).toBool());
+    QCOMPARE(answer.value(QStringLiteral("value")).toMap().value(QStringLiteral("user")).toString(),
+        QStringLiteral("ada"));
+    QCOMPARE(answer.value(QStringLiteral("value")).toMap().value(QStringLiteral("items")).toList(),
+        (QVariantList {1, 2}));
+
+    answer = QtNetworkEvents::evaluationAnswer(evaluatedTo(text(QStringLiteral("42"))));
+    QCOMPARE(answer.value(QStringLiteral("value")).toInt(), 42);
+    answer = QtNetworkEvents::evaluationAnswer(evaluatedTo(text(QStringLiteral(R"("plain")"))));
+    QCOMPARE(answer.value(QStringLiteral("value")).toString(), QStringLiteral("plain"));
+    answer = QtNetworkEvents::evaluationAnswer(evaluatedTo(text(QStringLiteral("null"))));
+    QVERIFY(answer.value(QStringLiteral("ok")).toBool());
+    QVERIFY(answer.value(QStringLiteral("value")).isNull());
+
+    answer = QtNetworkEvents::evaluationAnswer(
+        evaluatedTo({{QStringLiteral("type"), QStringLiteral("object")},
+            {QStringLiteral("value"),
+                QJsonObject {{QStringLiteral("notJson"),
+                    QStringLiteral("Converting circular structure to JSON")}}}}));
+    QVERIFY(!answer.value(QStringLiteral("ok")).toBool());
+    QCOMPARE(answer.value(QStringLiteral("code")).toString(), QStringLiteral("not-json"));
+    QVERIFY(answer.value(QStringLiteral("error")).toString().contains(u"circular structure"));
+
+    answer = QtNetworkEvents::evaluationAnswer(
+        evaluatedTo(text(u'"' + QString(QtNetworkEvents::maximumValueCharacters, u'x') + u'"')));
+    QCOMPARE(answer.value(QStringLiteral("code")).toString(), QStringLiteral("too-large"));
+
+    // A session that ended answers nothing.
+    answer = QtNetworkEvents::evaluationAnswer({});
+    QVERIFY(!answer.value(QStringLiteral("ok")).toBool());
+    QCOMPARE(answer.value(QStringLiteral("code")).toString(), QStringLiteral("failed"));
+}
+
+// An error by its message, as `eval` gives it, and anything else thrown as
+// itself.
+void QtNetworkEventsTest::readsWhatTheMainWorldThrew()
+{
+    auto answer = QtNetworkEvents::evaluationAnswer(
+        evaluatedTo({{QStringLiteral("type"), QStringLiteral("object")}},
+            {{QStringLiteral("text"), QStringLiteral("Uncaught")},
+                {QStringLiteral("exception"),
+                    QJsonObject {{QStringLiteral("type"), QStringLiteral("object")},
+                        {QStringLiteral("subtype"), QStringLiteral("error")},
+                        {QStringLiteral("className"), QStringLiteral("ReferenceError")},
+                        {QStringLiteral("description"),
+                            QStringLiteral(
+                                "ReferenceError: app is not defined\n    at <anonymous>:2:1")}}}}));
+    QVERIFY(!answer.value(QStringLiteral("ok")).toBool());
+    QCOMPARE(answer.value(QStringLiteral("code")).toString(), QStringLiteral("threw"));
+    QCOMPARE(
+        answer.value(QStringLiteral("error")).toString(), QStringLiteral("app is not defined"));
+
+    answer = QtNetworkEvents::evaluationAnswer(
+        evaluatedTo({{QStringLiteral("type"), QStringLiteral("string")}},
+            {{QStringLiteral("text"), QStringLiteral("Uncaught (in promise)")},
+                {QStringLiteral("exception"), text(QStringLiteral("no  session"))}}));
+    QCOMPARE(answer.value(QStringLiteral("code")).toString(), QStringLiteral("threw"));
+    QCOMPARE(answer.value(QStringLiteral("error")).toString(), QStringLiteral("no session"));
+
+    // A source that did not parse throws before it runs.
+    answer = QtNetworkEvents::evaluationAnswer(
+        evaluatedTo({{QStringLiteral("type"), QStringLiteral("object")}},
+            {{QStringLiteral("text"), QStringLiteral("Uncaught")},
+                {QStringLiteral("exception"),
+                    QJsonObject {{QStringLiteral("type"), QStringLiteral("object")},
+                        {QStringLiteral("subtype"), QStringLiteral("error")},
+                        {QStringLiteral("className"), QStringLiteral("SyntaxError")},
+                        {QStringLiteral("description"),
+                            QStringLiteral("SyntaxError: Unexpected token ')'")}}}}));
+    QCOMPARE(
+        answer.value(QStringLiteral("error")).toString(), QStringLiteral("Unexpected token ')'"));
 }
 
 void QtNetworkEventsTest::readsNothingElse()

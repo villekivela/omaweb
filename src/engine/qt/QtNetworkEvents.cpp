@@ -1,5 +1,8 @@
 #include "QtNetworkEvents.h"
 
+#include <QJsonArray>
+#include <QJsonDocument>
+
 #include <utility>
 
 namespace omaweb {
@@ -36,7 +39,79 @@ namespace {
         return params.value(QStringLiteral("errorText")).toString();
     }
 
+    // What an expression threw, cut to a length an answer can carry, as the
+    // isolated world's `threw` gives it: an error by its message, anything
+    // else as itself.
+    QString thrownText(const QJsonObject &details)
+    {
+        constexpr int errorCharacters = 2000;
+        const auto exception = details.value(QStringLiteral("exception")).toObject();
+        auto text = exception.contains(QStringLiteral("value"))
+            ? exception.value(QStringLiteral("value")).toVariant().toString()
+            : exception.value(QStringLiteral("description")).toString().section(u'\n', 0, 0);
+        const auto prefix = exception.value(QStringLiteral("className")).toString() + u": ";
+        if (exception.value(QStringLiteral("subtype")).toString() == u"error"
+            && text.startsWith(prefix)) {
+            text = text.mid(prefix.size());
+        }
+        if (text.isEmpty()) {
+            text = details.value(QStringLiteral("text")).toString();
+        }
+        text = text.simplified();
+        return text.size() > errorCharacters ? text.left(errorCharacters - 1) + u'…' : text;
+    }
+
 } // namespace
+
+QString QtNetworkEvents::evaluationSource(const QString &expression)
+{
+    // Run where the page's own script runs, outside any function, so the
+    // expression sees its globals and nothing of Omaweb's. The value is made
+    // JSON there, as the isolated world makes it, with the page's own toJSON.
+    return QStringLiteral("Promise.resolve((\n") + expression
+        + QStringLiteral("\n)).then((value) => { try { const json = JSON.stringify(value === "
+                         "undefined ? null : value); return json === undefined ? \"null\" : json; "
+                         "} catch (error) { return { notJson: String(error && error.message) }; "
+                         "} })");
+}
+
+QVariantMap QtNetworkEvents::evaluationAnswer(const QJsonObject &answer)
+{
+    const auto result = answer.value(QStringLiteral("result")).toObject();
+    if (answer.contains(QStringLiteral("error")) || result.isEmpty()) {
+        const auto message = answer.value(QStringLiteral("error"))
+                                 .toObject()
+                                 .value(QStringLiteral("message"))
+                                 .toString();
+        return refusal(QStringLiteral("failed"),
+            message.isEmpty() ? QStringLiteral("The page's session has ended.") : message);
+    }
+    if (result.contains(QStringLiteral("exceptionDetails"))) {
+        return refusal(QStringLiteral("threw"),
+            thrownText(result.value(QStringLiteral("exceptionDetails")).toObject()));
+    }
+    const auto value
+        = result.value(QStringLiteral("result")).toObject().value(QStringLiteral("value"));
+    if (value.isObject()) {
+        return refusal(QStringLiteral("not-json"),
+            QStringLiteral("The value is not JSON: %1")
+                .arg(value.toObject().value(QStringLiteral("notJson")).toString()));
+    }
+    const auto json = value.toString();
+    if (json.size() > maximumValueCharacters) {
+        return refusal(QStringLiteral("too-large"),
+            QStringLiteral("The value is %1 characters of JSON.").arg(json.size()));
+    }
+    // A bare value is not a JSON document, so it is read inside an array.
+    QJsonParseError error {};
+    const auto read
+        = QJsonDocument::fromJson(QByteArray("[") + json.toUtf8() + QByteArray("]"), &error);
+    if (error.error != QJsonParseError::NoError || read.array().size() != 1) {
+        return refusal(QStringLiteral("failed"), QStringLiteral("The page did not answer."));
+    }
+    return {
+        {QStringLiteral("ok"), true}, {QStringLiteral("value"), read.array().at(0).toVariant()}};
+}
 
 void QtNetworkEvents::setMainFrame(const QString &frameId) { m_mainFrame = frameId; }
 

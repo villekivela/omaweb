@@ -236,6 +236,13 @@ void AgentCommandTest::readsEachVerbIntoARequest_data()
         << base(QStringLiteral("eval"),
                {{QStringLiteral("expression"), QStringLiteral("document.title + '!'")}})
         << false;
+    QTest::newRow("eval in the page's own world")
+        << QStringList {QStringLiteral("eval"), QStringLiteral("--main-world"),
+               QStringLiteral("app.state")}
+        << base(QStringLiteral("eval"),
+               {{QStringLiteral("expression"), QStringLiteral("app.state")},
+                   {QStringLiteral("mainWorld"), true}})
+        << false;
     QTest::newRow("eval after the options end")
         << QStringList {QStringLiteral("eval"), QStringLiteral("--json"), QStringLiteral("--"),
                QStringLiteral("--count"), QStringLiteral("--")}

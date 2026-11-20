@@ -132,7 +132,7 @@ namespace {
         }
         if (verb == u"eval") {
             return {.valued = {tab},
-                .flags = {},
+                .flags = {QStringLiteral("main-world")},
                 .minimumPositionals = 1,
                 .maximumPositionals = -1,
                 .positionalField = {}};
@@ -946,6 +946,9 @@ AgentCommand readAgentCommand(const QStringList &arguments, const QString &defau
         }
         request.insert(QStringLiteral("expression"), positionals.join(u' '));
         positionals.clear();
+        if (request.take(QStringLiteral("main-world")).toBool()) {
+            request.insert(QStringLiteral("mainWorld"), true);
+        }
     } else if (verb == u"run") {
         if (positionals.isEmpty() || positionals.size() > 2) {
             command.error = QStringLiteral("`run` takes a command, and a position for select-tab "

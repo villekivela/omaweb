@@ -443,7 +443,8 @@ page's own script cannot see it, and installs it again in every document it find
   while Omaweb's window is drawing, so a shot that gets no frame within 5 s says the window is not
   on screen.
 - `eval` answers the JSON value of an expression run in the application world, waiting up to 30 s
-  for a promise.
+  for a promise. With `mainWorld` it runs in the page's own world instead, through the session
+  `network` reads, and the core lets it through in an Agent Space only.
 
 `console` follows the same rules, Allow agents and a tab an Agent may use, but no page answers it.
 The adapter reports each line a page writes to its console through `pageConsoleMessage`, with its
@@ -478,6 +479,14 @@ the bodies it kept for it, when `agentOwned` goes false or the view goes. A Qt e
 patch, the UI lab's mock and Ladybird have no session: they report the capability off and never
 raise the signal, and the core answers both verbs `unsupported`. The build reads which from the
 engine's headers, as it does for the other patches.
+
+The same session answers `eval --main-world`. The core refuses it `unsupported` without the
+capability and `refused` outside an Agent Space, before any page is asked. `QtAgentNetwork` sends
+`Runtime.evaluate` with no context, which is the main frame's main world, awaiting the promise the
+expression comes to and returning it by value. `QtNetworkEvents::evaluationSource` makes the value
+JSON in the page, as the isolated world does, so an answer has the same shape and the same size
+limit in either world. A dialog the page shows answers the expression at once, and the session
+ending answers it `failed`.
 
 The page area passes a report on only for an Agent tab, naming its document by the engine as the
 console's lines are, and `AgentNetwork` keeps a tab's newest 500 requests for the document on show,

@@ -142,6 +142,11 @@ QtWebEngine or, today, Ladybird, reports the capability off and both verbs refus
 `unsupported`, so an Agent learns that the browser cannot answer rather than that the page made no
 requests.
 
+`eval --main-world` reaches the page's own world through the same session, and so answers
+`unsupported` without it too. It works in an Agent Space only and is refused in a granted Space,
+where the page is signed in as the reader and its own script is what a prompt injection would reach.
+It is logged as `eval` is, with neither the expression nor its value.
+
 ## Agent tabs keep running
 
 An Agent works in Spaces the reader is not looking at, and 0033 freezes those pages. An Agent tab is

@@ -2289,6 +2289,10 @@ void AgentControl::askPage(const QString &verb, const QString &name, Connection 
         return;
     }
     const auto tabId = tab->id;
+    if (const auto refused = mainWorldRefusal(verb, request, *tab); !refused.isEmpty()) {
+        reply(refused);
+        return;
+    }
     // Asked first, so no screenshot's file is made for a page nobody holds.
     if (!isSignalConnected(QMetaMethod::fromSignal(&AgentControl::pageRequested))) {
         reply(refusal(QStringLiteral("unavailable"),
@@ -2351,6 +2355,27 @@ void AgentControl::askPage(const QString &verb, const QString &name, Connection 
             {QStringLiteral("downloadDirectory"), downloadDirectoryFor(name)},
             {QStringLiteral("arguments"), arguments},
         });
+}
+
+// The page's own world is reached through the session `network` reads, and
+// only in an Agent Space. In a granted Space the page is signed in as the
+// reader, and its own script is what a prompt injection would reach.
+QJsonObject AgentControl::mainWorldRefusal(
+    const QString &verb, const QJsonObject &request, const TabState &tab) const
+{
+    if (verb != u"eval" || !request.value(QStringLiteral("mainWorld")).toBool()) {
+        return {};
+    }
+    if (!m_networkInspection) {
+        return refusal(QStringLiteral("unsupported"),
+            QStringLiteral("This browser's engine cannot reach a page's own world."));
+    }
+    if (!m_browser->agentSpace(tab.spaceId)) {
+        return refusal(QStringLiteral("refused"),
+            QStringLiteral("--main-world works only in an Agent Space. In the reader's own Space "
+                           "the page is signed in as them."));
+    }
+    return {};
 }
 
 void AgentControl::answerPage(int requestId, const QVariantMap &answer)
@@ -2491,6 +2516,8 @@ QJsonObject AgentControl::pageArguments(
             return bad(QStringLiteral("Give an expression to evaluate."));
         }
         out.insert(QStringLiteral("expression"), expression);
+        out.insert(
+            QStringLiteral("mainWorld"), request.value(QStringLiteral("mainWorld")).toBool());
         return {};
     }
     if (verb == u"shot") {

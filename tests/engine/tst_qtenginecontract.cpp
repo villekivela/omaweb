@@ -410,6 +410,7 @@ private slots:
     void qtAgentWaitsForThePageToSettle();
     void qtAgentWaitsWhileTheReaderIsInTheTab();
     void qtAgentEvaluatesInItsOwnWorld();
+    void qtAgentEvaluatesInThePagesMainWorld();
     void qtAgentReadsThePageAsMarkdown();
     void qtAgentCapturesThePage();
     void qtAgentStopsWhatIsUnderWayWhenCalledOff();
@@ -11293,6 +11294,66 @@ void QtEngineContractTest::qtAgentEvaluatesInItsOwnWorld()
     const auto broken
         = page.ask(QStringLiteral("eval"), {{QStringLiteral("expression"), QStringLiteral("1 +")}});
     QVERIFY(!broken.value(QStringLiteral("ok")).toBool());
+}
+
+// `eval --main-world` reaches what the isolated world cannot: the page's own
+// globals, through the session of that page alone, while an Agent holds it.
+// The core lets it through in an Agent Space only. On an engine without the
+// session it is refused as unsupported.
+void QtEngineContractTest::qtAgentEvaluatesInThePagesMainWorld()
+{
+    AgentSite site;
+    AgentPage page;
+    page.adapterProperties.insert(QStringLiteral("agentOwned"), true);
+    QVERIFY(page.load(site.url(QStringLiteral("form.html"))));
+    const auto inMainWorld = [&page](const QString &expression) {
+        return page.ask(QStringLiteral("eval"),
+            {{QStringLiteral("expression"), expression}, {QStringLiteral("mainWorld"), true}});
+    };
+    QCOMPARE(page.evaluate(QStringLiteral("typeof window.pageSecret")),
+        QJsonValue(QStringLiteral("undefined")));
+#if OMAWEB_AGENT_NETWORK
+    const auto secret = inMainWorld(QStringLiteral("window.pageSecret"));
+    QVERIFY2(secret.value(QStringLiteral("ok")).toBool(),
+        qPrintable(secret.value(QStringLiteral("error")).toString()));
+    QCOMPARE(secret.value(QStringLiteral("value")), QJsonValue(42));
+    QCOMPARE(inMainWorld(QStringLiteral("({n: pageSecret, missing: undefined})"))
+                 .value(QStringLiteral("value")),
+        QJsonValue(QJsonObject {{QStringLiteral("n"), 42}}));
+    QCOMPARE(inMainWorld(QStringLiteral("new Promise(done => setTimeout(() => done(pageSecret + "
+                                        "1), 50))"))
+                 .value(QStringLiteral("value")),
+        QJsonValue(43));
+    QVERIFY(inMainWorld(QStringLiteral("undefined")).value(QStringLiteral("value")).isNull());
+    const auto threw = inMainWorld(QStringLiteral("(() => { throw new Error('boom'); })()"));
+    QCOMPARE(threw.value(QStringLiteral("code")).toString(), QStringLiteral("threw"));
+    QCOMPARE(threw.value(QStringLiteral("error")).toString(), QStringLiteral("boom"));
+    const auto rejected = inMainWorld(QStringLiteral("Promise.reject(new Error('later'))"));
+    QCOMPARE(rejected.value(QStringLiteral("code")).toString(), QStringLiteral("threw"));
+    QCOMPARE(rejected.value(QStringLiteral("error")).toString(), QStringLiteral("later"));
+    QCOMPARE(inMainWorld(QStringLiteral("window")).value(QStringLiteral("code")).toString(),
+        QStringLiteral("not-json"));
+    // A page stopped on a dialog runs nothing, so it is answered at once.
+    QVERIFY(
+        page.ask(QStringLiteral("eval"),
+                {{QStringLiteral("expression"),
+                    QStringLiteral("setTimeout(() => alert('Hi'), 0), 1")}})
+            .value(QStringLiteral("ok"))
+            .toBool());
+    QTRY_COMPARE(inMainWorld(QStringLiteral("pageSecret")).value(QStringLiteral("code")).toString(),
+        QStringLiteral("dialog"));
+    QVERIFY(QMetaObject::invokeMethod(page.adapter.get(), "answerAgentDialog",
+        Q_ARG(QVariant, false), Q_ARG(QVariant, QString())));
+
+    // The Agent letting go ends the session, and the main world with it.
+    QVERIFY(page.adapter->setProperty("agentOwned", false));
+    QCOMPARE(inMainWorld(QStringLiteral("pageSecret")).value(QStringLiteral("code")).toString(),
+        QStringLiteral("failed"));
+#else
+    QCOMPARE(
+        inMainWorld(QStringLiteral("window.pageSecret")).value(QStringLiteral("code")).toString(),
+        QStringLiteral("unsupported"));
+#endif
 }
 
 void QtEngineContractTest::qtAgentReadsThePageAsMarkdown()

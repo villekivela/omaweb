@@ -187,8 +187,10 @@ namespace {
                     .verb = QStringLiteral("eval"),
                     .description
                     = QStringLiteral("Evaluate JavaScript in an isolated world with the "
-                                     "page's DOM; answers the value."),
-                    .properties = {property(QStringLiteral("expression"), string), tab},
+                                     "page's DOM; answers the value. mainWorld: the page's own "
+                                     "world, in an Agent Space only."),
+                    .properties = {property(QStringLiteral("expression"), string), tab,
+                        property(QStringLiteral("mainWorld"), boolean)},
                     .required = {QStringLiteral("expression")}},
                 {.name = QStringLiteral("console"),
                     .verb = QStringLiteral("console"),
