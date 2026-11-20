@@ -332,6 +332,19 @@ Window {
     onEngineChanged: if (root.engine)
                          root.engine.setZoomFactor(root.drawnZoom)
 
+    // The engine is told this window's tab is the active one whenever the
+    // reader is in this window (#961), or the Glance over it while one is
+    // open unless the Glance is an extension's page, as the main window's
+    // engine host does.
+    readonly property var activeTab: root.glanceEngine && !root.engineHost.isExtensionPage(
+                                         root.glanceEngine) ? root.glanceEngine : root.engine
+    onActiveTabChanged: root.showAsActiveTab()
+    onActiveChanged: root.showAsActiveTab()
+    function showAsActiveTab() {
+        if (root.active && root.activeTab)
+            root.activeTab.showAsActiveTab();
+    }
+
     function focusPage() {
         if (root.engine)
             root.engine.focusPage();

@@ -1167,6 +1167,11 @@ Rectangle {
         root.shownAsTab = true;
         root.requestHeldWhenShownAsTab = root.acceptedRequest;
     }
+    // How many times the shell said this page is the active tab.
+    property int timesShownAsActiveTab: 0
+    function showAsActiveTab() {
+        root.timesShownAsActiveTab += 1;
+    }
     function simulateAudible(audible) {
         root.recentlyAudible = audible;
         root.refreshMediaHeard();

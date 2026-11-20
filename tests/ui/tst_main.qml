@@ -12885,6 +12885,53 @@ TestCase {
         browser.closeTab(leftTabId);
     }
 
+    // The engine is told which tab is active, so an extension asking for the
+    // active tab is answered with it and not with another page on show
+    // (#961): on every tab switch, as focus crosses a split, where both pages
+    // are on show, and when the active tab closes.
+    function test_theTabTheReaderUsesIsReportedToTheEngine() {
+        const engineHost = findChild(window.contentItem, "engineLoader");
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        const left = openPage("https://selected-left.example/");
+        const leftTabId = browser.activeTabId;
+        const right = openPageInNewTab("https://selected-right.example/");
+        const rightTabId = browser.activeTabId;
+        compare(right.timesShownAsActiveTab, 1);
+
+        const leftSwitched = left.timesShownAsActiveTab;
+        browser.activateTab(leftTabId);
+        tryCompare(left, "timesShownAsActiveTab", leftSwitched + 1);
+
+        verify(browser.addSplit(rightTabId));
+        tryCompare(engineHost, "besideEngine", right);
+        settleMotion();
+        // Only the focused pane is the active tab, though both are on show.
+        const rightFocused = right.timesShownAsActiveTab;
+        const leftBeside = left.timesShownAsActiveTab;
+        keyClick(Qt.Key_Semicolon, Qt.ControlModifier);
+        tryCompare(browser, "activeTabId", rightTabId);
+        tryCompare(right, "timesShownAsActiveTab", rightFocused + 1);
+        compare(left.timesShownAsActiveTab, leftBeside);
+        const leftFocused = left.timesShownAsActiveTab;
+        const rightBeside = right.timesShownAsActiveTab;
+        keyClick(Qt.Key_Semicolon, Qt.ControlModifier);
+        tryCompare(browser, "activeTabId", leftTabId);
+        tryCompare(left, "timesShownAsActiveTab", leftFocused + 1);
+        compare(right.timesShownAsActiveTab, rightBeside);
+
+        // Closing the active tab makes the one left the active tab.
+        const rightRemaining = right.timesShownAsActiveTab;
+        browser.closeTab(leftTabId);
+        tryCompare(browser, "activeTabId", rightTabId);
+        tryVerify(function () {
+            return right.timesShownAsActiveTab > rightRemaining;
+        });
+        browser.closeTab(rightTabId);
+    }
+
     // The menu and the chooser offer a split only where one can be made: on
     // any unpaired ordinary tab, never on a pin or a tab already paired. A
     // paired tab is offered Separate split view instead of Pin tab. The
@@ -13710,6 +13757,91 @@ TestCase {
         });
         compare(browser.tabs.rowCount(), tabCount);
         return glance;
+    }
+
+    // A Glance is over its tab and is the page the reader is using, a sign-in
+    // page as often as not, so the engine is told it is the active tab while
+    // it is open and the tab is again once it closes (#961).
+    function test_aGlanceIsTheActiveTabWhileItIsOpen() {
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        const opener = openPage("https://glance-opener.example/");
+        const openerUnder = opener.timesShownAsActiveTab;
+        openGlance("https://glance-sign-in.example/");
+        const glanced = window.glanceEngine;
+        tryCompare(glanced, "timesShownAsActiveTab", 1);
+        compare(opener.timesShownAsActiveTab, openerUnder);
+
+        window.closeGlance();
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+        tryCompare(opener, "timesShownAsActiveTab", openerUnder + 1);
+    }
+
+    // An extension's own page is never a tab to the engine, which passes over
+    // it when asked for the active tab. Told it, the engine would fall back to
+    // guessing, so an extension's popup or the popout it opens leaves the tab
+    // beneath the active one, and the popup asking for the page fills that tab
+    // (#961).
+    function test_anExtensionsPageInAGlanceLeavesItsTabActive() {
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        const opener = openPage("https://extension-glance-opener.example/");
+        const profile = window.spaceProfileHost;
+        verify(profile !== null);
+        profile.hostedExtensions = [
+                    {
+                        "key": "omaweb-test-vault",
+                        "name": "Vault",
+                        "id": "omaweb-test-vault",
+                        "popupUrl": "chrome-extension://omaweb-test-vault/popup.html"
+                    }
+                ];
+        verify(window.openExtensionPopup("omaweb-test-vault", Qt.rect(0, 0, 0, 0)));
+        const popup = window.glanceEngine;
+        verify(popup !== null);
+        compare(popup.timesShownAsActiveTab, 0);
+        window.closeGlance();
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+
+        // The popout an extension opens with windows.create, which a Glance
+        // shows as it shows any page.
+        const openerUnder = opener.timesShownAsActiveTab;
+        openGlance("chrome-extension://omaweb-test-vault/popout.html");
+        tryCompare(opener, "timesShownAsActiveTab", openerUnder + 1);
+        window.closeGlance();
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+        profile.hostedExtensions = [];
+
+        // The same over a Tab window's page.
+        const openerTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", openerTabId));
+        const tabWindow = tabWindowOf(openerTabId);
+        tabWindow.requestActivate();
+        tryVerify(function () {
+            return tabWindow.active;
+        });
+        const poppedUnder = opener.timesShownAsActiveTab;
+        opener.simulateNewWindowRequest("chrome-extension://omaweb-test-vault/popout.html", false);
+        tryVerify(function () {
+            return tabWindow.glanceEngine !== null;
+        });
+        tryCompare(opener, "timesShownAsActiveTab", poppedUnder + 1);
+        tabWindow.closeGlance();
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(openerTabId) === null;
+        });
+        browser.closeTab(openerTabId);
     }
 
     function test_aPagesNewTabRequestOpensAGlanceOverThePage() {
@@ -23348,6 +23480,73 @@ TestCase {
         });
         verify(engine.visible);
         browser.closeTab(readingTabId);
+    }
+
+    // A Tab window's page and the main window's tab share a profile, and the
+    // engine is told about the one in the window the reader comes to (#961).
+    // A tab switched in a window the reader is not in is not reported.
+    function test_theWindowTheReaderComesToReportsItsTabToTheEngine() {
+        const popped = openPage("https://selected-popped.example");
+        const poppedTabId = browser.activeTabId;
+        const reading = openPageInNewTab("https://selected-reading.example");
+        const readingTabId = browser.activeTabId;
+        const other = openPageInNewTab("https://selected-other.example");
+        const otherTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", poppedTabId));
+        const tabWindow = tabWindowOf(poppedTabId);
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+
+        const poppedComing = popped.timesShownAsActiveTab;
+        tabWindow.requestActivate();
+        tryVerify(function () {
+            return tabWindow.active;
+        });
+        tryCompare(popped, "timesShownAsActiveTab", poppedComing + 1);
+
+        const readingAway = reading.timesShownAsActiveTab;
+        browser.activateTab(readingTabId);
+        tryVerify(function () {
+            return findChild(window.contentItem, "engineLoader").item === reading;
+        });
+        verify(tabWindow.active);
+        compare(reading.timesShownAsActiveTab, readingAway);
+
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        tryCompare(reading, "timesShownAsActiveTab", readingAway + 1);
+
+        // A Glance over the Tab window's page is the active tab while it is
+        // open, and the page is again once it closes.
+        window.setGlanceEnabled(true);
+        tabWindow.requestActivate();
+        tryVerify(function () {
+            return tabWindow.active;
+        });
+        const poppedUnder = popped.timesShownAsActiveTab;
+        popped.simulateNewWindowRequest("https://selected-glanced.example/", false);
+        tryVerify(function () {
+            return tabWindow.glanceEngine !== null;
+        });
+        tryCompare(tabWindow.glanceEngine, "timesShownAsActiveTab", 1);
+        compare(popped.timesShownAsActiveTab, poppedUnder);
+        tabWindow.closeGlance();
+        tryVerify(function () {
+            return tabWindow.glanceEngine === null;
+        });
+        tryCompare(popped, "timesShownAsActiveTab", poppedUnder + 1);
+
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(poppedTabId) === null;
+        });
+        browser.closeTab(otherTabId);
+        browser.closeTab(readingTabId);
+        browser.closeTab(poppedTabId);
     }
 
     // A pin's speaker takes the top-right corner and the window mark the

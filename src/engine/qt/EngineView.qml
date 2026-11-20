@@ -2466,14 +2466,27 @@ Item {
         if (request)
             request.openIn(webView);
     }
+    // The profile's extension manager, which the calls below are made on. A
+    // test puts one with or without a call in its place, so a call the view
+    // stops making shows whatever engine runs the test.
+    property var extensionManager: webView.profile ? webView.profile.extensionManager : null
     // The engine moves a page an extension opened as a window of its own into
     // the browser's window (#694). The call is looked for when it is made rather
     // than probed at build time, since it is invokable and nothing here compiles
     // against it. Without it, the extension keeps a window that is now a tab.
     function showAsTab() {
-        const extensions = webView.profile ? webView.profile.extensionManager : null;
+        const extensions = root.extensionManager;
         if (extensions && typeof extensions.setPageIsTab === "function")
             extensions.setPageIsTab(webView);
+    }
+    // The engine answers an extension asking for the active tab with this page
+    // from now on, rather than with the last page on show, which in a split or
+    // a second window may be another (#961). Looked for when called, as
+    // setPageIsTab is. Without it, the engine goes on guessing.
+    function showAsActiveTab() {
+        const extensions = root.extensionManager;
+        if (extensions && typeof extensions.setSelectedPage === "function")
+            extensions.setSelectedPage(webView);
     }
     function isAuxiliaryDestination(destination) {
         return destination === WebEngineNewWindowRequest.InNewDialog;

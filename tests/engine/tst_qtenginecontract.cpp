@@ -287,6 +287,7 @@ private slots:
     void qtShowsAnSvgFaviconOverARasterBesideIt();
     void qtSpaceProfilesAreBuiltInTheirOwnDirectories();
     void qtHostsAKnownExtensionThatMakesAnOffscreenDocument();
+    void qtLooksUpTheActiveTabCallWhenItIsMade();
     void qtTellsAPageWhatItsPasskeysCanReach();
     void qtGivesAPageTheWindowAHiddenViewTakesAtOnce();
     void qtRunsAKnownExtensionsMainWorldScriptInAPage_data();
@@ -2602,6 +2603,44 @@ struct ViewInWindow {
 };
 
 } // namespace
+
+// An extension manager with the call Omaweb's own engine adds (#961), which
+// records the pages it is told are the active tab.
+class SelectedPageRecorder final : public QObject {
+    Q_OBJECT
+
+public:
+    QList<QObject *> selected;
+
+    Q_INVOKABLE void setSelectedPage(QObject *page) { selected.append(page); }
+};
+
+// The engine is told which tab is active through a call Omaweb's own engine
+// adds (#961). An engine with the call is told the view's page, and one
+// without it hears nothing while the view says nothing either: it looks the
+// call up rather than failing on it.
+void QtEngineContractTest::qtLooksUpTheActiveTabCallWhenItIsMade()
+{
+    QTest::failOnWarning(QRegularExpression(QStringLiteral("setSelectedPage|showAsActiveTab")));
+    ViewInWindow shown;
+    QVERIFY(shown.create(QUrl(QStringLiteral("about:blank"))));
+    auto *profile = shown.webView->property("profile").value<QObject *>();
+    QVERIFY(profile);
+    QCOMPARE(shown.adapter->property("extensionManager").value<QObject *>(),
+        profile->property("extensionManager").value<QObject *>());
+    QVERIFY(QMetaObject::invokeMethod(shown.adapter.get(), "showAsActiveTab"));
+
+    SelectedPageRecorder withCall;
+    QVERIFY(
+        shown.adapter->setProperty("extensionManager", QVariant::fromValue<QObject *>(&withCall)));
+    QVERIFY(QMetaObject::invokeMethod(shown.adapter.get(), "showAsActiveTab"));
+    QCOMPARE(withCall.selected, QList<QObject *> {shown.webView});
+
+    QObject withoutCall;
+    QVERIFY(shown.adapter->setProperty(
+        "extensionManager", QVariant::fromValue<QObject *>(&withoutCall)));
+    QVERIFY(QMetaObject::invokeMethod(shown.adapter.get(), "showAsActiveTab"));
+}
 
 void QtEngineContractTest::qtHistorySwipeNavigatesWithoutTakingPageScrolling()
 {
