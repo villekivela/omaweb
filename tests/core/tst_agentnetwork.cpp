@@ -452,6 +452,14 @@ void AgentNetworkTest::evaluatesInTheMainWorldOnlyInAnAgentSpace()
     const QJsonObject mainWorld {{QStringLiteral("verb"), QStringLiteral("eval")},
         {QStringLiteral("expression"), QStringLiteral("app")}, {QStringLiteral("mainWorld"), true}};
 
+    // Refused before the reader is asked, since no grant would let it through.
+    QSignalSpy grantAsked(browser.control.get(), &AgentControl::grantRequestChanged);
+    auto ungranted = mainWorld;
+    ungranted.insert(QStringLiteral("tab"), QStringLiteral("personal-tab"));
+    QCOMPARE(code(browser.handled(ungranted)), QStringLiteral("refused"));
+    QCOMPARE(grantAsked.count(), 0);
+    QCOMPARE(requested.count(), 0);
+
     browser.grantedTab();
     QCOMPARE(code(browser.handled(mainWorld)), QStringLiteral("refused"));
     QCOMPARE(requested.count(), 0);

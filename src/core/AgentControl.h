@@ -400,9 +400,10 @@ private:
     // else the Agent may do there.
     QJsonObject refuseUpload(const Connection &connection, const QJsonObject &request) const;
     QJsonObject readConsole(Connection &connection, const QJsonObject &request);
-    // Why `eval --main-world` may not reach `tab`'s page, or nothing.
+    // Why `eval --main-world` may not reach the page the request names, or
+    // nothing.
     QJsonObject mainWorldRefusal(
-        const QString &verb, const QJsonObject &request, const TabState &tab) const;
+        const QString &verb, const Connection &connection, const QJsonObject &request) const;
     // The tab `network` or `request` reads, once the engine is known to offer
     // the session, made the connection's current tab and an Agent tab.
     QJsonObject networkTab(Connection &connection, const QJsonObject &request,
