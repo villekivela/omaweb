@@ -152,10 +152,12 @@ class EngineAndCapability(unittest.TestCase):
         # so it would not start on it (#684). Omaweb runs on 6.11.2-16, but
         # that engine carries Chromium's security fixes only up to
         # 151.0.7922.71, 6.11.3-1 carries them up to 155.0.8059.85 (#802), and
-        # 6.140.0-1 up to 157.0.8103.50 (#484). pacman upgrades Omaweb without
-        # the engine unless the dependency asks for a newer one.
+        # 6.140.0-1 up to 157.0.8103.50 (#484). 6.140.0-2 is the first that
+        # lets Omaweb say which tab is selected, so a password manager's
+        # suggestions follow it (#961). pacman upgrades Omaweb without the
+        # engine unless the dependency asks for a newer one.
         for pkgbuild in (SOURCE_PKGBUILD.read_text(), release_pkgbuild()):
-            self.assertIn(f"{ENGINE}>=6.140.0-1", depends(pkgbuild))
+            self.assertIn(f"{ENGINE}>=6.140.0-2", depends(pkgbuild))
 
     def test_no_architecture_gets_an_engine_linked_below_chrome(self) -> None:
         # 6.11.3-2 is the first x86_64 engine linked at ThinLTO's --lto-O2, as
