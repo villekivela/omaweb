@@ -591,6 +591,15 @@ void QtNetworkEventsTest::readsWhatTheMainWorldThrew()
     QCOMPARE(answer.value(QStringLiteral("code")).toString(), QStringLiteral("threw"));
     QCOMPARE(answer.value(QStringLiteral("error")).toString(), QStringLiteral("no session"));
 
+    // A promise that rejects is caught in the page, which answers with what
+    // it was rejected with.
+    answer = QtNetworkEvents::evaluationAnswer(
+        evaluatedTo({{QStringLiteral("type"), QStringLiteral("object")},
+            {QStringLiteral("value"),
+                QJsonObject {{QStringLiteral("threw"), QStringLiteral("later  on")}}}}));
+    QCOMPARE(answer.value(QStringLiteral("code")).toString(), QStringLiteral("threw"));
+    QCOMPARE(answer.value(QStringLiteral("error")).toString(), QStringLiteral("later on"));
+
     // A source that did not parse throws before it runs.
     answer = QtNetworkEvents::evaluationAnswer(
         evaluatedTo({{QStringLiteral("type"), QStringLiteral("object")}},

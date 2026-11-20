@@ -15,10 +15,10 @@ namespace omaweb {
 
 // An Agent tab's network, and its page's own world, read through a debugging
 // session of its page alone (ADR 0051). The session is the engine patch's
-// `QWebEngineDevToolsSession`, whose client Chromium does not trust, so it reaches no other page or
-// the browser. Of the children its auto-attach can bring, frames alone are asked for, as a service
-// worker serves other tabs too. An engine without the patch has no session, and this reports
-// nothing.
+// `QWebEngineDevToolsSession`, whose client Chromium does not trust, so it
+// reaches no other page or the browser. Of the children its auto-attach can
+// bring, frames alone are asked for, as a service worker serves other tabs
+// too. An engine without the patch has no session, and this reports nothing.
 //
 // The session is open while `active` is true and the view has a page: the
 // page area sets it while an Agent holds the tab, so capture starts when an

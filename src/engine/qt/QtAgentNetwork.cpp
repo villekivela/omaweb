@@ -251,7 +251,7 @@ void QtAgentNetwork::evaluate(int ticket, const QString &expression)
         return;
     }
     // Without a context, the main frame's main world. An expression that
-    // never settles is answered by the page's own deadline.
+    // never settles is answered by EngineView's deadline for a promise.
     send(QStringLiteral("Runtime.evaluate"),
         {{QStringLiteral("expression"), QtNetworkEvents::evaluationSource(expression)},
             {QStringLiteral("returnByValue"), true}, {QStringLiteral("awaitPromise"), true}},

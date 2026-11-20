@@ -39,12 +39,19 @@ namespace {
         return params.value(QStringLiteral("errorText")).toString();
     }
 
-    // What an expression threw, cut to a length an answer can carry, as the
-    // isolated world's `threw` gives it: an error by its message, anything
-    // else as itself.
-    QString thrownText(const QJsonObject &details)
+    // What an expression threw, cut to a length an answer can carry, as
+    // `threw` in agent-page.js cuts it for the isolated world.
+    QString thrownAnswer(const QString &thrown)
     {
         constexpr int errorCharacters = 2000;
+        const auto text = thrown.simplified();
+        return text.size() > errorCharacters ? text.left(errorCharacters - 1) + u'…' : text;
+    }
+
+    // What an expression threw before it came to a promise: an error by its
+    // message, anything else as itself.
+    QString thrownText(const QJsonObject &details)
+    {
         const auto exception = details.value(QStringLiteral("exception")).toObject();
         auto text = exception.contains(QStringLiteral("value"))
             ? exception.value(QStringLiteral("value")).toVariant().toString()
@@ -57,8 +64,7 @@ namespace {
         if (text.isEmpty()) {
             text = details.value(QStringLiteral("text")).toString();
         }
-        text = text.simplified();
-        return text.size() > errorCharacters ? text.left(errorCharacters - 1) + u'…' : text;
+        return thrownAnswer(text);
     }
 
 } // namespace
@@ -67,12 +73,17 @@ QString QtNetworkEvents::evaluationSource(const QString &expression)
 {
     // Run where the page's own script runs, outside any function, so the
     // expression sees its globals and nothing of Omaweb's. The value is made
-    // JSON there, as the isolated world makes it, with the page's own toJSON.
+    // JSON there, with the page's own toJSON, as `settle` in agent-page.js
+    // makes it for the isolated world. A rejection is caught there too, as
+    // `threw` reads it, since one awaited by the session comes back as the
+    // rejected value made JSON, without an error's message.
     return QStringLiteral("Promise.resolve((\n") + expression
-        + QStringLiteral("\n)).then((value) => { try { const json = JSON.stringify(value === "
-                         "undefined ? null : value); return json === undefined ? \"null\" : json; "
-                         "} catch (error) { return { notJson: String(error && error.message) }; "
-                         "} })");
+        + QStringLiteral(
+            "\n)).then((value) => { try { const json = JSON.stringify(value === undefined ? null "
+            ": value); return json === undefined ? \"null\" : json; } catch (error) { return { "
+            "notJson: String(error && error.message) }; } }, (error) => { try { return { threw: "
+            "String((error && error.message) || error) }; } catch (failure) { return { threw: "
+            "\"An error that cannot be written out.\" }; } })");
 }
 
 QVariantMap QtNetworkEvents::evaluationAnswer(const QJsonObject &answer)
@@ -92,6 +103,10 @@ QVariantMap QtNetworkEvents::evaluationAnswer(const QJsonObject &answer)
     }
     const auto value
         = result.value(QStringLiteral("result")).toObject().value(QStringLiteral("value"));
+    if (value.toObject().contains(QStringLiteral("threw"))) {
+        return refusal(QStringLiteral("threw"),
+            thrownAnswer(value.toObject().value(QStringLiteral("threw")).toString()));
+    }
     if (value.isObject()) {
         return refusal(QStringLiteral("not-json"),
             QStringLiteral("The value is not JSON: %1")
