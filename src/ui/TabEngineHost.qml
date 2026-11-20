@@ -203,16 +203,23 @@ Item {
     // each: only the window the reader is in says, and it says again when the
     // reader comes back to it. A Glance the window holds over the tab is the
     // page the reader is using, a sign-in page as often as not, so it is the
-    // one told while it is open.
+    // one told while it is open. An extension's own page, its popup or a
+    // popout it opened, is never a tab to the engine, which passes over it and
+    // goes back to guessing, so the tab beneath stays the one told. Read off
+    // the page's address as it settles, since a Glance opened for a request
+    // starts blank.
     property var glanceEngine: null
     readonly property bool windowActive: Window.window ? Window.window.active : false
-    onActiveEngineChanged: root.showAsActiveTab()
-    onGlanceEngineChanged: root.showAsActiveTab()
+    readonly property var activeTab: root.glanceEngine && !root.isExtensionPage(root.glanceEngine)
+                                     ? root.glanceEngine : root.activeEngine
+    onActiveTabChanged: root.showAsActiveTab()
     onWindowActiveChanged: root.showAsActiveTab()
     function showAsActiveTab() {
-        const page = root.glanceEngine || root.activeEngine;
-        if (root.windowActive && page)
-            page.showAsActiveTab();
+        if (root.windowActive && root.activeTab)
+            root.activeTab.showAsActiveTab();
+    }
+    function isExtensionPage(engine) {
+        return String(engine.currentUrl).startsWith("chrome-extension:");
     }
     onSplitLeftTabIdChanged: root.restoreDivider()
     onSplitRightTabIdChanged: root.restoreDivider()

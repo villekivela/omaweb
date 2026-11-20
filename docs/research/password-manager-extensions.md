@@ -1222,10 +1222,14 @@ the routes to what the reader saw.
   6.11 series that ADR 0069 names, lets Omaweb say which tab is active, and the query answers it.
   Omaweb says so on every tab switch, as focus crosses a split, and when the reader comes to a
   window, from the window the reader is in. A Glance open over the tab is the active tab until it
-  closes, since a sign-in page is often opened in one. On an engine without the patch the engine
-  goes on answering the last page on show. `tabs.onActivated` is still not raised, so an extension
-  that keeps the active tab from that event rather than asking is not told of a switch.
-  [Issue #961](https://github.com/villekivela/omaweb/issues/961).
+  closes, since a sign-in page is often opened in one. An extension's own page in a Glance, its
+  popup or a popout opened with `windows.create`, is not: the engine passes over extension pages and
+  would fall back to the last page on show, so the tab beneath stays active and the popup fills it.
+  A `windows.create` page at a web address is a window of its own to the engine too, and Omaweb
+  cannot tell it from a page's own Glance, so while one is open the engine falls back. On an engine
+  without the patch the engine goes on answering the last page on show. `tabs.onActivated` is still
+  not raised, so an extension that keeps the active tab from that event rather than asking is not
+  told of a switch. [Issue #961](https://github.com/villekivela/omaweb/issues/961).
 
 1Password's own flow past the page script was not run: no 1Password account or desktop application
 is on the test machine.

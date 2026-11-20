@@ -13781,6 +13781,69 @@ TestCase {
         tryCompare(opener, "timesShownAsActiveTab", openerUnder + 1);
     }
 
+    // An extension's own page is never a tab to the engine, which passes over
+    // it when asked for the active tab. Told it, the engine would fall back to
+    // guessing, so an extension's popup or the popout it opens leaves the tab
+    // beneath the active one, and the popup asking for the page fills that tab
+    // (#961).
+    function test_anExtensionsPageInAGlanceLeavesItsTabActive() {
+        window.requestActivate();
+        tryVerify(function () {
+            return window.active;
+        });
+        const opener = openPage("https://extension-glance-opener.example/");
+        const profile = window.spaceProfileHost;
+        verify(profile !== null);
+        profile.hostedExtensions = [
+                    {
+                        "key": "omaweb-test-vault",
+                        "name": "Vault",
+                        "id": "omaweb-test-vault",
+                        "popupUrl": "chrome-extension://omaweb-test-vault/popup.html"
+                    }
+                ];
+        verify(window.openExtensionPopup("omaweb-test-vault", Qt.rect(0, 0, 0, 0)));
+        const popup = window.glanceEngine;
+        verify(popup !== null);
+        compare(popup.timesShownAsActiveTab, 0);
+        window.closeGlance();
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+
+        // The popout an extension opens with windows.create, which a Glance
+        // shows as it shows any page.
+        const openerUnder = opener.timesShownAsActiveTab;
+        openGlance("chrome-extension://omaweb-test-vault/popout.html");
+        tryCompare(opener, "timesShownAsActiveTab", openerUnder + 1);
+        window.closeGlance();
+        tryVerify(function () {
+            return window.glanceEngine === null;
+        });
+        profile.hostedExtensions = [];
+
+        // The same over a Tab window's page.
+        const openerTabId = browser.activeTabId;
+        verify(window.commands.run("pop-out-tab", openerTabId));
+        const tabWindow = tabWindowOf(openerTabId);
+        tabWindow.requestActivate();
+        tryVerify(function () {
+            return tabWindow.active;
+        });
+        const poppedUnder = opener.timesShownAsActiveTab;
+        opener.simulateNewWindowRequest("chrome-extension://omaweb-test-vault/popout.html", false);
+        tryVerify(function () {
+            return tabWindow.glanceEngine !== null;
+        });
+        tryCompare(opener, "timesShownAsActiveTab", poppedUnder + 1);
+        tabWindow.closeGlance();
+        tabWindow.close();
+        tryVerify(function () {
+            return window.tabWindowFor(openerTabId) === null;
+        });
+        browser.closeTab(openerTabId);
+    }
+
     function test_aPagesNewTabRequestOpensAGlanceOverThePage() {
         const engineLoader = findChild(window.contentItem, "engineLoader");
         const opener = openPage("https://opener.example");
