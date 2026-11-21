@@ -7,6 +7,7 @@
 #include <QLoggingCategory>
 #include <QMetaObject>
 #include <QProcessEnvironment>
+#include <QQmlEngine>
 #include <QTextStream>
 
 #include <utility>
@@ -328,23 +329,43 @@ void FileView::setPrintErrors(bool printErrors)
     emit printErrorsChanged();
 }
 
-QString FileView::text() const { return m_text; }
+int FileView::revision() const { return m_revision; }
+
+QString FileView::text() const
+{
+    // A binding depends only on properties QML itself reads, so read `revision` from script: the
+    // engine's capture is still running for the binding that called text(), and it takes the
+    // property's change signal as the dependency.
+    if (QQmlEngine *engine = qmlEngine(this)) {
+        if (!m_trackRevision.isCallable()) {
+            m_trackRevision
+                = engine->evaluate(QStringLiteral("(function(o) { return o.revision; })"));
+        }
+        // No setObjectOwnership(): a QML-made FileView has its wrapper already, and marking it
+        // C++-owned makes destroy() refuse it.
+        m_trackRevision.call({engine->newQObject(const_cast<FileView *>(this))});
+    }
+    return m_text;
+}
 
 void FileView::reload()
 {
     m_text.clear();
+    ++m_revision;
     QFile file(m_path);
     if (m_path.isEmpty() || !file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         if (m_printErrors && !m_path.isEmpty()) {
             qWarning("FileView could not read %s", qPrintable(m_path));
         }
         qCDebug(fileViewLog, "could not read %s", qPrintable(m_path));
+        emit revisionChanged();
         emit loadFailed();
         return;
     }
     QTextStream stream(&file);
     m_text = stream.readAll();
     qCDebug(fileViewLog, "read %lld bytes from %s", qint64(m_text.size()), qPrintable(m_path));
+    emit revisionChanged();
     emit loaded();
 }
 
