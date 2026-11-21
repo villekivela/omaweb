@@ -2,6 +2,7 @@
 
 // The `Quickshell.Io` half of the shim: see Quickshell.h for why this exists.
 
+#include <QJSValue>
 #include <QObject>
 #include <QProcess>
 #include <QString>
@@ -148,6 +149,7 @@ class FileView : public QObject {
     Q_PROPERTY(bool preload READ preload WRITE setPreload NOTIFY preloadChanged)
     Q_PROPERTY(bool watchChanges READ watchChanges WRITE setWatchChanges NOTIFY watchChangesChanged)
     Q_PROPERTY(bool printErrors READ printErrors WRITE setPrintErrors NOTIFY printErrorsChanged)
+    Q_PROPERTY(int revision READ revision NOTIFY revisionChanged)
 
 public:
     explicit FileView(QObject *parent = nullptr);
@@ -165,6 +167,9 @@ public:
     bool printErrors() const;
     void setPrintErrors(bool printErrors);
 
+    int revision() const;
+    // Reading it inside a binding makes the binding read again after a reload, as Quickshell's
+    // does.
     Q_INVOKABLE QString text() const;
     Q_INVOKABLE void reload();
 
@@ -175,6 +180,7 @@ signals:
     void preloadChanged();
     void watchChangesChanged();
     void printErrorsChanged();
+    void revisionChanged();
     void loaded();
     void loadFailed();
     void fileChanged();
@@ -184,6 +190,8 @@ private:
 
     QString m_path;
     QString m_text;
+    int m_revision = 0;
+    mutable QJSValue m_trackRevision;
     bool m_blockLoading = false;
     bool m_blockAllReads = false;
     bool m_preload = true;

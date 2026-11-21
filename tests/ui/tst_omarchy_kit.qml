@@ -221,6 +221,26 @@ TestCase {
         verify(file.text().startsWith("import QtQuick"));
     }
 
+    // `I18n` and `Translations` read each catalog through the kit's `WatchedFile`: a changed `path`
+    // reads the new file, and none reads as empty.
+    Component {
+        id: watchedFileComponent
+
+        WatchedFile {}
+    }
+
+    function test_aWatchedFileReadsItsPathAndFollowsItsChange() {
+        const source = String(Qt.resolvedUrl("tst_omarchy_kit.qml")).replace("file://", "");
+        const file = createTemporaryObject(watchedFileComponent, testCase, {
+                                               "path": source
+                                           });
+        tryVerify(() => file.text.startsWith("import QtQuick"));
+        file.path = "";
+        tryCompare(file, "text", "");
+        file.path = source;
+        tryVerify(() => file.text.startsWith("import QtQuick"));
+    }
+
     // Omaweb's own Typography object is gone: the kit's scale is the only type
     // scale, so every size a Omaweb surface asks for has to exist on it.
     function test_theKitScaleCoversEverySizeOmawebAsksFor() {
