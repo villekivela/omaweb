@@ -423,6 +423,13 @@ taken hands its address to the owner over `org.freedesktop.Application` and exit
 an engine, a session store or a filter set. Omaweb is one window with its tabs down the side, so a
 handed-over address arrives as a tab.
 
+A browser that holds the name but is slow to answer, such as one frozen while the machine is short
+of memory, has the address queued and opens it once it catches up. The launch waits up to a minute
+for that answer and sends the address only once. If the name goes during the wait, the launch
+carries on as an ordinary start. If the owner is still there and silent when the minute is up, the
+launch prints the address on stderr and exits with 1 rather than starting a second browser on the
+same profiles.
+
 A development build run beside the installed browser therefore needs a session bus of its own,
 `dbus-run-session -- ./build/dev/omaweb`, with `OMAWEB_DATA_ROOT`, `OMAWEB_CONFIG_ROOT` and
 `OMAWEB_CONTROL_SOCKET` pointing at a scratch directory. A build on a private bus cannot reach the

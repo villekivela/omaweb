@@ -3,6 +3,8 @@
 #include <QObject>
 #include <QUrl>
 
+#include <chrono>
+
 namespace omaweb {
 
 // The one Omaweb the desktop talks to, and the way a later launch reaches it.
@@ -21,6 +23,21 @@ class RunningBrowser final : public QObject {
     Q_OBJECT
 
 public:
+    // What became of a hand-over.
+    enum class HandOver {
+        // The running browser took it.
+        Taken,
+        // No browser holds the name, or the one that did let it go during the
+        // wait, and the caller is better off opening the page itself than
+        // dropping it.
+        NoBrowser,
+        // A browser still holds the name and has not taken the request. It
+        // may yet act on one it has not answered, and a second browser beside
+        // it would run on the same profiles.
+        Unanswered,
+    };
+    Q_ENUM(HandOver)
+
     explicit RunningBrowser(QObject *parent = nullptr);
     ~RunningBrowser() override;
 
@@ -31,9 +48,14 @@ public:
 
     // Hands an address to the Omaweb already running, or asks it to come
     // forward when there is no address, in a Private window when asked for
-    // one. False means nothing took it, and the caller is better off opening
-    // the page itself than dropping it.
-    bool handOver(const QUrl &url, bool privateWindow = false);
+    // one. The request is sent once, and the wait ends when the browser
+    // answers, when it lets go of the name, or after `patience`.
+    HandOver handOver(const QUrl &url, bool privateWindow = false,
+        std::chrono::milliseconds patience = kHandOverPatience);
+
+    // Long enough to outlast a browser frozen while the machine is short of
+    // memory, which answers once it catches up.
+    static constexpr std::chrono::milliseconds kHandOverPatience = std::chrono::minutes(1);
 
 signals:
     // Another launch handed this process an address to open.
