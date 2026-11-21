@@ -94,10 +94,18 @@ Its engine is QtWebEngine 6.140.0, with Chromium's security fixes up to 157.0.81
 Agents. A patch in the engine series gives an Agent tab its own untrusted debugging session, and an
 Agent reads that tab's failed requests, status codes, headers and bodies through it
 ([#373](https://github.com/villekivela/omaweb/issues/373)). In an Agent Space, an Agent then
-evaluates in the page's own world ([#534](https://github.com/villekivela/omaweb/issues/534)).
-Whether Qt's extension surface has grown is checked again against 6.140.0
+evaluates in the page's own world ([#534](https://github.com/villekivela/omaweb/issues/534)). Qt's
+extension surface was checked again against 6.140.0 and has not grown
 ([#288](https://github.com/villekivela/omaweb/issues/288)), and the Omarchy kit catches up with
 quattro ([#953](https://github.com/villekivela/omaweb/issues/953)).
+
+It also carries fixes found along the way. A two-finger swipe goes back and forward over a custom
+element with no shadow root, as YouTube's are
+([#960](https://github.com/villekivela/omaweb/issues/960)). A second engine patch tells the engine
+which tab the reader selected, so a password manager offers logins for that tab rather than the one
+last on show ([#961](https://github.com/villekivela/omaweb/issues/961)), and Omaweb needs engine
+6.140.0-2 for it. A link opened while the browser is slow to answer waits for it rather than
+starting a second browser ([#967](https://github.com/villekivela/omaweb/issues/967)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
