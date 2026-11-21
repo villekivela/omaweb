@@ -105,9 +105,7 @@ element with no shadow root, as YouTube's are
 which tab the reader selected, so a password manager offers logins for that tab rather than the one
 last on show ([#961](https://github.com/villekivela/omaweb/issues/961)), and Omaweb needs engine
 6.140.0-2 for it. A link opened while the browser is slow to answer waits for it rather than
-starting a second browser ([#967](https://github.com/villekivela/omaweb/issues/967)), and why
-returning to Omaweb's workspace freezes it when memory is low is being diagnosed
-([#968](https://github.com/villekivela/omaweb/issues/968)).
+starting a second browser ([#967](https://github.com/villekivela/omaweb/issues/967)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
