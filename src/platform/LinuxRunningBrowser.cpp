@@ -2,8 +2,12 @@
 
 #include <QDBusAbstractAdaptor>
 #include <QDBusConnection>
+#include <QDBusConnectionInterface>
 #include <QDBusMessage>
+#include <QDBusPendingCallWatcher>
 #include <QDBusReply>
+#include <QDBusServiceWatcher>
+#include <QEventLoop>
 #include <QVariantMap>
 
 namespace omaweb {
@@ -29,11 +33,6 @@ namespace {
     // know the flag opens the page in its ordinary window rather than losing
     // it, which is what an unknown action would do.
     const auto kPrivateWindow = QStringLiteral("dev.omaweb.private-window");
-
-    // A local call to a process that is already running. Long enough to survive
-    // a browser busy with a page, short enough that a wedged one does not leave
-    // the reader looking at nothing.
-    constexpr int kCallTimeoutMs = 5000;
 
     // The freedesktop application interface rather than one of Omaweb's own.
     // Nothing here needs a private protocol, and answering the standard one
@@ -153,14 +152,15 @@ RunningBrowser::~RunningBrowser()
 
 bool RunningBrowser::isPrimary() const { return m_primary; }
 
-bool RunningBrowser::handOver(const QUrl &url, bool privateWindow)
+RunningBrowser::HandOver RunningBrowser::handOver(
+    const QUrl &url, bool privateWindow, std::chrono::milliseconds patience)
 {
     if (m_primary) {
-        return false;
+        return HandOver::NoBrowser;
     }
     auto bus = QDBusConnection::sessionBus();
     if (!bus.isConnected()) {
-        return false;
+        return HandOver::NoBrowser;
     }
 
     // An address to open, or nothing to open and a browser to come forward.
@@ -185,8 +185,25 @@ bool RunningBrowser::handOver(const QUrl &url, bool privateWindow)
     }
     message << platformData;
 
-    const auto reply = bus.call(message, QDBus::Block, kCallTimeoutMs);
-    return reply.type() == QDBusMessage::ReplyMessage;
+    // A browser that dies fails the call at once, but one that lets go of the
+    // name and is still shutting down never answers, so the name is watched as
+    // well as the reply.
+    QEventLoop waiting;
+    QDBusServiceWatcher owner(kBusName, bus, QDBusServiceWatcher::WatchForUnregistration);
+    QObject::connect(
+        &owner, &QDBusServiceWatcher::serviceUnregistered, &waiting, &QEventLoop::quit);
+    QDBusPendingCallWatcher reply(bus.asyncCall(message, static_cast<int>(patience.count())));
+    QObject::connect(&reply, &QDBusPendingCallWatcher::finished, &waiting, &QEventLoop::quit);
+    if (!reply.isFinished()) {
+        waiting.exec();
+    }
+    if (reply.isFinished() && reply.reply().type() == QDBusMessage::ReplyMessage) {
+        return HandOver::Taken;
+    }
+    // A call that timed out is not one the browser never got. It is in that
+    // browser's queue, so sending it again would open the page twice.
+    return bus.interface()->isServiceRegistered(kBusName) ? HandOver::Unanswered
+                                                          : HandOver::NoBrowser;
 }
 
 } // namespace omaweb

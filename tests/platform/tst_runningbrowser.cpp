@@ -5,6 +5,7 @@
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusPendingCall>
+#include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QMutex>
 #include <QMutexLocker>
@@ -13,9 +14,11 @@
 #include <QThread>
 #include <QWindow>
 
+#include <chrono>
 #include <optional>
 
 using omaweb::RunningBrowser;
+using HandOver = omaweb::RunningBrowser::HandOver;
 
 namespace {
 
@@ -49,19 +52,55 @@ public:
 
     void record(HandedOver handedOver)
     {
-        const QMutexLocker lock(&m_mutex);
-        m_received = std::move(handedOver);
+        const QMutexLocker answering(&m_answering);
+        std::chrono::milliseconds answerDelay;
+        bool lettingGo = false;
+        {
+            const QMutexLocker lock(&m_mutex);
+            m_received = std::move(handedOver);
+            answerDelay = m_answerDelay;
+            lettingGo = m_lettingGo;
+        }
+        // A browser quitting lets go of the name first and is gone before it
+        // gets round to the call.
+        if (lettingGo) {
+            QDBusConnection(kRunningConnection).unregisterService(kBusName);
+        }
+        // A browser busy elsewhere, which reads the call and answers once it
+        // gets back to it.
+        QThread::sleep(answerDelay);
     }
+
+    void answerAfter(std::chrono::milliseconds delay)
+    {
+        const QMutexLocker lock(&m_mutex);
+        m_answerDelay = delay;
+    }
+
+    void letGoOfTheName()
+    {
+        const QMutexLocker lock(&m_mutex);
+        m_lettingGo = true;
+    }
+
+    // Until a call the last test left it busy with has been answered, so the
+    // next test's call does not queue behind it.
+    void finishAnswering() { const QMutexLocker answering(&m_answering); }
 
     void forget()
     {
         const QMutexLocker lock(&m_mutex);
         m_received.reset();
+        m_answerDelay = {};
+        m_lettingGo = false;
     }
 
 private:
     mutable QMutex m_mutex;
+    QMutex m_answering;
     std::optional<HandedOver> m_received;
+    std::chrono::milliseconds m_answerDelay {};
+    bool m_lettingGo = false;
 };
 
 class RecordingAdaptor final : public QDBusAbstractAdaptor {
@@ -123,6 +162,10 @@ private slots:
     void asksForAPrivateWindowWithoutAnAddress();
     void opensAPrivateRequestInAPrivateWindow();
     void bringsAPrivateWindowForwardWithoutAnAddress();
+    void waitsForABrowserThatAnswersLate();
+    void givesUpOnABrowserThatDoesNotAnswer();
+    void launchesWhenTheBrowserLetsGoOfTheName();
+    void launchesWhenNoBrowserIsRunning();
 
 private:
     // The running browser holds the name on a connection of its own, on a
@@ -155,6 +198,7 @@ void RunningBrowserTest::cleanupTestCase()
 
 void RunningBrowserTest::cleanup()
 {
+    m_running->finishAnswering();
     m_running->forget();
     qunsetenv("XDG_ACTIVATION_TOKEN");
     // A test that let the browser hold the name has destroyed it by now, and
@@ -172,7 +216,7 @@ void RunningBrowserTest::handsOverTheLaunchersActivationToken()
     RunningBrowser browser;
     QVERIFY(!browser.isPrimary());
 
-    QVERIFY(browser.handOver(QUrl(QStringLiteral("https://example.org/"))));
+    QCOMPARE(browser.handOver(QUrl(QStringLiteral("https://example.org/"))), HandOver::Taken);
 
     const auto received = m_running->received();
     QVERIFY(received.has_value());
@@ -189,7 +233,7 @@ void RunningBrowserTest::asksForTheBrowserWithTheLaunchersActivationToken()
     RunningBrowser browser;
     QVERIFY(!browser.isPrimary());
 
-    QVERIFY(browser.handOver(QUrl()));
+    QCOMPARE(browser.handOver(QUrl()), HandOver::Taken);
 
     const auto received = m_running->received();
     QVERIFY(received.has_value());
@@ -210,7 +254,7 @@ void RunningBrowserTest::handsAnEncodedLinkOverWhole()
     RunningBrowser browser;
     QVERIFY(!browser.isPrimary());
 
-    QVERIFY(browser.handOver(QUrl::fromEncoded(kEncodedLink, QUrl::StrictMode)));
+    QCOMPARE(browser.handOver(QUrl::fromEncoded(kEncodedLink, QUrl::StrictMode)), HandOver::Taken);
 
     const auto received = m_running->received();
     QVERIFY(received.has_value());
@@ -295,7 +339,7 @@ void RunningBrowserTest::handsAPrivateRequestOverWithItsAddress()
     RunningBrowser browser;
     QVERIFY(!browser.isPrimary());
 
-    QVERIFY(browser.handOver(QUrl(QStringLiteral("https://example.org/")), true));
+    QCOMPARE(browser.handOver(QUrl(QStringLiteral("https://example.org/")), true), HandOver::Taken);
 
     const auto received = m_running->received();
     QVERIFY(received.has_value());
@@ -311,7 +355,7 @@ void RunningBrowserTest::asksForAPrivateWindowWithoutAnAddress()
     RunningBrowser browser;
     QVERIFY(!browser.isPrimary());
 
-    QVERIFY(browser.handOver(QUrl(), true));
+    QCOMPARE(browser.handOver(QUrl(), true), HandOver::Taken);
 
     const auto received = m_running->received();
     QVERIFY(received.has_value());
@@ -360,6 +404,62 @@ void RunningBrowserTest::bringsAPrivateWindowForwardWithoutAnAddress()
     QVERIFY(!privateRequested.at(0).value(0).toUrl().isValid());
     QCOMPARE(privateRequested.at(0).value(1).toString(), QStringLiteral("token-from-the-launcher"));
     QCOMPARE(activated.count(), 0);
+}
+
+// A browser frozen for a while, on a machine short of memory, still holds the
+// name and opens the link once it catches up. Today's wait gave up after five
+// seconds and the launch became a second browser.
+void RunningBrowserTest::waitsForABrowserThatAnswersLate()
+{
+    m_running->answerAfter(std::chrono::seconds(6));
+    RunningBrowser browser;
+    QVERIFY(!browser.isPrimary());
+
+    QCOMPARE(browser.handOver(QUrl(QStringLiteral("https://example.org/"))), HandOver::Taken);
+
+    const auto received = m_running->received();
+    QVERIFY(received.has_value());
+    QCOMPARE(received->uris, QStringList {QStringLiteral("https://example.org/")});
+}
+
+// The name still has an owner when the wait ends, so the link may yet reach
+// it, and a second browser on the same profiles is not the answer.
+void RunningBrowserTest::givesUpOnABrowserThatDoesNotAnswer()
+{
+    m_running->answerAfter(std::chrono::seconds(2));
+    RunningBrowser browser;
+    QVERIFY(!browser.isPrimary());
+
+    QCOMPARE(browser.handOver(QUrl(QStringLiteral("https://example.org/")), false,
+                 std::chrono::milliseconds(500)),
+        HandOver::Unanswered);
+}
+
+// The wait ends when the name goes, rather than when the browser that had it
+// gets round to an answer it may never send.
+void RunningBrowserTest::launchesWhenTheBrowserLetsGoOfTheName()
+{
+    m_running->letGoOfTheName();
+    m_running->answerAfter(std::chrono::seconds(2));
+    RunningBrowser browser;
+    QVERIFY(!browser.isPrimary());
+    QElapsedTimer waited;
+    waited.start();
+
+    QCOMPARE(browser.handOver(QUrl(QStringLiteral("https://example.org/"))), HandOver::NoBrowser);
+    QCOMPARE_LT(waited.elapsed(), 1000);
+}
+
+// The browser that had the name quit between this launch's claim and its
+// hand-over, and nothing is left to take the link.
+void RunningBrowserTest::launchesWhenNoBrowserIsRunning()
+{
+    RunningBrowser browser;
+    QVERIFY(!browser.isPrimary());
+    QVERIFY(QDBusConnection(kRunningConnection).unregisterService(kBusName));
+
+    QCOMPARE(browser.handOver(QUrl(QStringLiteral("https://example.org/"))), HandOver::NoBrowser);
+    QVERIFY(!m_running->received().has_value());
 }
 
 QTEST_MAIN(RunningBrowserTest)

@@ -349,11 +349,25 @@ int main(int argc, char *argv[])
                       "start again with --diagnose.");
             return 2;
         }
-        if (runningBrowser.handOver(launchUrl, launchPrivately)) {
+        switch (runningBrowser.handOver(launchUrl, launchPrivately)) {
+        case omaweb::RunningBrowser::HandOver::Taken:
             return 0;
+        case omaweb::RunningBrowser::HandOver::Unanswered:
+            // The running browser has the request and may still open it, and a
+            // second browser here would be a second process on its profiles.
+            if (launchUrl.isValid()) {
+                qCritical("Omaweb is running but did not answer, so %s was not opened. Try "
+                          "again once it responds.",
+                    qPrintable(launchUrl.toDisplayString()));
+            } else {
+                qCritical("Omaweb is running but did not answer. Try again once it responds.");
+            }
+            return 1;
+        case omaweb::RunningBrowser::HandOver::NoBrowser:
+            // Nothing took it. Opening the page here is worse than one browser
+            // and better than none, so this carries on as an ordinary launch.
+            break;
         }
-        // Nothing took it. Opening the page here is worse than one browser and
-        // better than none, so this carries on as an ordinary launch.
     }
 
     const omaweb::SpaceStorage spaceStorage(dataRoot(), QStringLiteral("qt"));
