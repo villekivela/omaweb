@@ -168,7 +168,7 @@ public:
     void setPrintErrors(bool printErrors);
 
     int revision() const;
-    // Reading it inside a binding makes the binding read again after a reload, as Quickshell's
+    // Calling it inside a binding makes the binding read again after a reload, as Quickshell's
     // does.
     Q_INVOKABLE QString text() const;
     Q_INVOKABLE void reload();
