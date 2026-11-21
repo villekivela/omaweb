@@ -201,7 +201,8 @@ RunningBrowser::HandOver RunningBrowser::handOver(
         return HandOver::Taken;
     }
     // A call that timed out is not one the browser never got. It is in that
-    // browser's queue, so sending it again would open the page twice.
+    // browser's queue, so sending it again would open the page twice. One it
+    // refused is not, but a browser beside it would still share its profiles.
     return bus.interface()->isServiceRegistered(kBusName) ? HandOver::Unanswered
                                                           : HandOver::NoBrowser;
 }

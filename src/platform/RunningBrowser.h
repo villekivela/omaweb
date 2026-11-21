@@ -31,9 +31,9 @@ public:
         // wait, and the caller is better off opening the page itself than
         // dropping it.
         NoBrowser,
-        // A browser still holds the name and has not answered. It has the
-        // request and may yet act on it, so a second browser beside it would
-        // open the page twice on the same profiles.
+        // A browser still holds the name and has not taken the request. It
+        // may yet act on one it has not answered, and a second browser beside
+        // it would run on the same profiles.
         Unanswered,
     };
     Q_ENUM(HandOver)

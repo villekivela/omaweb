@@ -407,8 +407,8 @@ void RunningBrowserTest::bringsAPrivateWindowForwardWithoutAnAddress()
 }
 
 // A browser frozen for a while, on a machine short of memory, still holds the
-// name and opens the link once it catches up. Today's wait gave up after five
-// seconds and the launch became a second browser.
+// name and opens the link once it catches up, which can be well past the few
+// seconds a browser busy with a page takes.
 void RunningBrowserTest::waitsForABrowserThatAnswersLate()
 {
     m_running->answerAfter(std::chrono::seconds(6));

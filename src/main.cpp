@@ -353,14 +353,14 @@ int main(int argc, char *argv[])
         case omaweb::RunningBrowser::HandOver::Taken:
             return 0;
         case omaweb::RunningBrowser::HandOver::Unanswered:
-            // The running browser has the request and may still open it, and a
-            // second browser here would be a second process on its profiles.
+            // The running browser may still open the request, and a second
+            // browser here would be a second process on its profiles.
             if (launchUrl.isValid()) {
-                qCritical("Omaweb is running but did not answer, so %s was not opened. Try "
-                          "again once it responds.",
+                qCritical("Omaweb is running but did not take %s. Try again once it "
+                          "responds.",
                     qPrintable(launchUrl.toDisplayString()));
             } else {
-                qCritical("Omaweb is running but did not answer. Try again once it responds.");
+                qCritical("Omaweb is running but did not respond. Try again once it does.");
             }
             return 1;
         case omaweb::RunningBrowser::HandOver::NoBrowser:
