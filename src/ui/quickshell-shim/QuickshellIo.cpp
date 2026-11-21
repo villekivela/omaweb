@@ -341,11 +341,9 @@ QString FileView::text() const
             m_trackRevision
                 = engine->evaluate(QStringLiteral("(function(o) { return o.revision; })"));
         }
-        auto *self = const_cast<FileView *>(this);
-        // The wrapper must not take the object over: a FileView without a parent would be deleted
-        // with it.
-        QQmlEngine::setObjectOwnership(self, QQmlEngine::CppOwnership);
-        m_trackRevision.call({engine->newQObject(self)});
+        // No setObjectOwnership(): a QML-made FileView has its wrapper already, and marking it
+        // C++-owned makes destroy() refuse it.
+        m_trackRevision.call({engine->newQObject(const_cast<FileView *>(this))});
     }
     return m_text;
 }
