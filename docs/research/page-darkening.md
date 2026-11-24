@@ -505,8 +505,7 @@ Captured on 2026-11-24 on x86_64, in headless cage at 1280 by 720 with pixman. T
 test page, `roles.html`, that puts the roles side by side (a brand header, a white and a tinted
 card, a warning box, inline green text, a light gradient, a box shadow, an inline SVG, a canvas
 photo and swatches from `#ffffff` to `#18181b`), Hacker News, the GNU home page and Wikipedia's
-"Lichen" article. All four are light-only. The captures are kept for review and are not published
-yet.
+"Lichen" article. All four are light-only.
 
 | Browser                      | How                                                                                                                   |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -525,6 +524,22 @@ captures. Nothing else in it was changed.
 Safari could not be captured. Safari 27.3 runs only on Apple's systems, and no Mac took part. The
 WebKit ports that run on Linux, GTK and WPE, cannot stand in: the colour transform and the detection
 are in Apple's closed WebKitAdditions, as [above](#not-found-in-a-primary-source).
+
+Each comparison is the page as written, under current Page darkening, and under Dark Reader, left to
+right.
+
+![roles.html as written, darkened and under Dark Reader](https://github.com/villekivela/omaweb/blob/59f8c62cbe945a0d5942d8953a9ca4d12cadc555/973-roles.png?raw=true)
+
+![Hacker News as written, darkened and under Dark Reader](https://github.com/villekivela/omaweb/blob/59f8c62cbe945a0d5942d8953a9ca4d12cadc555/973-hacker-news.png?raw=true)
+
+![The GNU home page as written, darkened and under Dark Reader](https://github.com/villekivela/omaweb/blob/59f8c62cbe945a0d5942d8953a9ca4d12cadc555/973-gnu.png?raw=true)
+
+![Wikipedia's Lichen article as written, darkened and under Dark Reader](https://github.com/villekivela/omaweb/blob/59f8c62cbe945a0d5942d8953a9ca4d12cadc555/973-wikipedia.png?raw=true)
+
+The forced dark variants on `roles.html`: as written, the default CIELAB algorithm,
+`InversionAlgorithm=2` and `InversionAlgorithm=1`.
+
+![roles.html under four forced dark algorithms](https://github.com/villekivela/omaweb/blob/59f8c62cbe945a0d5942d8953a9ca4d12cadc555/973-roles-variants.png?raw=true)
 
 What the captures show:
 
