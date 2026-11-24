@@ -246,11 +246,12 @@ int main(int argc, char *argv[])
 #if defined(Q_OS_LINUX)
     // VA-API is the Linux interface. macOS decodes on the GPU without being
     // asked, and no other platform is distributed for.
-    const auto addedFlags = omaweb::hardwareVideoDecodeFlags(environmentFlags);
+    auto addedFlags = omaweb::hardwareVideoDecodeFlags(environmentFlags);
 #else
-    const QStringList addedFlags;
-    Q_UNUSED(environmentFlags);
+    QStringList addedFlags;
 #endif
+    // A darkened page is drawn by colour role, toward the theme's colours.
+    addedFlags += omaweb::pageDarkeningEngineFlags(environmentFlags);
     // What Omaweb adds goes after what the reader set, because Chromium reads
     // the last occurrence of a switch: an added feature list carries the
     // reader's own features forward, so nothing they asked for is dropped by

@@ -610,20 +610,27 @@ reports the gap and remains experimental rather than imitating behavior it canno
   draws it dark. Settings' interface section has a "Darken pages with no dark theme" switch in the
   pages group, above the page fonts. It is off by default, it does not follow the Browser theme, and
   it is `"darken-pages"` in `settings.json`, so an edit of the file applies at once and Sync carries
-  it with the group's other settings. It reaches every Space and Private window. The engine darkens:
-  Chromium's forced dark mode inverts the lightness of a background whose brightness is above 205 of
-  255, so white becomes `#121212` on x86_64, `#f5f5f5` becomes `#222222` and `#d0d0d0` becomes
-  `#3f3f3f`, and it inverts the foregrounds, so `#222` text becomes `#f6f6f6` and a `#d4d4d8`
-  element becomes `#3b3b3e`, on any ground. A background at or below 205, such as `#cccccc`,
-  `#6b7280` or `#18181b`, is left as it is.
+  it with the group's other settings. It reaches every Space and Private window.
 
-  On aarch64 white becomes `#1b1b1b`, and `#fcfcfc` becomes `#1e1e1e` rather than `#121212` (#936).
-  Chromium moves an inverted grey that dark to `#121212` only when its channels are equal to within
-  a float's epsilon. The aarch64 engine is built with GCC, which fuses multiplies and adds because
-  Chromium's `-ffp-contract=off` is not applied to QtWebEngine, and the channels land further apart
-  than that. The difference stays: the cover is already approximate, `#121212` over a `#fafafa` page
-  that x86_64 draws `#1f1f1f`. The engine fix is tracked in
-  villekivela/omaweb-qtwebengine-patches#34.
+  The engine darkens each colour by the role it plays, toward a ground colour and a text colour, as
+  a designed dark theme would draw the page rather than with its lightness inverted. Under a dark
+  Browser theme the two are the theme's own background and foreground, so a darkened page matches
+  the chrome around it, and a Private window's pages land on the theme its chrome is drawn in. A
+  light Browser theme's background is not dark, so its pages land on `#181a1b` and `#e8e6e3`. A
+  theme is dark when its window colour is below half lightness, the rule that sets the colour scheme
+  the engine is handed. A theme change reaches an open darkened page at once, with no reload. Every
+  background is mapped, with no threshold, so nothing light is left: with no theme given, white
+  becomes `#181a1b`, `#f5f5f5` becomes `#1e2021`, `#d0d0d0` becomes `#333739` and a `#cccccc` or
+  `#d4d4d8` element becomes `#35393b` or `#2f3335`. A dark colour stays dark, `#18181b` becoming
+  `#131516`, and a brand colour keeps its hue, `#0b63ce` becoming `#094fa5`. Text is drawn light,
+  `#222` as `#d3cfc9` and `#eee` as `#dddad6`, and at least 4.5:1 against its own background, or the
+  ground where it has none. Borders become mid to dark lines, black as `#8c8273` and `#ddd` as
+  `#3a3e41`. A grey takes the hue of the colour it is drawn toward. A gradient stop takes a
+  background's mapping. An SVG colour takes a background's when it is light and text's when it is
+  dark, so a white shape becomes the ground and a black logo or icon `#e8e6e3`. Images are left
+  alone but for an icon the engine reads as one, which is inverted as before. The mappings are Dark
+  Reader's colour functions, carried in Omaweb's engine (villekivela/omaweb-qtwebengine-patches#40);
+  the engine starts with them asked for, and the two colours are each page's.
 
   A page whose own ground is already dark is left as written. The shell's wish stays the reader's:
   `darkenPage` is true while the switch is on and the site is not turned off, and the adapter
@@ -644,25 +651,25 @@ reports the gap and remains experimental rather than imitating behavior it canno
   draw it and reads the pixel, once per colour string, and the ground it reports for the cover is
   plain `rgb()` in every case. A colour it cannot read counts as nothing and the search goes on up
   the tree, and nothing it reads can stop the report. The page is dark when that ground's
-  brightness, `0.299 R + 0.587 G + 0.114 B`, is at or below 205, which is the engine's own limit.
-  Measured against 17 grounds from `#09090b` to `#ffffff`, with `#222` and `#eee` text and a
-  `#d4d4d8` element on each, the engine leaves every ground at or below 205 as written and inverts
-  the foregrounds on it, so dark text that stands on such a ground turns light on it, which is wrong
-  for a page that chose that ground; above 205 it darkens the ground itself. A page is darkened
-  while it is not dark, so each document starts darkened, from the moment its load starts and before
-  it exists, and no white shows; darkening stops once its ground reads dark. The ground is read
-  again when any attribute or the tree of the page changes, when a style sheet loads, and when the
-  page is shown again from the back-forward cache, so a theme set by script after load, a style
-  sheet that arrives late, as an app's `media=print` sheet with an `onload` that sets `media=all`
-  does, and a switch in either direction are followed. A route inside the document, a hash or
-  `history.pushState`, starts no load and keeps the page as it is. None of this runs while darkening
-  is not wanted: the watch for a document starts when the document is made with darkening on, or
-  when it goes on for an open page, and stops when it goes off, so a reader with the setting off,
-  which is the default, pays for no observer, timer or reading of styles. A rule inserted only
-  through the CSSOM is not seen. A page that is dark over most of the window and light in a large
-  part of it is released, and one that is white over most of it and dark in a large part is
-  darkened: the middle of the 25 points is the cut. A switch from a dark theme to a white light one
-  shows the page as written for the wait before it is darkened again, measured at about 100 ms.
+  brightness, `0.299 R + 0.587 G + 0.114 B`, is at or below 205. Measured against 17 grounds from
+  `#09090b` to `#ffffff`, with `#222` and `#eee` text and a `#d4d4d8` element on each, a ground at
+  or below 205, `#cccccc` among them, is left as written with its text and element; above it
+  `#d0d0d0` becomes `#333739`, `#eeeeee` `#222426`, `#fafafa` `#1b1d1e` and white `#181a1b`, with
+  the text `#d3cfc9` and `#dddad6` and the element `#2f3335` on each. A page is darkened while it is
+  not dark, so each document starts darkened, from the moment its load starts and before it exists,
+  and no white shows; darkening stops once its ground reads dark. The ground is read again when any
+  attribute or the tree of the page changes, when a style sheet loads, and when the page is shown
+  again from the back-forward cache, so a theme set by script after load, a style sheet that arrives
+  late, as an app's `media=print` sheet with an `onload` that sets `media=all` does, and a switch in
+  either direction are followed. A route inside the document, a hash or `history.pushState`, starts
+  no load and keeps the page as it is. None of this runs while darkening is not wanted: the watch
+  for a document starts when the document is made with darkening on, or when it goes on for an open
+  page, and stops when it goes off, so a reader with the setting off, which is the default, pays for
+  no observer, timer or reading of styles. A rule inserted only through the CSSOM is not seen. A
+  page that is dark over most of the window and light in a large part of it is released, and one
+  that is white over most of it and dark in a large part is darkened: the middle of the 25 points is
+  the cut. A switch from a dark theme to a white light one shows the page as written for the wait
+  before it is darkened again, measured at about 100 ms.
 
   What a page with a dark theme behind `prefers-color-scheme` gets was measured under the dark
   colour scheme Omaweb hands the engine with a dark Browser theme, with the switch off and on,
@@ -674,12 +681,12 @@ reports the gap and remains experimental rather than imitating behavior it canno
   that declares `light dark` and brings no dark colours of its own is not darkened under a dark
   scheme, though a light scheme darkens it, so it stays as bright as it was written. A page that
   answers nothing is darkened. The cover that stands in for a page while a returned window waits for
-  its first frame is the page's ground as it is drawn: the reported ground inverted while the page
-  is darkened, and the page's own ground while it is left as written. The setting applies to a page
-  already open, with no reload. Pages of an engine that cannot darken are drawn as written: the
-  engine contract's `darkenPage` is ignored and its capabilities lack `PageDarkening`, which
-  Ladybird's do, so Settings says "This engine cannot darken a page" beside the switch and Site
-  information offers no row.
+  its first frame is the page's ground as it is drawn: the reported ground through the engine's
+  background mapping while the page is darkened, and the page's own ground while it is left as
+  written. The setting applies to a page already open, with no reload. Pages of an engine that
+  cannot darken are drawn as written: the engine contract's `darkenPage` is ignored and its
+  capabilities lack `PageDarkening`, which Ladybird's do, so Settings says "This engine cannot
+  darken a page" beside the switch and Site information offers no row.
 
 - Site information turns darkening off for one site while the switch is on. The row reads "Darken
   acme.com", a switch, with a muted line under it, "Pages with no dark theme, in this Space". The
@@ -702,9 +709,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
   browser's.
 - A page that is darkened is never covered in white. When a window returns, the page area is covered
   in the page's colour until the page has drawn again, and `getComputedStyle` reads a darkened
-  page's ground as the white it is written in, so with Page darkening the cover is that colour with
-  its lightness inverted, down to a floor of 7%: dark where the page is. The white a page without a
-  ground is written against is drawn dark as well, since the engine darkens it.
+  page's ground as the white it is written in, so with Page darkening the cover is that colour
+  through the background mapping the engine draws it with: white is the darkening ground exactly.
+  The white a page without a ground is written against is drawn dark as well, since the engine
+  darkens it.
 - A reader restyles a site with their own CSS, a Site style: one file per host in `styles/` in the
   configuration directory. `github.com.css` styles github.com and every host under it, as a Link
   rule's `*.github.com` matches, and a file for a narrower host, such as `gist.github.com.css`,
@@ -968,11 +976,11 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - A page is painted on the canvas every browser gives it: white, or the dark canvas the engine draws
   under a page that declares `color-scheme: dark`. A page that sets no background of its own is
   white under a dark theme, as its author saw it, unless Page darkening is on and the engine can
-  darken: then it is drawn on the dark canvas, `#121212` (`#1b1b1b` on aarch64), for every site the
-  reader has not turned it off for, and the cover that stands in for it is dark too. The theme's
-  colour is shown only where no page has painted yet, from the moment a document is created until
-  its first paint, so a navigation under a dark theme never flashes a bright rectangle through the
-  chrome, and the page on show keeps its canvas while the next document is fetched.
+  darken: then it is drawn on the darkening ground, the dark theme's background or `#181a1b`, for
+  every site the reader has not turned it off for, and the cover that stands in for it is dark too.
+  The theme's colour is shown only where no page has painted yet, from the moment a document is
+  created until its first paint, so a navigation under a dark theme never flashes a bright rectangle
+  through the chrome, and the page on show keeps its canvas while the next document is fetched.
 
 ## Daily browser operations
 

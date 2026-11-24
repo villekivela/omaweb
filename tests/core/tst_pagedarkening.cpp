@@ -7,6 +7,7 @@
 #include <QTest>
 
 using omaweb::PageDarkening;
+using omaweb::pageDarkeningEngineFlags;
 
 class PageDarkeningTest final : public QObject {
     Q_OBJECT
@@ -18,6 +19,9 @@ private slots:
     void readsAFileItCannotUseAsOff();
     void writesNothingForAChoiceAlreadyMade();
     void followsAnEditMadeToTheFile();
+    void asksTheEngineToDrawByColourRole();
+    void carriesTheReadersOwnDarkModeSettings();
+    void leavesAnAlgorithmTheReaderChose();
 };
 
 // Pages are shown as they were written until the reader asks otherwise, so a
@@ -105,6 +109,36 @@ void PageDarkeningTest::followsAnEditMadeToTheFile()
     darkening.setEnabled(true);
     QTRY_VERIFY(other.enabled());
     QCOMPARE(changed.count(), 1);
+}
+
+// The engine draws a darkened page by colour role only when it is started so.
+void PageDarkeningTest::asksTheEngineToDrawByColourRole()
+{
+    QCOMPARE(pageDarkeningEngineFlags({}),
+        QStringList {QStringLiteral("--dark-mode-settings=InversionAlgorithm=4")});
+    QCOMPARE(pageDarkeningEngineFlags({QStringLiteral("--use-fake-device-for-media-stream")}),
+        QStringList {QStringLiteral("--dark-mode-settings=InversionAlgorithm=4")});
+}
+
+// Chromium reads the last `--dark-mode-settings` on the command line, which is
+// Omaweb's, so the reader's values go into it rather than being dropped.
+void PageDarkeningTest::carriesTheReadersOwnDarkModeSettings()
+{
+    QCOMPARE(pageDarkeningEngineFlags({QStringLiteral("--dark-mode-settings=ImagePolicy=1")}),
+        QStringList {QStringLiteral("--dark-mode-settings=ImagePolicy=1,InversionAlgorithm=4")});
+    QCOMPARE(pageDarkeningEngineFlags({QStringLiteral("--dark-mode-settings=ImagePolicy=1"),
+                 QStringLiteral("--dark-mode-settings=ContrastPercent=0.2")}),
+        QStringList {
+            QStringLiteral("--dark-mode-settings=ContrastPercent=0.2,InversionAlgorithm=4")});
+}
+
+void PageDarkeningTest::leavesAnAlgorithmTheReaderChose()
+{
+    QVERIFY(pageDarkeningEngineFlags({QStringLiteral("--dark-mode-settings=InversionAlgorithm=2")})
+            .isEmpty());
+    QVERIFY(pageDarkeningEngineFlags(
+        {QStringLiteral("--dark-mode-settings=ImagePolicy=1,inversionalgorithm=3")})
+            .isEmpty());
 }
 
 QTEST_GUILESS_MAIN(PageDarkeningTest)

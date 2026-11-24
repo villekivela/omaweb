@@ -59,10 +59,15 @@ public:
         PageCertificates = 1 << 17,
         // Whether the engine can darken a page that has no dark theme of its
         // own when the shell sets `darkenPage`, and leave one that declares a
-        // dark colour scheme as it is. The Qt engine does, through Chromium's
-        // forced dark mode; Ladybird has no such setting. An engine without
-        // it reports this off and ignores `darkenPage`, and Settings says the
-        // engine cannot while Site information offers no row for a site.
+        // dark colour scheme as it is. A darkened page has its light grounds
+        // drawn dark, its text drawn light and its borders kept visible, with
+        // text at least 4.5:1 against what is behind it. A ground that is
+        // already dark is left as written. Computed styles read what the page
+        // wrote, and `prefers-color-scheme` reports the scheme the browser
+        // prefers, unchanged by darkening. The Qt engine can; Ladybird cannot.
+        // An engine without it reports this off and ignores `darkenPage`, and
+        // Settings says the engine cannot while Site information offers no
+        // row for a site.
         PageDarkening = 1 << 18,
         // Whether `network` and `request` can read an Agent tab's network. The
         // Qt engine can through a debugging session of one page, which the

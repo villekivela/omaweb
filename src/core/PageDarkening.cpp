@@ -49,4 +49,26 @@ void PageDarkening::load()
     }
 }
 
+QStringList pageDarkeningEngineFlags(const QStringList &engineFlags)
+{
+    const auto switchName = QStringLiteral("--dark-mode-settings");
+    QStringList settings;
+    for (const auto &flag : engineFlags) {
+        if (flag.startsWith(switchName + u'=')) {
+            settings = flag.sliced(switchName.size() + 1).split(u',', Qt::SkipEmptyParts);
+        }
+    }
+    // Chromium reads the names without regard to case.
+    for (const auto &setting : settings) {
+        if (setting.section(u'=', 0, 0)
+                .trimmed()
+                .compare(QStringLiteral("InversionAlgorithm"), Qt::CaseInsensitive)
+            == 0) {
+            return {};
+        }
+    }
+    settings.append(QStringLiteral("InversionAlgorithm=4"));
+    return {switchName + u'=' + settings.join(u',')};
+}
+
 } // namespace omaweb

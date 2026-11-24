@@ -8,6 +8,7 @@
 #include "QtDrawnFavicons.h"
 #include "EngineBuild.h"
 #include "EngineCapabilities.h"
+#include "PageDarkening.h"
 #include "PageImages.h"
 #include "EngineCapabilityExpectations.h"
 #include "ExternalProtocolHandler.h"
@@ -261,6 +262,8 @@ private slots:
     void qtShowsAPageResizedWhileAwayInItsOwnColour();
     void qtShowsAPageThatMovedOnWhileAwayInItsOwnColour();
     void qtDarkensAPageWithNoDarkThemeAndLeavesADarkOneAlone();
+    void qtDrawsADarkenedPageByColourRole();
+    void qtDarkensAPageTowardTheThemesOwnColours();
     void qtAppliesDarkeningToTheOpenPageWithoutAReload();
     void qtLeavesAClassBasedDarkThemeAsWritten();
     void qtFollowsAStyleSheetThatArrivesLate();
@@ -2601,6 +2604,16 @@ struct ViewInWindow {
         adapter->setProperty("currentUrl", url);
         return webView != nullptr;
     }
+
+    // Whether the engine draws a darkened page by colour role, toward the
+    // colours Omaweb gives it (villekivela/omaweb-qtwebengine-patches#40). An
+    // engine from before it inverts each colour's lightness instead.
+    bool engineDarkensByRole() const
+    {
+        const auto *settings = webView->property("settings").value<QObject *>();
+        return settings
+            && settings->metaObject()->indexOfProperty("forceDarkModeGroundColor") != -1;
+    }
 };
 
 } // namespace
@@ -3379,13 +3392,14 @@ bool isWhite(const QColor &colour)
     return colour.red() > 230 && colour.green() > 230 && colour.blue() > 230;
 }
 
-// A white ground as the engine darkens it: a neutral grey from #121212 to #1b1b1b. Chromium inverts
-// white to #1b1b1b and moves a grey that dark to #121212 only when its channels are equal to within
-// a float's epsilon. The aarch64 engine is built with GCC, which fuses multiplies and adds, and its
-// channels land further apart than that, so there white stays #1b1b1b (#936,
-// villekivela/omaweb-qtwebengine-patches#34).
-bool isDarkenedWhite(const QColor &colour)
+// A white ground as the engine darkens it, with no theme given: `#181a1b`, the
+// ground a darkened page is drawn toward under a light theme. An engine that
+// inverts lightness draws a neutral grey from #121212 to #1b1b1b instead (#936).
+bool isDarkenedWhite(const QColor &colour, const ViewInWindow &shown)
 {
+    if (shown.engineDarkensByRole()) {
+        return colour == QColor(0x18, 0x1a, 0x1b);
+    }
     return colour.red() == colour.green() && colour.red() == colour.blue() && colour.red() >= 0x12
         && colour.red() <= 0x1b;
 }
@@ -3427,13 +3441,127 @@ void QtEngineContractTest::qtDarkensAPageWithNoDarkThemeAndLeavesADarkOneAlone()
 
     shown.adapter->setProperty("darkenPage", true);
     const QColor bare = show("/bare");
-    QVERIFY2(isDarkenedWhite(bare), qPrintable(bare.name()));
+    QVERIFY2(isDarkenedWhite(bare, shown), qPrintable(bare.name()));
     QVERIFY(isDark(show("/light")));
     QCOMPARE(show("/declared"), QColor(0x33, 0x44, 0x55));
     // Under a light scheme, a page that allows both schemes has not declared a
     // dark one, and Chromium treats it as it treats a page with none. A dark
     // scheme is measured in qtLeavesAPagesOwnDarkThemeAloneUnderADarkScheme.
     QVERIFY(isDark(show("/lightdark")));
+}
+
+// What a darkened page is drawn as, measured on 17 grounds from #09090b to
+// #ffffff with #222 and #eee text and a #d4d4d8 element on each, with no theme
+// given, so toward `#181a1b` and `#e8e6e3`. A ground at or below 205 of 255 is
+// the page's own dark one and is left as written, text and element too. Above
+// it every colour is mapped by its role, worked from Dark Reader's colour
+// functions: the ground's lightness from 0.5..1 onto 0.4 down to the ground
+// colour's, so white is `#181a1b` and nothing light is left on it; text onto
+// 0.55 up to the text colour's; a grey takes the hue of the colour it goes
+// toward. Text is a solid block glyph, so its middle is the text colour.
+void QtEngineContractTest::qtDrawsADarkenedPageByColourRole()
+{
+    struct Ground {
+        const char *written;
+        const char *drawn;
+    };
+    // Null where the page is left as written.
+    const Ground grounds[] = {
+        {"#09090b", nullptr},
+        {"#18181b", nullptr},
+        {"#27272a", nullptr},
+        {"#3f3f46", nullptr},
+        {"#52525b", nullptr},
+        {"#71717a", nullptr},
+        {"#a1a1aa", nullptr},
+        {"#cccccc", nullptr},
+        {"#d0d0d0", "#333739"},
+        {"#d4d4d8", "#2f3335"},
+        {"#e4e4e7", "#262a2b"},
+        {"#eeeeee", "#222426"},
+        {"#f4f4f5", "#1e2022"},
+        {"#f5f5f5", "#1e2021"},
+        {"#fafafa", "#1b1d1e"},
+        {"#fdfdfd", "#191b1c"},
+        {"#ffffff", "#181a1b"},
+    };
+    const QColor darkText(0xd3, 0xcf, 0xc9);
+    const QColor lightText(0xdd, 0xda, 0xd6);
+    const QColor element(0x2f, 0x33, 0x35);
+    QMap<QByteArray, SiteServer::Page> pages;
+    for (const auto &ground : grounds) {
+        const QByteArray written(ground.written);
+        pages.insert("/" + written.mid(1),
+            SiteServer::html("<!doctype html><body style=\"margin:0;background:" + written
+                + "\"><div style=\"position:absolute;left:40px;top:40px;font:120px/1 FreeMono;"
+                  "color:#222\">&#x2588;</div><div style=\"position:absolute;left:200px;"
+                  "top:40px;font:120px/1 FreeMono;color:#eee\">&#x2588;</div><div style=\""
+                  "position:absolute;left:400px;top:0;width:160px;height:240px;"
+                  "background:#d4d4d8\"></div>"));
+    }
+    SiteServer server(pages);
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ViewInWindow shown;
+    QVERIFY(shown.create(QUrl(QStringLiteral("about:blank"))));
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    if (!shown.engineDarkensByRole()) {
+        QSKIP("The engine inverts each colour's lightness: it predates "
+              "villekivela/omaweb-qtwebengine-patches#40.");
+    }
+    shown.adapter->setProperty("darkenPage", true);
+    const QPoint darkGlyph(70, 100), lightGlyph(230, 100), block(480, 120), corner(600, 400);
+    for (const auto &ground : grounds) {
+        const QByteArray written(ground.written);
+        shown.adapter->setProperty("currentUrl", server.url("/" + written.mid(1)));
+        const bool left = ground.drawn == nullptr;
+        const QColor drawn = left ? QColor(ground.written) : QColor(ground.drawn);
+        QTRY_COMPARE_WITH_TIMEOUT(pageAreaColour(shown.window, corner), drawn, 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(
+            pageAreaColour(shown.window, block), left ? QColor(0xd4, 0xd4, 0xd8) : element, 5000);
+        QCOMPARE(
+            pageAreaColour(shown.window, darkGlyph), left ? QColor(0x22, 0x22, 0x22) : darkText);
+        QCOMPARE(
+            pageAreaColour(shown.window, lightGlyph), left ? QColor(0xee, 0xee, 0xee) : lightText);
+        QCOMPARE(shown.adapter->property("pageOwnGroundDark").toBool(), left);
+    }
+}
+
+// Under a dark theme a darkened page lands on the theme's own ground and text,
+// so it matches the chrome around it. A light theme's ground would not be dark,
+// so its pages land on `#181a1b`. A theme change reaches the open page with no
+// reload.
+void QtEngineContractTest::qtDarkensAPageTowardTheThemesOwnColours()
+{
+    SiteServer server({{"/page",
+        SiteServer::html("<!doctype html><body style=\"margin:0;background:#fff\"><div "
+                         "style=\"position:absolute;left:40px;top:40px;font:120px/1 FreeMono;"
+                         "color:#222\">&#x2588;</div>")}});
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    ViewInWindow shown;
+    QVERIFY(shown.create(server.url("/page")));
+    QVERIFY(QTest::qWaitForWindowExposed(&shown.window));
+    if (!shown.engineDarkensByRole()) {
+        QSKIP("The engine inverts each colour's lightness: it predates "
+              "villekivela/omaweb-qtwebengine-patches#40.");
+    }
+    const auto palette = [](const char *bg, const char *fg) {
+        return QVariantMap {{QStringLiteral("bg"), QString::fromLatin1(bg)},
+            {QStringLiteral("fg"), QString::fromLatin1(fg)}};
+    };
+    const QPoint glyph(70, 100);
+    shown.adapter->setProperty("pagePalette", palette("#282a36", "#f8f8f2"));
+    shown.adapter->setProperty("darkenPage", true);
+    QTRY_COMPARE_WITH_TIMEOUT(pageAreaColour(shown.window), QColor(0x28, 0x2a, 0x36), 5000);
+    // #222 text toward #f8f8f2, a tinted text colour whose hue a grey takes.
+    QTRY_COMPARE_WITH_TIMEOUT(pageAreaColour(shown.window, glyph), QColor(0xe4, 0xe4, 0xce), 5000);
+
+    shown.adapter->setProperty("pagePalette", palette("#fafafa", "#202020"));
+    QTRY_COMPARE_WITH_TIMEOUT(pageAreaColour(shown.window), QColor(0x18, 0x1a, 0x1b), 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(pageAreaColour(shown.window, glyph), QColor(0xd3, 0xcf, 0xc9), 5000);
+
+    shown.adapter->setProperty("pagePalette", palette("#1e1e2e", "#cdd6f4"));
+    QTRY_COMPARE_WITH_TIMEOUT(pageAreaColour(shown.window), QColor(0x1e, 0x1e, 0x2e), 5000);
+    QCOMPARE(server.requestsFor("/page"), 1);
 }
 
 // Anyone who turns darkening on runs a dark theme, which Omaweb hands Chromium as
@@ -3607,7 +3735,7 @@ void QtEngineContractTest::qtLeavesAClassBasedDarkThemeAsWritten()
         // The class goes, and the page is darkened again.
         runInPage(shown, QStringLiteral("document.documentElement.classList.remove('dark')"));
         QTRY_VERIFY_WITH_TIMEOUT(isDark(blockColour(shown.window)), 5000);
-        QTRY_VERIFY2_WITH_TIMEOUT(isDarkenedWhite(pageAreaColour(shown.window)),
+        QTRY_VERIFY2_WITH_TIMEOUT(isDarkenedWhite(pageAreaColour(shown.window), shown),
             qPrintable(pageAreaColour(shown.window).name()), 5000);
         // And back.
         runInPage(shown, QStringLiteral("document.documentElement.classList.add('dark')"));
@@ -3772,7 +3900,8 @@ void QtEngineContractTest::qtKeepsAWhitePageDarkenedUnderAModalBackdrop()
     QVERIFY2(isDark(pageAreaColour(page.shown.window, QPoint(320, 240))),
         qPrintable(pageAreaColour(page.shown.window, QPoint(320, 240)).name()));
     runInPage(page.shown, QStringLiteral("m.style.display = 'none'"));
-    QTRY_VERIFY2_WITH_TIMEOUT(isDarkenedWhite(pageAreaColour(page.shown.window, QPoint(320, 240))),
+    QTRY_VERIFY2_WITH_TIMEOUT(
+        isDarkenedWhite(pageAreaColour(page.shown.window, QPoint(320, 240)), page.shown),
         qPrintable(pageAreaColour(page.shown.window, QPoint(320, 240)).name()), 5000);
     QTest::qWait(500);
     runInPage(page.shown, QStringLiteral("m.style.display = 'block'"));
@@ -3974,7 +4103,7 @@ void QtEngineContractTest::qtStartsEachDocumentDarkenedAfterAPageLeftAlone()
     });
     sampler.start(15);
     shown.adapter->setProperty("currentUrl", server.url("/white"));
-    QTRY_VERIFY2_WITH_TIMEOUT(isDarkenedWhite(pageAreaColour(shown.window)),
+    QTRY_VERIFY2_WITH_TIMEOUT(isDarkenedWhite(pageAreaColour(shown.window), shown),
         qPrintable(pageAreaColour(shown.window).name()), 5000);
     QTest::qWait(500);
     sampler.stop();
@@ -4044,6 +4173,10 @@ void QtEngineContractTest::qtCoversADarkenedPageInADarkColourWhenItsWindowReturn
 
         QVERIFY2(darken ? isDark(covered.constFirst()) : isWhite(covered.constFirst()),
             qPrintable(covered.constFirst().name()));
+        // The reported white through the mapping the engine draws it with.
+        if (darken && shown.engineDarkensByRole()) {
+            QCOMPARE(covered.constFirst(), QColor(0x18, 0x1a, 0x1b));
+        }
     }
 }
 
@@ -14269,9 +14402,11 @@ int main(int argc, char *argv[])
     // real capture as far as the engine's own bookkeeping is concerned.
     // `upgrade.example` stands for a site that is not a local-development
     // one, for HTTPS-only mode to upgrade, and is this machine.
+    // A darkened page is drawn by colour role, as the browser starts it.
     qputenv("QTWEBENGINE_CHROMIUM_FLAGS",
         "--use-fake-device-for-media-stream "
-        "--host-resolver-rules=\"MAP upgrade.example 127.0.0.1\"");
+        "--host-resolver-rules=\"MAP upgrade.example 127.0.0.1\" "
+            + omaweb::pageDarkeningEngineFlags({}).join(u' ').toLatin1());
     // Every test builds a QML engine of its own, and each reads the import
     // path from the environment, so a private engine's QML module is named
     // there once rather than in each.
