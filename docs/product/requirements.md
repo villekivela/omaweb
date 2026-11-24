@@ -705,8 +705,10 @@ reports the gap and remains experimental rather than imitating behavior it canno
 - A page that asks for a window, as many sign-ins do, is darkened as a tab's page is. The Auxiliary
   window's page is dark from its first document, an `about:blank` for a popup, by the opener's
   Space, and then follows its own address, the switch and the site's choice, by the same rule as a
-  tab. An Agent's window is an Auxiliary window and follows it too, since the setting is the
-  browser's.
+  tab. It is darkened toward the colours the opener's page is, which in a Private window are the
+  ones its chrome is drawn in: the window is given the opener's palette, so a page in it that asks
+  for the palette is given it too. An Agent's window is an Auxiliary window and follows it too,
+  since the setting is the browser's.
 - A page that is darkened is never covered in white. When a window returns, the page area is covered
   in the page's colour until the page has drawn again, and `getComputedStyle` reads a darkened
   page's ground as the white it is written in, so with Page darkening the cover is that colour

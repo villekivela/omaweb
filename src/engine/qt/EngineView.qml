@@ -103,16 +103,16 @@ Item {
     // Reader's `#181a1b` and `#e8e6e3`. Dark is the rule Qt's colour scheme is
     // set by: a ground below half lightness.
     readonly property color darkeningGroundColor: {
-        return root.themeDarkensPages ? root.paletteColour("bg") : "#181a1b";
+        return root.themeDarkensPages ? root.themeColor("bg") : "#181a1b";
     }
     readonly property color darkeningTextColor: {
-        return root.themeDarkensPages ? root.paletteColour("fg") : "#e8e6e3";
+        return root.themeDarkensPages ? root.themeColor("fg") : "#e8e6e3";
     }
     readonly property bool themeDarkensPages: {
-        const ground = root.paletteColour("bg");
-        return !!ground && !!root.paletteColour("fg") && ground.hslLightness < 0.5;
+        const ground = root.themeColor("bg");
+        return !!ground && !!root.themeColor("fg") && ground.hslLightness < 0.5;
     }
-    function paletteColour(role) {
+    function themeColor(role) {
         const palette = root.pagePalette;
         return palette && palette[role] ? Qt.color(palette[role]) : null;
     }
@@ -131,12 +131,14 @@ Item {
         webView.settings.forceDarkModeGroundColor = root.darkeningGroundColor;
         webView.settings.forceDarkModeTextColor = root.darkeningTextColor;
     }
-    // Where a ground with lightness `l` lands when it is darkened by role:
-    // Dark Reader's background mapping, which the engine draws a page's ground
-    // with. Lightness 0 to 0.5 goes onto 0 to 0.4, and 0.5 to 1 onto 0.4 down
-    // to the darkening ground's, so white is that ground exactly. A near grey
-    // takes the ground's hue and saturation, a dark yellow is cut by a quarter
-    // so it does not read as brown.
+    // Where a ground lands when it is darkened by role: Dark Reader's background
+    // mapping, which the engine draws a page's ground with, as
+    // `RoleAwareColorFilter::Background` in patch 0033 of
+    // villekivela/omaweb-qtwebengine-patches; a change there is a change here.
+    // Lightness 0 to 0.5 goes onto 0 to 0.4, and 0.5 to 1 onto 0.4 down to the
+    // darkening ground's, so white is that ground exactly. A near grey takes the
+    // ground's hue and saturation, a dark yellow is cut by a quarter so it does
+    // not read as brown.
     function darkenedGround(colour) {
         const ground = root.darkeningGroundColor;
         const hue = Math.max(0, colour.hslHue) * 360;

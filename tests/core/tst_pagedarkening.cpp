@@ -21,7 +21,7 @@ private slots:
     void followsAnEditMadeToTheFile();
     void asksTheEngineToDrawByColourRole();
     void carriesTheReadersOwnDarkModeSettings();
-    void leavesAnAlgorithmTheReaderChose();
+    void replacesAnAlgorithmTheReaderChose();
 };
 
 // Pages are shown as they were written until the reader asks otherwise, so a
@@ -132,13 +132,16 @@ void PageDarkeningTest::carriesTheReadersOwnDarkModeSettings()
             QStringLiteral("--dark-mode-settings=ContrastPercent=0.2,InversionAlgorithm=4")});
 }
 
-void PageDarkeningTest::leavesAnAlgorithmTheReaderChose()
+// The cover over a darkened page is drawn with the role mapping, so an engine
+// drawing another algorithm would show a cover that does not match the page.
+void PageDarkeningTest::replacesAnAlgorithmTheReaderChose()
 {
-    QVERIFY(pageDarkeningEngineFlags({QStringLiteral("--dark-mode-settings=InversionAlgorithm=2")})
-            .isEmpty());
-    QVERIFY(pageDarkeningEngineFlags(
-        {QStringLiteral("--dark-mode-settings=ImagePolicy=1,inversionalgorithm=3")})
-            .isEmpty());
+    QCOMPARE(
+        pageDarkeningEngineFlags({QStringLiteral("--dark-mode-settings=InversionAlgorithm=2")}),
+        QStringList {QStringLiteral("--dark-mode-settings=InversionAlgorithm=4")});
+    QCOMPARE(pageDarkeningEngineFlags(
+                 {QStringLiteral("--dark-mode-settings=ImagePolicy=1,inversionalgorithm=3")}),
+        QStringList {QStringLiteral("--dark-mode-settings=ImagePolicy=1,InversionAlgorithm=4")});
 }
 
 QTEST_GUILESS_MAIN(PageDarkeningTest)

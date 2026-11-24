@@ -58,15 +58,14 @@ QStringList pageDarkeningEngineFlags(const QStringList &engineFlags)
             settings = flag.sliced(switchName.size() + 1).split(u',', Qt::SkipEmptyParts);
         }
     }
-    // Chromium reads the names without regard to case.
-    for (const auto &setting : settings) {
-        if (setting.section(u'=', 0, 0)
-                .trimmed()
-                .compare(QStringLiteral("InversionAlgorithm"), Qt::CaseInsensitive)
-            == 0) {
-            return {};
-        }
-    }
+    // Chromium reads the names without regard to case. An algorithm the reader
+    // named gives way: the cover is drawn with the role mapping.
+    settings.removeIf([](const QString &setting) {
+        return setting.section(u'=', 0, 0)
+                   .trimmed()
+                   .compare(QStringLiteral("InversionAlgorithm"), Qt::CaseInsensitive)
+            == 0;
+    });
     settings.append(QStringLiteral("InversionAlgorithm=4"));
     return {switchName + u'=' + settings.join(u',')};
 }

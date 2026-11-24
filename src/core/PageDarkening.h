@@ -45,8 +45,9 @@ private:
 //
 // `engineFlags` is what the environment already passes to the engine, and the
 // answer belongs after it. Chromium reads the last `--dark-mode-settings`, so
-// the reader's own values are carried into Omaweb's, and a reader who chose an
-// algorithm of their own keeps it.
+// the reader's own values are carried into Omaweb's. An algorithm of their own
+// is replaced: the cover over a darkened page is drawn with the role mapping,
+// and would not match a page drawn with another.
 QStringList pageDarkeningEngineFlags(const QStringList &engineFlags);
 
 } // namespace omaweb
