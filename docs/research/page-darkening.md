@@ -72,8 +72,8 @@ the primary source for its behaviour. It says:
 
 The post does not mention borders, box shadows, form controls or video, and does not say what
 `prefers-color-scheme` reports. Since the feature requires a dark system appearance, a page's
-`@media (prefers-color-scheme: dark)` rules already match, which is presumably why such pages count
-as dark. The post does not say so.
+`@media (prefers-color-scheme: dark)` rules already match. The post does not say whether that is how
+such pages count as dark.
 [Safari Technology Preview 257](https://webkit.org/blog/18652/release-notes-for-safari-technology-preview-257/)
 (2026-11-18) adds one line: it "Fixed slow rendering and laggy scrolling on pages with many
 gradients affected by Adaptive Dark Mode color filters".
@@ -99,7 +99,7 @@ The commit messages describe what the hooks are for:
   Text colours are adjusted at paint time
   ([ef0952e](https://github.com/WebKit/WebKit/commit/ef0952e2516a36a36d28e6de8317601a017abe4f)), and
   table row backgrounds record a text backdrop
-  ([6233469](https://github.com/WebKit/WebKit/commit/6233469583)). This is how text can be held at a
+  ([6233469](https://github.com/WebKit/WebKit/commit/6233469583). This is how text can be held at a
   contrast ratio against what is actually behind it.
 - Shadows and borders: the box-shadow hook receives the whole shadow, so it can tell a drop shadow
   from a zero-blur, zero-offset shadow that stands in for a border
@@ -205,10 +205,10 @@ grayscale are applied after as a colour matrix
 Each transformed colour is also registered as a custom property such as `--darkreader-bg-ffffff`
 ([palette.ts](https://github.com/darkreader/darkreader/blob/586f4b900d92e6b3cb14076462b1a53a7760aa46/src/inject/dynamic-theme/palette.ts#L80-L97)).
 
-The model is the one that matters for Omaweb: the same input colour gets a different output by role.
-White as a background becomes `#181a1b`, white as text stays near `#e8e6e3`, and a white border
-becomes a dark line. Chromium's forced dark sends white through one inversion whatever its role, and
-only decides whether to invert it.
+Dark Reader maps one colour by role: the same input colour gets a different output by role. White as
+a background becomes `#181a1b`, white as text stays near `#e8e6e3`, and a white border becomes a
+dark line. Chromium's forced dark sends white through one inversion whatever its role, and only
+decides whether to invert it.
 
 ### What it reads and how
 
@@ -390,7 +390,7 @@ in Omaweb these are command-line values only.
   So Omaweb can pass it with no engine change.
 - It is process-wide. The renderer builds the settings once, into a function-local static
   ([dark_mode_settings_builder.cc](https://code.qt.io/cgit/qt/qtwebengine-chromium.git/tree/chromium/third_party/blink/renderer/platform/graphics/dark_mode_settings_builder.cc?id=e2b413ea3e2dc3c533335e12297abfda95b26cfa#n176)).
-  Every profile, Space and Private window gets the same values, and changing them needs a restart.
+  Every Space and Private window gets the same values, and changing them needs a restart.
 - Only the on and off switch is per page and live, through `ForceDarkMode`.
 
 ### Can a setting get closer to Safari
@@ -408,22 +408,22 @@ No setting changes the model, so none gets materially closer:
   element under 205, such as `#cccccc`, keeps its ground and has its text inverted either way.
 - `ImagePolicy=0`, selective icon inversion, is already the default.
 
-Tuning would trade one inverted look for another. The [screenshots](#screenshots) under each
-algorithm show it, and the code leaves no setting that adds roles or a chosen ground.
+Tuning would trade one inverted look for another, as the [screenshots](#screenshots) under each
+algorithm show.
 
 ## Options for Omaweb
 
 ### Tune Chromium's forced dark
 
-No engine change, one flag in `main.cpp`. As above, it cannot reach the look the issue asks for. It
-is also process-wide, so it could never follow a setting without a restart.
+No engine change, one flag in `main.cpp`, but it cannot reach the look the issue asks for and could
+never follow a setting without a restart.
 
 ### Recolour in a page script, as Dark Reader does
 
 - Look: as good as Dark Reader with its fixes, since its functions are MIT and could be reused.
   Without its 2,951 site entries, Omaweb would meet the breakage that list exists for.
 - Cost on every load: every sheet is parsed and rewritten in JavaScript, observers stay on, and
-  users report memory and load time costs from hundreds of megabytes to many seconds on heavy apps.
+  users report hundreds of megabytes of memory and loads many seconds slower on heavy apps.
 - Cross-origin sheets cannot be read from a page script. The shell would have to fetch their text,
   as Dark Reader's background page does, and that is a second request for every sheet.
 - Flash: the script cannot recolour a sheet before it has arrived and been parsed. A cover sheet
@@ -449,7 +449,8 @@ is also process-wide, so it could never follow a setting without a restart.
   which is Safari's own rule, and Safari also works at paint time.
 - Upkeep: one patch to `dark_mode_color_filter.cc`, `dark_mode_filter.cc` and
   `dark_mode_settings*.{h,cc}`. It has to be carried across Chromium updates. The patch series
-  already carries 32, and the constraints allow patches to the engine's drawing path.
+  already carries 32, and the [constraints](../agents/constraints.md) allow patches to the engine's
+  drawing path.
 - Engine contract: `darkenPage` and `PageDarkening` stay as they are. What changes is what the Qt
   engine promises a darkened page looks like. Ladybird still lacks the capability until LibWeb gets
   a paint-time hook of its own.
@@ -463,11 +464,20 @@ nothing unless Omaweb asks for it:
   colour and the role, since the same colour now has an output per role.
 - `kBackground`, `kSelection` and gradient stops use Dark Reader's background mapping: lightness 0
   to 0.5 onto 0 to 0.4, 0.5 to 1 onto 0.4 down to the ground colour's lightness, with neutral
-  colours taking the ground's hue and saturation. The background classifier keeps its threshold of
-  205, so a dark ground is still left as written and the ground script's limit holds.
-- `kForeground`, `kListSymbol` and `kSVG` use the text mapping, with every result at lightness 0.55
-  or above. For text, Blink could then raise the result against `contrast_background`, which it
-  already passes for borders and selection, toward 4.5:1 as Safari aims.
+  colours taking the ground's hue and saturation. Under this algorithm every background goes through
+  the mapping, with no per-element threshold. The mapping keeps a dark colour dark, so the
+  threshold's job of leaving dark parts alone is done by the curve, and the 205 cliff the
+  [screenshots](#screenshots) show, where `#d0d0d0` turns dark and `#cccccc` stays light, goes. A
+  page whose own ground is dark is still left as written, because the ground script turns darkening
+  off for the whole page at its limit of 205. That limit is the page's and stays.
+- `kForeground` and `kListSymbol` use the text mapping, with every result at lightness 0.55 or
+  above, and then raise the result against `contrast_background` to at least 4.5:1, as Safari aims.
+  Blink already passes that colour for borders and selection. Without this step, text on a
+  light-grey element would land light on light.
+- `kSVG` uses the background mapping, as Dark Reader treats an SVG fill, so a large light shape is
+  drawn dark rather than glaring. Blink gives fills and strokes one role, so a dark stroke or SVG
+  text drawn over a light fill turns dark on dark. The patch has to measure that on real logos and
+  icons before the choice is final; the contrast step against the fill is the likely fix.
 - `kBorder` uses the border mapping, lightness onto 0.5 down to 0.2.
 - The ground and text colours arrive as two new `--dark-mode-settings` parameters, so the patch
   needs no new Qt API. They are fixed for the run. Following a Browser theme switch live would need
@@ -568,12 +578,16 @@ to the engine, modelled on Dark Reader's colour functions, and turns it on in Om
 
 - Add `DarkModeInversionAlgorithm::kRoleAware` (`InversionAlgorithm=4`) to `dark_mode_settings.h`
   and `dark_mode_color_filter.cc`. Backgrounds, selection and gradient stops map toward a ground
-  colour, text, list markers and SVG toward a text colour, and borders onto a mid-to-dark range.
-  Neutral colours take the ground's hue.
+  colour, text and list markers toward a text colour, and borders onto a mid-to-dark range. SVG
+  takes the background mapping, measured on real logos and icons. Neutral colours take the ground's
+  hue.
+- Map every background under this algorithm, with no per-element threshold, so the 205 cliff goes.
+  The ground script's page limit of 205 stays.
+- Raise text and list markers against `contrast_background` to at least 4.5:1.
 - Pass the role to `DarkModeColorFilter::InvertColor`, and key the inverted colour cache on colour
   and role.
 - Read the ground and text colours from two new `--dark-mode-settings` parameters.
-- Keep the background threshold of 205 and the image classifier as they are.
+- Keep the image classifier as it is.
 - Record the patch in `MODIFICATIONS.md` and the series README.
 
 ## Omaweb
@@ -602,8 +616,9 @@ to the engine, modelled on Dark Reader's colour functions, and turns it on in Om
 - `src/engine/api/EngineCapabilities.h` and `src/engine/api/EngineViewContract.cpp`: the comments on
   `PageDarkening` and `darkenPage` stop naming Chromium's forced dark mode and say what a darkened
   page promises in engine-neutral terms: light grounds drawn dark, text drawn light, borders kept
-  visible, a ground that is already dark left as written, and computed styles and
-  `prefers-color-scheme` reading what the page wrote.
+  visible, text at least 4.5:1 against what is behind it, a ground that is already dark left as
+  written, computed styles reading what the page wrote, and `prefers-color-scheme` reporting the
+  scheme the browser prefers, unchanged by darkening.
 - `src/engine/ladybird/README.md`: Ladybird still lacks `PageDarkening`, and the README says what a
   LibWeb paint-time hook would need to offer to gain it.
 
