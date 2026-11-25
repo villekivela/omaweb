@@ -5689,6 +5689,39 @@ TestCase {
         verify(switchOn);
     }
 
+    // A popup's page is darkened toward the colours its opener's is, which in a
+    // Private window are the ones its chrome is drawn in: it is given the
+    // opener's palette, and a theme change reaches it.
+    function test_aPopupIsGivenItsOpenersPalette() {
+        const opener = openPage("https://palette-opener.example/start");
+        opener.simulateNewWindowRequest("https://login.acme.com/sign-in", true);
+        const auxiliary = findChild(window, "auxiliaryWindow");
+        tryVerify(function () {
+            return auxiliary !== null && auxiliary.visible;
+        });
+        const loader = findChild(auxiliary.contentItem, "auxiliaryEngineLoader");
+        tryVerify(function () {
+            return loader.item !== null;
+        });
+        const openerGround = opener.pagePalette ? opener.pagePalette.bg : "";
+        const given = loader.item.pagePalette;
+        opener.pagePalette = {
+            "bg": "#282a36",
+            "fg": "#f8f8f2"
+        };
+        const followed = loader.item.pagePalette;
+        auxiliary.close();
+        tryVerify(function () {
+            return !auxiliary.visible;
+        });
+
+        verify(openerGround !== "");
+        verify(given !== null && given !== undefined);
+        compare(given.bg, openerGround);
+        compare(followed.bg, "#282a36");
+        compare(followed.fg, "#f8f8f2");
+    }
+
     // An engine that cannot darken a page, as Ladybird cannot, offers no row to
     // turn it off for a site, and Settings says so beside the switch.
     function test_anEngineWithoutDarkeningOffersNoRowAndReportsItUnavailable() {

@@ -4,6 +4,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 
 namespace omaweb {
 
@@ -35,5 +36,18 @@ private:
     SettingsFile m_settings;
     bool m_enabled = false;
 };
+
+// What Omaweb adds to the Qt engine's command line so a darkened page is drawn
+// by the role each colour plays: a light ground toward the Browser theme's
+// ground, text toward its text, and borders as mid to dark lines, rather than
+// with every colour's lightness inverted. Chromium reads the algorithm once per
+// renderer, so it is the process's; the colours are each page's.
+//
+// `engineFlags` is what the environment already passes to the engine, and the
+// answer belongs after it. Chromium reads the last `--dark-mode-settings`, so
+// the reader's own values are carried into Omaweb's. An algorithm of their own
+// is replaced: the cover over a darkened page is drawn with the role mapping,
+// and would not match a page drawn with another.
+QStringList pageDarkeningEngineFlags(const QStringList &engineFlags);
 
 } // namespace omaweb

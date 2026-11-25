@@ -163,6 +163,12 @@ ApplicationWindow {
             item.swipeDistance = Qt.binding(function () {
                 return auxiliary.swipeDistance;
             });
+            // The opener's palette, which in a Private window is the one its
+            // chrome is drawn in: a darkened page here lands on the ground a
+            // tab's does, and a page that asks for the palette is given it.
+            item.pagePalette = Qt.binding(function () {
+                return auxiliary.openerEngine ? auxiliary.openerEngine.pagePalette : null;
+            });
             item.pageSwiped.connect(function (direction) {
                 if (direction < 0)
                     item.goBack();

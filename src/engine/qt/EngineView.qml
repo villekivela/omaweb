@@ -97,6 +97,78 @@ Item {
     // choice is left to the engine at this threshold and no other.
     readonly property real darkGroundBrightness: 205
     readonly property bool darkened: root.darkenPage && !root.pageOwnGroundDark
+    // The colours a darkened page is drawn toward. Under a dark theme they are
+    // the theme's own ground and text, so the page matches the chrome around
+    // it; a light theme's ground is not dark, so its pages land on Dark
+    // Reader's `#181a1b` and `#e8e6e3`. Dark is the rule Qt's colour scheme is
+    // set by: a ground below half lightness.
+    readonly property color darkeningGroundColor: {
+        return root.themeDarkensPages ? root.themeColor("bg") : "#181a1b";
+    }
+    readonly property color darkeningTextColor: {
+        return root.themeDarkensPages ? root.themeColor("fg") : "#e8e6e3";
+    }
+    readonly property bool themeDarkensPages: {
+        const ground = root.themeColor("bg");
+        return !!ground && !!root.themeColor("fg") && ground.hslLightness < 0.5;
+    }
+    function themeColor(role) {
+        const palette = root.pagePalette;
+        return palette && palette[role] ? Qt.color(palette[role]) : null;
+    }
+    // Whether the engine draws a darkened page by the role each colour plays,
+    // toward the colours above: an engine from before
+    // villekivela/omaweb-qtwebengine-patches#40 has no such settings and
+    // inverts each colour's lightness. The algorithm itself is the process's,
+    // asked for on the engine's command line.
+    readonly property bool engineDarkensByRole: "forceDarkModeGroundColor" in webView.settings
+    onDarkeningGroundColorChanged: root.applyDarkeningColors()
+    onDarkeningTextColorChanged: root.applyDarkeningColors()
+    // A change reaches the page on show, with no reload.
+    function applyDarkeningColors() {
+        if (!root.engineDarkensByRole)
+            return;
+        webView.settings.forceDarkModeGroundColor = root.darkeningGroundColor;
+        webView.settings.forceDarkModeTextColor = root.darkeningTextColor;
+    }
+    // Where a ground lands when it is darkened by role: Dark Reader's background
+    // mapping, which the engine draws a page's ground with, as
+    // `RoleAwareColorFilter::Background` in patch 0033 of
+    // villekivela/omaweb-qtwebengine-patches; a change there is a change here.
+    // Lightness 0 to 0.5 goes onto 0 to 0.4, and 0.5 to 1 onto 0.4 down to the
+    // darkening ground's, so white is that ground exactly. A near grey takes the
+    // ground's hue and saturation, a dark yellow is cut by a quarter so it does
+    // not read as brown.
+    function darkenedGround(colour) {
+        const ground = root.darkeningGroundColor;
+        const hue = Math.max(0, colour.hslHue) * 360;
+        const saturation = colour.hslSaturation;
+        const lightness = colour.hslLightness;
+        const blue = hue > 200 && hue < 280;
+        const neutral = saturation < 0.12 || (lightness > 0.8 && blue);
+        const groundHue = Math.max(0, ground.hslHue);
+        if (lightness < 0.5) {
+            const dark = root.scaled(lightness, 0, 0.5, 0, 0.4);
+            if (neutral)
+                return Qt.hsla(groundHue, ground.hslSaturation, dark, 1);
+            return Qt.hsla(hue / 360, saturation, dark, 1);
+        }
+        let light = root.scaled(lightness, 0.5, 1, 0.4, ground.hslLightness);
+        if (neutral)
+            return Qt.hsla(groundHue, ground.hslSaturation, light, 1);
+        let moved = hue;
+        if (hue > 120 && hue < 180)
+            moved = root.scaled(hue, 120, 180, 135, 180);
+        else if (hue > 60 && hue <= 120)
+            moved = root.scaled(hue, 60, 120, 60, 105);
+        if (moved > 40 && moved < 80)
+            light *= 0.75;
+        return Qt.hsla(moved / 360, saturation, light, 1);
+    }
+    // `value` moved from the range `fromLow` to `fromHigh` onto `toLow` to `toHigh`.
+    function scaled(value, fromLow, fromHigh, toLow, toHigh) {
+        return (value - fromLow) * (toHigh - toLow) / (fromHigh - fromLow) + toLow;
+    }
     // Whether the document's script is watching its ground, which it does only
     // while darkening is wanted.
     property bool groundWatched: false
@@ -2538,6 +2610,7 @@ Item {
 
     Component.onCompleted: {
         root.completed = true;
+        root.applyDarkeningColors();
         // Written once more with what it already holds, which takes the
         // binding off it: a script that changes from here on is put in by
         // installUserScript, and the binding must not write the collection
@@ -5005,18 +5078,19 @@ Item {
     property color pageGroundColor: "white"
     // The ground as it is drawn. `getComputedStyle` reads a darkened page's ground
     // as the white it is written in, so the cover would be white over a dark page.
-    // Chromium darkens only a background brighter than 205 of 255. The inverted
-    // lightness, floored at about 7%, is dark where the page is but approximate:
-    // the engine draws #f5f5f5 as #222222, #fafafa as #1f1f1f, and white as
-    // #121212 on x86_64 and #1b1b1b on aarch64, where its build rounds the
-    // channels of an inverted grey apart and Chromium does not move it to
-    // #121212 (#936). The cover is #121212 over each.
+    // The engine draws it through the role mapping above, so the cover is the
+    // reported ground through the same mapping: white is the darkening ground.
+    // An engine that inverts instead darkens only a background brighter than
+    // 205 of 255, and the inverted lightness, floored at about 7%, is dark where
+    // the page is but approximate (#936).
     readonly property color coverGroundColor: {
         // A page left as written is covered in the ground it reported, which on
         // a wrapper's theme is the wrapper's and not the canvas's.
         if (root.darkenPage && root.pageOwnGroundDark)
             return root.pageOwnGroundColor;
         const ground = root.pageGroundColor;
+        if (root.darkened && root.engineDarkensByRole)
+            return root.darkenedGround(ground);
         const brightness = 255 * (0.299 * ground.r + 0.587 * ground.g + 0.114 * ground.b);
         if (!root.darkened || brightness <= root.darkGroundBrightness)
             return ground;
