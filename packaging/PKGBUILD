@@ -42,9 +42,10 @@ depends=(
     # page Chrome's chrome.app, chrome.csi and chrome.loadTimes (#766).
     # 6.11.3-1 is the first that carries Chromium's security fixes up to
     # 155.0.8059.85 (#802), 6.140.0-1 the first up to 157.0.8103.50
-    # (#484), and 6.140.0-2 the first that lets Omaweb say which tab is
-    # selected (#961).
-    'omaweb-qtwebengine>=6.140.0-2'
+    # (#484), 6.140.0-2 the first that lets Omaweb say which tab is
+    # selected (#961), and 6.140.0-3 the first that draws a darkened page by
+    # the role each colour plays (#975).
+    'omaweb-qtwebengine>=6.140.0-3'
     # Native Wayland is the primary display platform. X11 stays a fallback Qt
     # supplies through qt6-base.
     'qt6-wayland'
