@@ -4,7 +4,10 @@
 
 `omaweb-qt` is the default development and current daily-driver variant. `omaweb-ladybird` is
 configured and built separately against a pinned Ladybird revision. Ladybird never enters the
-default Qt configure or compile graph.
+default Qt configure or compile graph: `OMAWEB_BUILD_LADYBIRD` is off, only the `ladybird` preset
+turns it on, and `omaweb-ladybird-isolated` checks both. The Ladybird variant keeps its own data
+root and config root, so the two browsers never write the same files
+([ADR 0073](adr/0073-keep-the-ladybird-variant-apart-from-the-qt-browser.md)).
 
 The variants share core state, persistence, QML, themes, platform code, and engine-contract tests.
 Engine-specific headers stay inside adapter targets. Live tabs do not migrate between engines, and

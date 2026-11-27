@@ -81,11 +81,12 @@
     {
       "name": "ladybird",
       "inherits": "base",
-      "displayName": "Ladybird adapter placeholder",
+      "displayName": "Experimental Ladybird variant",
       "binaryDir": "${sourceDir}/build/ladybird",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "OMAWEB_BUILD_BROWSER": false,
+        "OMAWEB_BUILD_LADYBIRD": true,
         "OMAWEB_BUILD_UI_LAB": true,
         "OMAWEB_SOURCE_QML": true
       }

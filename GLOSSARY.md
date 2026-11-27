@@ -12,6 +12,11 @@ engine is not ready. QtWebEngine is the current development engine. _Avoid_: Fal
 **Target engine**: The web engine Omaweb ultimately intends to use for everyday browsing. Ladybird
 is the current target engine. _Avoid_: Experimental backend
 
+**Ladybird variant**: The separate, experimental build of Omaweb, `omaweb-ladybird`, that runs on
+Ladybird at a pinned revision. It keeps its own data root and settings, never shares an Engine
+profile with the Qt build, and reports each capability its adapter has not yet passed as off.
+_Avoid_: Ladybird mode, Ladybird backend
+
 **Local-development site**: A site operated by the reader for software development, reached through
 localhost, an IP literal, or a reserved local-development domain. Omaweb may give it narrowly scoped
 behavior that public sites never receive, such as a one-time overridable certificate exception.

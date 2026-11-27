@@ -1,5 +1,7 @@
 #include "ProblemReport.h"
 
+#include "EngineVariant.h"
+
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -317,7 +319,7 @@ QString configRootFromEnvironment()
     }
     const auto xdg = qEnvironmentVariable("XDG_CONFIG_HOME");
     const auto base = xdg.isEmpty() ? QDir::home().filePath(QStringLiteral(".config")) : xdg;
-    return QDir(base).filePath(QStringLiteral("omaweb"));
+    return EngineVariant::configRoot(EngineVariant::Qt, base);
 }
 
 QList<ProblemReportSection> problemReportFromDisk(

@@ -14,6 +14,7 @@ message(STATUS "Omaweb version ${OMAWEB_VERSION_STRING} (build ${OMAWEB_BUILD_NU
 include(CTest)
 
 option(OMAWEB_BUILD_BROWSER "Build the QtWebEngine application" ON)
+option(OMAWEB_BUILD_LADYBIRD "Configure the experimental Ladybird variant" OFF)
 option(OMAWEB_BUILD_UI_LAB "Build the engine-free QML UI runner" ON)
 option(OMAWEB_SOURCE_QML "Load QML from the source tree for fast iteration" ON)
 if(UNIX AND NOT APPLE)
@@ -102,6 +103,8 @@ add_library(omaweb-agent-client STATIC
     src/core/AgentProtocol.h
     src/core/DiagnosticOverrides.cpp
     src/core/DiagnosticOverrides.h
+    src/core/EngineVariant.cpp
+    src/core/EngineVariant.h
     src/core/LaunchRequest.cpp
     src/core/LaunchRequest.h
     src/core/ProblemReport.cpp
@@ -237,6 +240,12 @@ if(NOT omaweb_content_blocker_expected_checksum STREQUAL omaweb_content_blocker_
 endif()
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/content-blocker/LADYBIRD_REVISION"
     omaweb_ladybird_revision LIMIT_COUNT 1)
+
+# The Ladybird variant is its own build (ADR 0073). Nothing of it is configured
+# unless a preset asks, so a Qt edit never reaches it.
+if(OMAWEB_BUILD_LADYBIRD)
+    add_subdirectory(src/engine/ladybird)
+endif()
 
 # uBlock Origin's scriptlet library and substitute resources. The content
 # blocker builds their descriptor files into its own binary, so the pin belongs
@@ -1376,6 +1385,12 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 
+    add_test(NAME omaweb-ladybird-isolated
+        COMMAND ${CMAKE_COMMAND}
+            -DOMAWEB_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check_ladybird_isolated.cmake
+    )
+
     add_test(NAME omaweb-shared-qml-boundary
         COMMAND ${CMAKE_COMMAND}
             -DOMAWEB_UI_DIRECTORY=${CMAKE_CURRENT_SOURCE_DIR}/src/ui
@@ -1914,6 +1929,11 @@ if(BUILD_TESTING)
     target_link_libraries(omaweb-space-storage-tests PRIVATE omaweb-core Qt6::Test)
     omaweb_strict_target(omaweb-space-storage-tests)
     add_test(NAME omaweb-space-storage COMMAND omaweb-space-storage-tests)
+
+    qt_add_executable(omaweb-engine-variant-tests tests/core/tst_enginevariant.cpp)
+    target_link_libraries(omaweb-engine-variant-tests PRIVATE omaweb-core Qt6::Test)
+    omaweb_strict_target(omaweb-engine-variant-tests)
+    add_test(NAME omaweb-engine-variant COMMAND omaweb-engine-variant-tests)
 
     qt_add_executable(omaweb-sounding-tabs-tests tests/core/tst_soundingtabs.cpp)
     target_link_libraries(omaweb-sounding-tabs-tests PRIVATE omaweb-core Qt6::Test)
