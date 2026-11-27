@@ -1,8 +1,8 @@
 # Keep the Ladybird variant apart from the Qt browser
 
-Refines [0001](0001-isolate-web-engines-by-build.md), which had both variants share one data root,
-and [0008](0008-isolate-space-storage-on-disk.md)'s layout where one Space holds an engine profile
-for each engine. The experimental Ladybird variant, `omaweb-ladybird`, keeps its own data root and
+Refines [0001](0001-isolate-web-engines-by-build.md), which left the variants' shared state
+unplaced, and [0008](0008-isolate-space-storage-on-disk.md), which puts each engine's profile in one
+Space's directory. The experimental Ladybird variant, `omaweb-ladybird`, keeps its own data root and
 settings, so the two browsers never write the same file.
 
 ## What is decided
@@ -16,7 +16,8 @@ settings, so the two browsers never write the same file.
   Space has its own Ladybird profile directory, `spaces/<id>/engines/ladybird`.
 - **Capabilities, not pretence.** Until Ladybird's adapter passes the engine contract for one, every
   capability but navigation and a persistent profile is reported off. Settings and Site information
-  say so where the setting lives, as they do for Page darkening.
+  read the flag and say so where the setting lives, as they do for Page darkening. The adapter's
+  first run of each surface lands with #980.
 - **A build of its own.** `OMAWEB_BUILD_LADYBIRD` is off by default and only the `ladybird` preset
   turns it on. `src/engine/ladybird` is added to the build by that one `if`, so an edit to the Qt
   browser never configures or compiles Ladybird, and `omaweb-ladybird-isolated` fails if another

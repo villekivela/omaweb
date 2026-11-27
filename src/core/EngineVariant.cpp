@@ -4,11 +4,6 @@
 
 namespace omaweb {
 
-QString EngineVariant::engineName(Kind kind)
-{
-    return kind == Ladybird ? QStringLiteral("ladybird") : QStringLiteral("qt");
-}
-
 QString EngineVariant::applicationName(Kind kind)
 {
     return kind == Ladybird ? QStringLiteral("Omaweb-Ladybird") : QStringLiteral("Omaweb");

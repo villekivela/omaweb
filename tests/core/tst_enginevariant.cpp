@@ -11,7 +11,6 @@ private slots:
     void keepsTheQtBuildWhereItAlwaysWas();
     void givesLadybirdItsOwnConfigRoot();
     void givesLadybirdItsOwnApplicationDataDirectory();
-    void namesEachVariantsEngineForItsProfiles();
 };
 
 // A reader's settings and Spaces already sit at these paths; the variant must
@@ -42,12 +41,6 @@ void EngineVariantTest::givesLadybirdItsOwnApplicationDataDirectory()
 {
     QCOMPARE(
         EngineVariant::applicationName(EngineVariant::Ladybird), QStringLiteral("Omaweb-Ladybird"));
-}
-
-void EngineVariantTest::namesEachVariantsEngineForItsProfiles()
-{
-    QCOMPARE(EngineVariant::engineName(EngineVariant::Qt), QStringLiteral("qt"));
-    QCOMPARE(EngineVariant::engineName(EngineVariant::Ladybird), QStringLiteral("ladybird"));
 }
 
 QTEST_APPLESS_MAIN(EngineVariantTest)

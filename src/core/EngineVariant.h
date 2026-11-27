@@ -15,8 +15,6 @@ class EngineVariant {
 public:
     enum Kind { Qt, Ladybird };
 
-    // The name `SpaceStorage` files this engine's profiles under.
-    static QString engineName(Kind kind);
     // Qt derives the application data directory from this name, so the two
     // variants' data roots are siblings, not one inside the other.
     static QString applicationName(Kind kind);
