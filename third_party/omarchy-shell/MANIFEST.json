@@ -1,8 +1,8 @@
 {
   "repository": "https://github.com/omacom/omarchy",
   "branch": "quattro",
-  "ref": "7c8e05925391188d6e95e581dc51c12fb2facd48",
-  "fetched": "2026-11-21",
+  "ref": "68ff662260493bb82952fab3602a2da6918e3066",
+  "fetched": "2026-11-26",
   "license": "MIT",
   "files": {
     "LICENSE": {
@@ -32,8 +32,8 @@
     },
     "qs/Commons/Color.qml": {
       "upstream": "shell/Commons/Color.qml",
-      "blob": "0dbcbf675db9b56e8211097e1a4d6a7e873f13db",
-      "sha256": "08af401286831759b63279cf6d6732d666256c751864a03bd5594ea29a29f0e5"
+      "blob": "524c3ced65b33cf34e1cb91312c9e6752e934675",
+      "sha256": "bed613365ac3f746c8e89b52adfccfa22bfa66e44c748f5271817e8576fb2c8f"
     },
     "qs/Commons/I18n.qml": {
       "upstream": "shell/Commons/I18n.qml",
@@ -72,13 +72,13 @@
     },
     "qs/Commons/Style.qml": {
       "upstream": "shell/Commons/Style.qml",
-      "blob": "6016cce4a41b301e31fa574ec361811e6e1a1da5",
-      "sha256": "65758e4935a225984d88afee65e740bae99e335d608d12befdbe5ec5e2e57f90"
+      "blob": "b5eef3725029acc04bb954cae416922728cbd6e7",
+      "sha256": "2d697ade2eeec1e64e56257344791c8248734401f6a8933bdde410421516f66f"
     },
     "qs/Commons/Translations.qml": {
       "upstream": "shell/Commons/Translations.qml",
-      "blob": "bdafb9019827a9251000c749f488b152183951da",
-      "sha256": "8355b2cbe2199683443f21d02bb0b455c0c35c4bebd9e86985aa8e2c9c00424b"
+      "blob": "734480da58d7934753fd7c66f3e6fdcc6ccbc6a5",
+      "sha256": "8db3910ebc028d40828be9875f132f088c7b5611750203eec95eb1e8109bbb22"
     },
     "qs/Commons/UntypedInput.qml": {
       "upstream": "shell/Commons/UntypedInput.qml",
@@ -165,6 +165,11 @@
       "blob": "4c95ea661c91bad77fbb9874280c9ca6a70b4cc8",
       "sha256": "4b3a159a748feb169d72d480f5d3284d4526dc2305ef689d7ab6a38e3bc0badf"
     },
+    "qs/Ui/HeroButton.qml": {
+      "upstream": "shell/Ui/HeroButton.qml",
+      "blob": "93024f84bd256a0de3c1da2e70431a696d8ce356",
+      "sha256": "47c4590c85ce9e6a32fc0344f350bd269f360b94a4fbfa7250b497b29e631d12"
+    },
     "qs/Ui/IconContentBounds.qml": {
       "upstream": "shell/Ui/IconContentBounds.qml",
       "blob": "90bde568d570190df48b836a40eb32c367a8835a",
@@ -202,8 +207,8 @@
     },
     "qs/Ui/PanelActionButton.qml": {
       "upstream": "shell/Ui/PanelActionButton.qml",
-      "blob": "ab19391ee2c33977d3eeea9b702dd334df09b7ad",
-      "sha256": "299a6b758450b04047db9d119f3d3b508b4a692fa34779d10cfde519c7cb5275"
+      "blob": "33971184a8ae4a9eecc80f2aa372c710ecc3630e",
+      "sha256": "c38bdd870d2bcf0dbf7c87059a9b79915d70aa529cf8da3a2f4de6379010c6d7"
     },
     "qs/Ui/PanelController.qml": {
       "upstream": "shell/Ui/PanelController.qml",
@@ -297,8 +302,8 @@
     },
     "qs/Ui/qmldir": {
       "upstream": "shell/Ui/qmldir",
-      "blob": "e45214be9edf57ca5fee12456eabe54ea3ed372a",
-      "sha256": "6b0592589ca23af850f03a8a4c546ea1f8c797ed346597ff2f2766d5cef3eb22"
+      "blob": "a14e7771949d1c2b6efb5e457346b9e08c91c6d4",
+      "sha256": "59b5ee525ec923cd06a2ce167cc5059a0721a47f7cf22460c50eeeb6cbd4b518"
     }
   }
 }
