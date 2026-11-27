@@ -107,17 +107,18 @@ last on show ([#961](https://github.com/villekivela/omaweb/issues/961)), and Oma
 6.140.0-2 for it. A link opened while the browser is slow to answer waits for it rather than
 starting a second browser ([#967](https://github.com/villekivela/omaweb/issues/967)).
 
-[v0.24.0](https://github.com/villekivela/omaweb/milestone/26) is the release in progress. Page
-darkening draws a page dark by each colour's role, background, text or border, in the Browser
-theme's own colours, rather than inverting it, through a patch in the engine series
+[v0.24.0](https://github.com/villekivela/omaweb/milestone/26) shipped on 2026-11-27. Page darkening
+draws a page dark by each colour's role, background, text or border, in the Browser theme's own
+colours, rather than inverting it, through a patch in the engine series
 ([#975](https://github.com/villekivela/omaweb/issues/975)), after the research in
-[#973](https://github.com/villekivela/omaweb/issues/973). That patch needs an engine release before
-Omaweb can require it, so it starts first. Ladybird's first alpha makes an experimental
-`omaweb-ladybird` package worth building, installed beside `omaweb` with its own data
-([#7](https://github.com/villekivela/omaweb/issues/7)). It follows #975 where both change the engine
-contract's Page darkening. The freeze on switching to Omaweb's workspace when memory is low is
-diagnosed before anything is fixed ([#968](https://github.com/villekivela/omaweb/issues/968)), and
-the Omarchy kit catches up with quattro ([#972](https://github.com/villekivela/omaweb/issues/972)).
+[#973](https://github.com/villekivela/omaweb/issues/973), and Omaweb needs engine 6.140.0-3 for it.
+The groundwork for an experimental Omaweb on Ladybird keeps its build apart from the Qt one and
+gives it its own data ([#7](https://github.com/villekivela/omaweb/issues/7)), and the Omarchy kit
+catches up with quattro ([#972](https://github.com/villekivela/omaweb/issues/972)).
+
+[v0.25.0](https://github.com/villekivela/omaweb/milestone/27) is the release in progress. It builds
+the Ladybird adapter and ships `omaweb-ladybird` beside `omaweb`, once it runs pages
+([#980](https://github.com/villekivela/omaweb/issues/980)).
 
 What makes Omaweb beta is not yet decided. The milestones are the planned work, not a gate.
 
