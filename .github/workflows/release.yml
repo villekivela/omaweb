@@ -83,6 +83,12 @@ jobs:
           MIRROR: ${{ matrix.mirror }}
         run: |
           echo "Server = $MIRROR" > /etc/pacman.d/mirrorlist
+          # Current Arch splits libcrypto.so.3 and libssl.so.3 into `openssl-3`,
+          # which the snapshot has never heard of, so its older `openssl` would
+          # collide with it. The snapshot's `openssl` ships both libraries.
+          if pacman -Q openssl-3 >/dev/null 2>&1; then
+            pacman -Rdd --noconfirm openssl-3
+          fi
           pacman -Syyuu --noconfirm
       # Before the checkout, because `actions/checkout` without git in the
       # container falls back to the REST API, and a downloaded tarball carries
