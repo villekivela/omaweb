@@ -12,6 +12,7 @@ class SpaceStorageTest final : public QObject {
 private slots:
     void keepsEachSpaceUnderTheDataRoot();
     void keepsEachEngineOutOfAnothersProfile();
+    void keepsLadybirdProfilesOfTwoSpacesApart();
     void answersWithoutCreatingAnything();
 };
 
@@ -49,6 +50,18 @@ void SpaceStorageTest::keepsEachEngineOutOfAnothersProfile()
     // The Space is the same Space either way, so its session is the same file.
     QCOMPARE(qt.databasePathFor(QStringLiteral("personal")),
         ladybird.databasePathFor(QStringLiteral("personal")));
+}
+
+// Each Space has its own Ladybird profile directory, so cookies and site
+// storage never cross from one Space to another (ADR 0003).
+void SpaceStorageTest::keepsLadybirdProfilesOfTwoSpacesApart()
+{
+    const SpaceStorage ladybird(QStringLiteral("/data"), QStringLiteral("ladybird"));
+
+    QCOMPARE(ladybird.profilePathFor(QStringLiteral("personal")),
+        QStringLiteral("/data/spaces/personal/engines/ladybird"));
+    QCOMPARE(ladybird.profilePathFor(QStringLiteral("work")),
+        QStringLiteral("/data/spaces/work/engines/ladybird"));
 }
 
 // Saying where something belongs is not asking for it to exist.

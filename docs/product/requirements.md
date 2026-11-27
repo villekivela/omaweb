@@ -12,6 +12,12 @@ application build variants and share Omaweb's browser model, interface, settings
 engine-contract tests. The Qt build may satisfy a capability before Ladybird; the Ladybird build
 reports the gap and remains experimental rather than imitating behavior it cannot provide.
 
+The Ladybird variant, `omaweb-ladybird`, keeps its own data root and settings, apart from the Qt
+browser's, so the two never write the same files and an alpha engine cannot reach the reader's real
+profile. Each Space has its own Ladybird Engine profile. Until its adapter passes the engine
+contract for a capability, the variant reports that capability off
+([ADR 0073](../adr/0073-keep-the-ladybird-variant-apart-from-the-qt-browser.md)).
+
 ## Required browsing model
 
 - One persistent ordinary main window with no title bar or visible window controls. Omaweb does not
@@ -1315,7 +1321,8 @@ The default page commands include:
   to the engine command line itself are audited by the same rule as flags from its command line and
   from `QTWEBENGINE_CHROMIUM_FLAGS`.
 - The Ladybird variant is experimental and unsuitable for sensitive browsing while Ladybird remains
-  pre-alpha.
+  in alpha. Ladybird's first public alpha, tag `2026.47.7`, warns to expect crashes and not to rely
+  on its security.
 - Site permissions belong to an origin within one Space and support allow once, persistent allow,
   and block.
 - Camera, microphone, geolocation, notifications, and clipboard read use the three Site-permission

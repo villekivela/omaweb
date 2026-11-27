@@ -161,7 +161,8 @@ build graph carries these compile steps, and `omaweb-qml-build-graph` checks tha
 directions.
 
 The `ladybird` preset is deliberately separate. Do not add Ladybird, Qt source builds, or Rust
-compilation to `dev`.
+compilation to `dev`. It sets `OMAWEB_BUILD_LADYBIRD`, which adds `src/engine/ladybird` to the
+build, and no other preset may.
 
 Before the first configure, build the pinned Content-blocking library into the disposable local
 cache:

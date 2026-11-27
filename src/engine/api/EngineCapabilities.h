@@ -81,6 +81,13 @@ public:
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(EngineCapabilities::Capabilities)
 
+// What the Ladybird build reports. Ladybird's adapter is not written, so only
+// what a Space's profile directory and a navigation already need is on, and
+// every other capability is off until the adapter passes the contract for it:
+// Settings and Site information read the flag and say the engine cannot, as
+// they do for Page darkening. The Qt engine's set is declared by its own view.
+EngineCapabilities::Capabilities ladybirdCapabilities();
+
 void registerEngineCapabilities();
 
 } // namespace omaweb

@@ -21,6 +21,9 @@ private slots:
     void mockExposesSharedContractAndCapabilities();
     void mockSwitchesOptionalCapabilities_data();
     void mockSwitchesOptionalCapabilities();
+    void ladybirdReportsEachGapAsOff_data();
+    void ladybirdReportsEachGapAsOff();
+    void ladybirdReportsOnlyWhatItBrowsesWith();
 };
 
 void EngineContractTest::initTestCase() { omaweb::registerEngineCapabilities(); }
@@ -91,6 +94,38 @@ void EngineContractTest::mockSwitchesOptionalCapabilities()
     QCOMPARE((initialCapabilities & capability) != 0, initiallyAvailable);
     QVERIFY(adapter->setProperty(propertyName, !initiallyAvailable));
     QCOMPARE(adapter->property("capabilities").toInt(), initialCapabilities ^ capability);
+}
+
+void EngineContractTest::ladybirdReportsEachGapAsOff_data()
+{
+    QTest::addColumn<int>("capability");
+
+    QTest::newRow("page darkening") << static_cast<int>(EngineCapabilities::PageDarkening);
+    QTest::newRow("known extensions") << static_cast<int>(EngineCapabilities::KnownExtensions);
+    QTest::newRow("cname uncloaking") << static_cast<int>(EngineCapabilities::CnameUncloaking);
+    QTest::newRow("procedural cosmetic filtering")
+        << static_cast<int>(EngineCapabilities::ProceduralCosmeticFiltering);
+    QTest::newRow("page certificates") << static_cast<int>(EngineCapabilities::PageCertificates);
+    QTest::newRow("agent network") << static_cast<int>(EngineCapabilities::AgentNetwork);
+    QTest::newRow("content blocking") << static_cast<int>(EngineCapabilities::ContentBlocking);
+    QTest::newRow("inline pdf viewing") << static_cast<int>(EngineCapabilities::InlinePdfViewing);
+    QTest::newRow("developer tools") << static_cast<int>(EngineCapabilities::DeveloperTools);
+}
+
+// Ladybird has no adapter yet, so a capability it cannot be shown to have is
+// reported off and Omaweb says so where its setting lives, rather than a
+// control that does nothing.
+void EngineContractTest::ladybirdReportsEachGapAsOff()
+{
+    QFETCH(int, capability);
+
+    QVERIFY(!(omaweb::ladybirdCapabilities() & capability));
+}
+
+void EngineContractTest::ladybirdReportsOnlyWhatItBrowsesWith()
+{
+    QCOMPARE(int(omaweb::ladybirdCapabilities()),
+        int(EngineCapabilities::Navigation | EngineCapabilities::PersistentProfiles));
 }
 
 QTEST_MAIN(EngineContractTest)
